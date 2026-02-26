@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"log/slog"
 	"sync"
-	"time"
 
 	"github.com/Code-Hex/synchro"
 	"github.com/Code-Hex/synchro/tz"
@@ -17,6 +16,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/walnuts1018/beast/apiserver/config"
 	"github.com/walnuts1018/beast/apiserver/domain"
 	"github.com/walnuts1018/beast/apiserver/infra/postgres/sqlcgen"
 )
@@ -34,31 +34,21 @@ type Store struct {
 	subscribers map[string]map[chan domain.VideoEncodingProgress]struct{}
 }
 
-func NewStore(ctx context.Context, dsn string) (*Store, error) {
-	return NewStoreWithOptions(ctx, dsn, StoreOptions{})
-}
-
-type StoreOptions struct {
-	MaxOpenConns    int
-	MaxIdleConns    int
-	ConnMaxLifetime time.Duration
-	ConnMaxIdleTime time.Duration
-}
-
-func NewStoreWithOptions(ctx context.Context, dsn string, options StoreOptions) (*Store, error) {
+func NewStoreWithOptions(ctx context.Context, cfg config.DBConfig) (*Store, error) {
+	dsn := cfg.DSN()
 	poolConfig, err := pgxpool.ParseConfig(dsn)
 	if err != nil {
 		return nil, fmt.Errorf("parse postgres config: %w", err)
 	}
 
-	if options.MaxOpenConns > 0 {
-		poolConfig.MaxConns = int32(options.MaxOpenConns)
+	if cfg.MaxOpenConns > 0 {
+		poolConfig.MaxConns = int32(cfg.MaxOpenConns)
 	}
-	if options.ConnMaxLifetime > 0 {
-		poolConfig.MaxConnLifetime = options.ConnMaxLifetime
+	if cfg.ConnMaxLifetime > 0 {
+		poolConfig.MaxConnLifetime = cfg.ConnMaxLifetime
 	}
-	if options.ConnMaxIdleTime > 0 {
-		poolConfig.MaxConnIdleTime = options.ConnMaxIdleTime
+	if cfg.ConnMaxIdleTime > 0 {
+		poolConfig.MaxConnIdleTime = cfg.ConnMaxIdleTime
 	}
 
 	pool, err := pgxpool.NewWithConfig(ctx, poolConfig)

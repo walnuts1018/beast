@@ -17,11 +17,12 @@ import (
 	"github.com/99designs/gqlgen/graphql/handler/lru"
 	"github.com/99designs/gqlgen/graphql/handler/transport"
 	"github.com/99designs/gqlgen/graphql/playground"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/labstack/echo/v5"
 	"github.com/labstack/echo/v5/middleware"
 	"github.com/vektah/gqlparser/v2/ast"
 	"github.com/vektah/gqlparser/v2/gqlerror"
-
 	"github.com/walnuts1018/beast/apiserver/auth"
 	"github.com/walnuts1018/beast/apiserver/config"
 	"github.com/walnuts1018/beast/apiserver/graph"
@@ -46,27 +47,26 @@ func main() {
 	logger := logger.CreateLogger(cfg.LogLevel, cfg.LogType)
 	slog.SetDefault(logger)
 
-	store, err := postgres.NewStoreWithOptions(ctx, cfg.DB.DSN(), postgres.StoreOptions{
-		MaxOpenConns:    cfg.DB.MaxOpenConns,
-		MaxIdleConns:    cfg.DB.MaxIdleConns,
-		ConnMaxLifetime: cfg.DB.ConnMaxLifetime,
-		ConnMaxIdleTime: cfg.DB.ConnMaxIdleTime,
-	})
+	opts := []func(*awsconfig.LoadOptions) error{}
+	if cfg.LogLevel == slog.LevelDebug {
+		opts = append(opts, awsconfig.WithClientLogMode(aws.LogSigning|aws.LogRequestWithBody))
+	}
+
+	awsCfg, err := awsconfig.LoadDefaultConfig(ctx, opts...)
+
+	if err != nil {
+		slog.ErrorContext(ctx, "Failed to load aws config", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
+
+	store, err := postgres.NewStoreWithOptions(ctx, cfg.DB)
 	if err != nil {
 		slog.ErrorContext(ctx, "postgres initialization error", slog.Any("error", err))
 		os.Exit(1)
 	}
 	defer store.Close()
 
-	objectStore, err := objectstorage.NewS3Storage(ctx, objectstorage.Config{
-		Region:          cfg.S3.Region,
-		Endpoint:        cfg.S3.Endpoint,
-		Bucket:          cfg.S3.Bucket,
-		AccessKeyID:     cfg.S3.AccessKeyID,
-		SecretAccessKey: cfg.S3.SecretAccessKey,
-		UsePathStyle:    cfg.S3.UsePathStyle,
-		UploadTTL:       cfg.S3.UploadURLTTL,
-	})
+	objectStore, err := objectstorage.NewS3Storage(ctx, awsCfg, cfg.S3)
 	if err != nil {
 		slog.ErrorContext(ctx, "object storage initialization error", slog.Any("error", err))
 		os.Exit(1)

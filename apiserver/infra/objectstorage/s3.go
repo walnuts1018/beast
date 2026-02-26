@@ -8,10 +8,9 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/smithy-go"
+	"github.com/walnuts1018/beast/apiserver/config"
 )
 
 type S3Storage struct {
@@ -21,65 +20,16 @@ type S3Storage struct {
 	uploadTTL time.Duration
 }
 
-type Config struct {
-	Region          string
-	Endpoint        string
-	Bucket          string
-	AccessKeyID     string
-	SecretAccessKey string
-	UsePathStyle    bool
-	UploadTTL       time.Duration
-}
-
-func NewS3Storage(ctx context.Context, cfg Config) (*S3Storage, error) {
-	if cfg.Region == "" {
-		cfg.Region = "us-east-1"
-	}
-	if cfg.UploadTTL <= 0 {
-		cfg.UploadTTL = 15 * time.Minute
-	}
-
-	if strings.TrimSpace(cfg.Bucket) == "" {
-		return nil, fmt.Errorf("s3 bucket is required")
-	}
-
-	loadOptions := make([]func(*config.LoadOptions) error, 0, 3)
-	loadOptions = append(loadOptions, config.WithRegion(cfg.Region))
-
-	if cfg.AccessKeyID != "" || cfg.SecretAccessKey != "" {
-		loadOptions = append(loadOptions, config.WithCredentialsProvider(
-			credentials.NewStaticCredentialsProvider(cfg.AccessKeyID, cfg.SecretAccessKey, ""),
-		))
-	}
-
-	if cfg.Endpoint != "" {
-		resolver := aws.EndpointResolverWithOptionsFunc(func(service, region string, _ ...interface{}) (aws.Endpoint, error) {
-			if service == s3.ServiceID {
-				return aws.Endpoint{
-					URL:               cfg.Endpoint,
-					HostnameImmutable: true,
-				}, nil
-			}
-
-			return aws.Endpoint{}, fmt.Errorf("unknown endpoint requested: %s (%s)", service, region)
-		})
-		loadOptions = append(loadOptions, config.WithEndpointResolverWithOptions(resolver))
-	}
-
-	awsCfg, err := config.LoadDefaultConfig(ctx, loadOptions...)
-	if err != nil {
-		return nil, fmt.Errorf("load aws config: %w", err)
-	}
-
-	client := s3.NewFromConfig(awsCfg, func(options *s3.Options) {
-		options.UsePathStyle = cfg.UsePathStyle
+func NewS3Storage(ctx context.Context, awsCfg aws.Config, cfg config.S3Config) (*S3Storage, error) {
+	client := s3.NewFromConfig(awsCfg, func(o *s3.Options) {
+		o.UsePathStyle = cfg.UsePathStyle
 	})
 
 	storage := &S3Storage{
 		bucket:    cfg.Bucket,
 		presigner: s3.NewPresignClient(client),
 		client:    client,
-		uploadTTL: cfg.UploadTTL,
+		uploadTTL: cfg.UploadURLTTL,
 	}
 
 	if err := storage.ensureBucket(ctx); err != nil {
