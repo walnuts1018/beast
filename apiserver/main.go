@@ -81,6 +81,7 @@ func main() {
 		postgres.NewEncodingProgressRepository(store),
 		objectStore,
 		postgres.NewPlaybackHistoryRepository(store),
+		cfg.S3.UploadURLTTL,
 	)
 
 	resolvers := &graph.Resolver{Service: service}
