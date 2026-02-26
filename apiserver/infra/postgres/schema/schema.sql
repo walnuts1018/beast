@@ -47,6 +47,12 @@ CREATE TABLE IF NOT EXISTS videos (
     content_enc_key_version INTEGER,
     content_enc_nonce BYTEA,
     content_enc_encrypted_data_key BYTEA,
+    rating INTEGER CHECK (
+        rating >= 1
+        AND rating <= 5
+    ),
+    play_count INTEGER NOT NULL DEFAULT 0,
+    last_played_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL
 );
@@ -71,3 +77,14 @@ CREATE TABLE IF NOT EXISTS encoding_progress (
     updated_at TIMESTAMPTZ NOT NULL,
     message TEXT
 );
+
+CREATE TABLE IF NOT EXISTS playback_histories (
+    id TEXT PRIMARY KEY,
+    video_id TEXT NOT NULL REFERENCES videos(id) ON DELETE CASCADE,
+    owner_user_id TEXT NOT NULL,
+    played_at TIMESTAMPTZ NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_playback_histories_video_id ON playback_histories(video_id, played_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_playback_histories_owner ON playback_histories(owner_user_id, played_at DESC);

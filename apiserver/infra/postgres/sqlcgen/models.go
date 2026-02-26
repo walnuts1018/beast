@@ -26,6 +26,13 @@ type EncodingProgress struct {
 	Message   pgtype.Text
 }
 
+type PlaybackHistory struct {
+	ID          string
+	VideoID     string
+	OwnerUserID string
+	PlayedAt    pgtype.Timestamptz
+}
+
 type SharedKeyVersion struct {
 	UserID       string
 	Version      int32
@@ -64,6 +71,9 @@ type Video struct {
 	ContentEncKeyVersion        *int32
 	ContentEncNonce             []byte
 	ContentEncEncryptedDataKey  []byte
+	Rating                      *int32
+	PlayCount                   int32
+	LastPlayedAt                pgtype.Timestamptz
 	CreatedAt                   pgtype.Timestamptz
 	UpdatedAt                   pgtype.Timestamptz
 }

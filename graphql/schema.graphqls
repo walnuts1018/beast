@@ -95,6 +95,18 @@ type Video {
   playback: PlaybackGrant
   tags: [String!]!
   contentEncryption: EncryptionMetadata
+  """
+  星評価。nullは未評価、1-5は星の数。
+  """
+  rating: Int
+  """
+  再生回数。
+  """
+  playCount: Int!
+  """
+  最終再生日時。
+  """
+  lastPlayedAt: DateTime
 }
 
 type Me {
@@ -157,6 +169,30 @@ input RetryEncodingInput {
   videoId: ID!
 }
 
+input RateVideoInput {
+  """
+  動画ID。
+  """
+  videoId: ID!
+  """
+  星評価。nullを指定すると評価をクリアする。1-5の整数で星の数を指定する。
+  """
+  rating: Int
+}
+
+input RecordPlaybackInput {
+  videoId: ID!
+}
+
+"""
+再生履歴の1レコード。
+"""
+type PlaybackHistory {
+  id: ID!
+  videoId: ID!
+  playedAt: DateTime!
+}
+
 type Query {
   me: Me!
   video(videoId: ID!): Video
@@ -172,6 +208,8 @@ type Mutation {
   completeUpload(input: CompleteUploadInput!): Video!
   updateVideoTags(input: UpdateVideoTagsInput!): Video!
   retryEncoding(input: RetryEncodingInput!): Video!
+  rateVideo(input: RateVideoInput!): Video!
+  recordPlayback(input: RecordPlaybackInput!): PlaybackHistory!
 }
 
 type Subscription {

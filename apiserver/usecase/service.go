@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/Code-Hex/synchro"
@@ -30,6 +31,7 @@ type Service struct {
 	uploads    domain.UploadSessionRepository
 	progress   domain.EncodingProgressRepository
 	objects    domain.ObjectStorage
+	playbacks  domain.PlaybackHistoryRepository
 	now        func() synchro.Time[tz.UTC]
 }
 
@@ -41,6 +43,7 @@ func NewService(
 	uploads domain.UploadSessionRepository,
 	progress domain.EncodingProgressRepository,
 	objects domain.ObjectStorage,
+	playbacks domain.PlaybackHistoryRepository,
 ) *Service {
 	return &Service{
 		videos:     videos,
@@ -50,6 +53,7 @@ func NewService(
 		uploads:    uploads,
 		progress:   progress,
 		objects:    objects,
+		playbacks:  playbacks,
 		now:        synchro.Now[tz.UTC],
 	}
 }
@@ -405,4 +409,74 @@ func (s *Service) SubscribeEncodingProgress(
 	}
 
 	return s.progress.Subscribe(ctx, videoID)
+}
+
+func (s *Service) RateVideo(ctx context.Context, userID string, videoID string, rating *int) (*domain.Video, error) {
+	if userID == "" {
+		return nil, ErrUnauthorized
+	}
+
+	video, err := s.videos.GetByID(ctx, videoID)
+	if err != nil {
+		return nil, err
+	}
+	if video == nil || video.OwnerUserID != userID {
+		return nil, ErrNotFound
+	}
+
+	var domainRating *domain.Rating
+	if rating != nil {
+		r, err := domain.NewRating(*rating)
+		if err != nil {
+			return nil, fmt.Errorf("%w: %s", ErrInvalidInput, err.Error())
+		}
+		domainRating = &r
+	}
+
+	if err := s.videos.UpdateRating(ctx, videoID, userID, domainRating); err != nil {
+		return nil, err
+	}
+
+	video.Rating = domainRating
+
+	tags, err := s.tags.GetTags(ctx, videoID)
+	if err != nil {
+		return nil, err
+	}
+	video.Tags = tags
+
+	return video, nil
+}
+
+func (s *Service) RecordPlayback(ctx context.Context, userID string, videoID string) (*domain.PlaybackHistory, error) {
+	if userID == "" {
+		return nil, ErrUnauthorized
+	}
+
+	video, err := s.videos.GetByID(ctx, videoID)
+	if err != nil {
+		return nil, err
+	}
+	if video == nil || video.OwnerUserID != userID {
+		return nil, ErrNotFound
+	}
+
+	now := s.now()
+	history := domain.PlaybackHistory{
+		ID:          uuid.NewString(),
+		VideoID:     videoID,
+		OwnerUserID: userID,
+		PlayedAt:    now,
+	}
+
+	if err := s.playbacks.Record(ctx, history); err != nil {
+		return nil, err
+	}
+
+	// 再生回数の非正規化フィールドを更新（失敗しても再生履歴の記録は維持する）
+	if err := s.videos.IncrementPlayCount(ctx, videoID, now); err != nil {
+		slog.ErrorContext(ctx, "再生回数の更新に失敗", slog.Any("error", err), slog.String("videoID", videoID))
+	}
+
+	return &history, nil
 }

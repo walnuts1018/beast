@@ -80,6 +80,9 @@ func toDomainVideo(row sqlcgen.Video) domain.Video {
 		DurationMillis: fromInt32Ptr(row.DurationMillis),
 		Width:          fromInt32Ptr(row.Width),
 		Height:         fromInt32Ptr(row.Height),
+		Rating:         fromInt32PtrToRating(row.Rating),
+		PlayCount:      int(row.PlayCount),
+		LastPlayedAt:   fromPgTimestamptzPtr(row.LastPlayedAt),
 		CreatedAt:      fromPgTimestamptz(row.CreatedAt),
 		UpdatedAt:      fromPgTimestamptz(row.UpdatedAt),
 	}
@@ -125,6 +128,9 @@ func toCreateVideoParams(v domain.Video) sqlcgen.CreateVideoParams {
 		DurationMillis: toInt32Ptr(v.DurationMillis),
 		Width:          toInt32Ptr(v.Width),
 		Height:         toInt32Ptr(v.Height),
+		Rating:         toRatingInt32Ptr(v.Rating),
+		PlayCount:      int32(v.PlayCount),
+		LastPlayedAt:   toPgTimestamptzPtr(v.LastPlayedAt),
 		CreatedAt:      toPgTimestamptz(v.CreatedAt),
 		UpdatedAt:      toPgTimestamptz(v.UpdatedAt),
 	}
@@ -254,5 +260,34 @@ func toDomainEncodingProgress(row sqlcgen.EncodingProgress) domain.VideoEncoding
 		Percent:   row.Percent,
 		UpdatedAt: fromPgTimestamptz(row.UpdatedAt),
 		Message:   fromPgTextPtr(row.Message),
+	}
+}
+
+// Rating変換
+
+func fromInt32PtrToRating(v *int32) *domain.Rating {
+	if v == nil {
+		return nil
+	}
+	r := domain.Rating(*v)
+	return &r
+}
+
+func toRatingInt32Ptr(r *domain.Rating) *int32 {
+	if r == nil {
+		return nil
+	}
+	v := int32(*r)
+	return &v
+}
+
+// PlaybackHistory変換
+
+func toDomainPlaybackHistory(row sqlcgen.PlaybackHistory) domain.PlaybackHistory {
+	return domain.PlaybackHistory{
+		ID:          row.ID,
+		VideoID:     row.VideoID,
+		OwnerUserID: row.OwnerUserID,
+		PlayedAt:    fromPgTimestamptz(row.PlayedAt),
 	}
 }

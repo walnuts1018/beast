@@ -68,7 +68,25 @@ type PlaybackGrant struct {
 	Encryption  *EncryptionMetadata  `json:"encryption"`
 }
 
+// 再生履歴の1レコード。
+type PlaybackHistory struct {
+	ID       string               `json:"id"`
+	VideoID  string               `json:"videoId"`
+	PlayedAt synchro.Time[tz.UTC] `json:"playedAt"`
+}
+
 type Query struct {
+}
+
+type RateVideoInput struct {
+	// 動画ID。
+	VideoID string `json:"videoId"`
+	// 星評価。nullを指定すると評価をクリアする。1-5の整数で星の数を指定する。
+	Rating *int `json:"rating,omitempty"`
+}
+
+type RecordPlaybackInput struct {
+	VideoID string `json:"videoId"`
 }
 
 type RegisterDeviceKeyInput struct {
@@ -127,6 +145,12 @@ type Video struct {
 	Playback          *PlaybackGrant        `json:"playback,omitempty"`
 	Tags              []string              `json:"tags"`
 	ContentEncryption *EncryptionMetadata   `json:"contentEncryption,omitempty"`
+	// 星評価。nullは未評価、1-5は星の数。
+	Rating *int `json:"rating,omitempty"`
+	// 再生回数。
+	PlayCount int `json:"playCount"`
+	// 最終再生日時。
+	LastPlayedAt *synchro.Time[tz.UTC] `json:"lastPlayedAt,omitempty"`
 }
 
 type VideoConnection struct {

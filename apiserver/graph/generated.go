@@ -63,6 +63,8 @@ type ComplexityRoot struct {
 	Mutation struct {
 		CompleteUpload         func(childComplexity int, input model.CompleteUploadInput) int
 		CreateUploadSession    func(childComplexity int, input model.CreateUploadSessionInput) int
+		RateVideo              func(childComplexity int, input model.RateVideoInput) int
+		RecordPlayback         func(childComplexity int, input model.RecordPlaybackInput) int
 		RegisterDeviceKey      func(childComplexity int, input model.RegisterDeviceKeyInput) int
 		RegisterSharedKey      func(childComplexity int, input model.RegisterSharedKeyInput) int
 		RetryEncoding          func(childComplexity int, input model.RetryEncodingInput) int
@@ -80,6 +82,12 @@ type ComplexityRoot struct {
 		ExpiresAt   func(childComplexity int) int
 		ManifestURL func(childComplexity int) int
 		VideoID     func(childComplexity int) int
+	}
+
+	PlaybackHistory struct {
+		ID       func(childComplexity int) int
+		PlayedAt func(childComplexity int) int
+		VideoID  func(childComplexity int) int
 	}
 
 	Query struct {
@@ -114,8 +122,11 @@ type ComplexityRoot struct {
 		FailedReason      func(childComplexity int) int
 		Height            func(childComplexity int) int
 		ID                func(childComplexity int) int
+		LastPlayedAt      func(childComplexity int) int
 		OwnerUserID       func(childComplexity int) int
+		PlayCount         func(childComplexity int) int
 		Playback          func(childComplexity int) int
+		Rating            func(childComplexity int) int
 		ReadyAt           func(childComplexity int) int
 		Status            func(childComplexity int) int
 		Tags              func(childComplexity int) int
@@ -150,6 +161,8 @@ type MutationResolver interface {
 	CompleteUpload(ctx context.Context, input model.CompleteUploadInput) (*model.Video, error)
 	UpdateVideoTags(ctx context.Context, input model.UpdateVideoTagsInput) (*model.Video, error)
 	RetryEncoding(ctx context.Context, input model.RetryEncodingInput) (*model.Video, error)
+	RateVideo(ctx context.Context, input model.RateVideoInput) (*model.Video, error)
+	RecordPlayback(ctx context.Context, input model.RecordPlaybackInput) (*model.PlaybackHistory, error)
 }
 type QueryResolver interface {
 	Me(ctx context.Context) (*model.Me, error)
@@ -272,6 +285,28 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.CreateUploadSession(childComplexity, args["input"].(model.CreateUploadSessionInput)), true
+	case "Mutation.rateVideo":
+		if e.ComplexityRoot.Mutation.RateVideo == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_rateVideo_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.RateVideo(childComplexity, args["input"].(model.RateVideoInput)), true
+	case "Mutation.recordPlayback":
+		if e.ComplexityRoot.Mutation.RecordPlayback == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_recordPlayback_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.RecordPlayback(childComplexity, args["input"].(model.RecordPlaybackInput)), true
 	case "Mutation.registerDeviceKey":
 		if e.ComplexityRoot.Mutation.RegisterDeviceKey == nil {
 			break
@@ -365,6 +400,25 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.PlaybackGrant.VideoID(childComplexity), true
+
+	case "PlaybackHistory.id":
+		if e.ComplexityRoot.PlaybackHistory.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PlaybackHistory.ID(childComplexity), true
+	case "PlaybackHistory.playedAt":
+		if e.ComplexityRoot.PlaybackHistory.PlayedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PlaybackHistory.PlayedAt(childComplexity), true
+	case "PlaybackHistory.videoId":
+		if e.ComplexityRoot.PlaybackHistory.VideoID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PlaybackHistory.VideoID(childComplexity), true
 
 	case "Query.encodingProgress":
 		if e.ComplexityRoot.Query.EncodingProgress == nil {
@@ -505,18 +559,36 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Video.ID(childComplexity), true
+	case "Video.lastPlayedAt":
+		if e.ComplexityRoot.Video.LastPlayedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Video.LastPlayedAt(childComplexity), true
 	case "Video.ownerUserId":
 		if e.ComplexityRoot.Video.OwnerUserID == nil {
 			break
 		}
 
 		return e.ComplexityRoot.Video.OwnerUserID(childComplexity), true
+	case "Video.playCount":
+		if e.ComplexityRoot.Video.PlayCount == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Video.PlayCount(childComplexity), true
 	case "Video.playback":
 		if e.ComplexityRoot.Video.Playback == nil {
 			break
 		}
 
 		return e.ComplexityRoot.Video.Playback(childComplexity), true
+	case "Video.rating":
+		if e.ComplexityRoot.Video.Rating == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Video.Rating(childComplexity), true
 	case "Video.readyAt":
 		if e.ComplexityRoot.Video.ReadyAt == nil {
 			break
@@ -616,6 +688,8 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputCompleteUploadInput,
 		ec.unmarshalInputCreateUploadSessionInput,
 		ec.unmarshalInputPaginationInput,
+		ec.unmarshalInputRateVideoInput,
+		ec.unmarshalInputRecordPlaybackInput,
 		ec.unmarshalInputRegisterDeviceKeyInput,
 		ec.unmarshalInputRegisterSharedKeyInput,
 		ec.unmarshalInputRetryEncodingInput,
@@ -810,6 +884,18 @@ type Video {
   playback: PlaybackGrant
   tags: [String!]!
   contentEncryption: EncryptionMetadata
+  """
+  星評価。nullは未評価、1-5は星の数。
+  """
+  rating: Int
+  """
+  再生回数。
+  """
+  playCount: Int!
+  """
+  最終再生日時。
+  """
+  lastPlayedAt: DateTime
 }
 
 type Me {
@@ -872,6 +958,30 @@ input RetryEncodingInput {
   videoId: ID!
 }
 
+input RateVideoInput {
+  """
+  動画ID。
+  """
+  videoId: ID!
+  """
+  星評価。nullを指定すると評価をクリアする。1-5の整数で星の数を指定する。
+  """
+  rating: Int
+}
+
+input RecordPlaybackInput {
+  videoId: ID!
+}
+
+"""
+再生履歴の1レコード。
+"""
+type PlaybackHistory {
+  id: ID!
+  videoId: ID!
+  playedAt: DateTime!
+}
+
 type Query {
   me: Me!
   video(videoId: ID!): Video
@@ -887,6 +997,8 @@ type Mutation {
   completeUpload(input: CompleteUploadInput!): Video!
   updateVideoTags(input: UpdateVideoTagsInput!): Video!
   retryEncoding(input: RetryEncodingInput!): Video!
+  rateVideo(input: RateVideoInput!): Video!
+  recordPlayback(input: RecordPlaybackInput!): PlaybackHistory!
 }
 
 type Subscription {
@@ -915,6 +1027,28 @@ func (ec *executionContext) field_Mutation_createUploadSession_args(ctx context.
 	var err error
 	args := map[string]any{}
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNCreateUploadSessionInput2githubᚗcomᚋwalnuts1018ᚋbeastᚋapiserverᚋgraphᚋmodelᚐCreateUploadSessionInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_rateVideo_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNRateVideoInput2githubᚗcomᚋwalnuts1018ᚋbeastᚋapiserverᚋgraphᚋmodelᚐRateVideoInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_recordPlayback_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNRecordPlaybackInput2githubᚗcomᚋwalnuts1018ᚋbeastᚋapiserverᚋgraphᚋmodelᚐRecordPlaybackInput)
 	if err != nil {
 		return nil, err
 	}
@@ -1725,6 +1859,12 @@ func (ec *executionContext) fieldContext_Mutation_completeUpload(ctx context.Con
 				return ec.fieldContext_Video_tags(ctx, field)
 			case "contentEncryption":
 				return ec.fieldContext_Video_contentEncryption(ctx, field)
+			case "rating":
+				return ec.fieldContext_Video_rating(ctx, field)
+			case "playCount":
+				return ec.fieldContext_Video_playCount(ctx, field)
+			case "lastPlayedAt":
+				return ec.fieldContext_Video_lastPlayedAt(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Video", field.Name)
 		},
@@ -1792,6 +1932,12 @@ func (ec *executionContext) fieldContext_Mutation_updateVideoTags(ctx context.Co
 				return ec.fieldContext_Video_tags(ctx, field)
 			case "contentEncryption":
 				return ec.fieldContext_Video_contentEncryption(ctx, field)
+			case "rating":
+				return ec.fieldContext_Video_rating(ctx, field)
+			case "playCount":
+				return ec.fieldContext_Video_playCount(ctx, field)
+			case "lastPlayedAt":
+				return ec.fieldContext_Video_lastPlayedAt(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Video", field.Name)
 		},
@@ -1859,6 +2005,12 @@ func (ec *executionContext) fieldContext_Mutation_retryEncoding(ctx context.Cont
 				return ec.fieldContext_Video_tags(ctx, field)
 			case "contentEncryption":
 				return ec.fieldContext_Video_contentEncryption(ctx, field)
+			case "rating":
+				return ec.fieldContext_Video_rating(ctx, field)
+			case "playCount":
+				return ec.fieldContext_Video_playCount(ctx, field)
+			case "lastPlayedAt":
+				return ec.fieldContext_Video_lastPlayedAt(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Video", field.Name)
 		},
@@ -1871,6 +2023,128 @@ func (ec *executionContext) fieldContext_Mutation_retryEncoding(ctx context.Cont
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_retryEncoding_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_rateVideo(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_rateVideo,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().RateVideo(ctx, fc.Args["input"].(model.RateVideoInput))
+		},
+		nil,
+		ec.marshalNVideo2ᚖgithubᚗcomᚋwalnuts1018ᚋbeastᚋapiserverᚋgraphᚋmodelᚐVideo,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_rateVideo(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_Video_id(ctx, field)
+			case "ownerUserId":
+				return ec.fieldContext_Video_ownerUserId(ctx, field)
+			case "status":
+				return ec.fieldContext_Video_status(ctx, field)
+			case "uploadedAt":
+				return ec.fieldContext_Video_uploadedAt(ctx, field)
+			case "readyAt":
+				return ec.fieldContext_Video_readyAt(ctx, field)
+			case "failedReason":
+				return ec.fieldContext_Video_failedReason(ctx, field)
+			case "durationMillis":
+				return ec.fieldContext_Video_durationMillis(ctx, field)
+			case "width":
+				return ec.fieldContext_Video_width(ctx, field)
+			case "height":
+				return ec.fieldContext_Video_height(ctx, field)
+			case "playback":
+				return ec.fieldContext_Video_playback(ctx, field)
+			case "tags":
+				return ec.fieldContext_Video_tags(ctx, field)
+			case "contentEncryption":
+				return ec.fieldContext_Video_contentEncryption(ctx, field)
+			case "rating":
+				return ec.fieldContext_Video_rating(ctx, field)
+			case "playCount":
+				return ec.fieldContext_Video_playCount(ctx, field)
+			case "lastPlayedAt":
+				return ec.fieldContext_Video_lastPlayedAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Video", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_rateVideo_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_recordPlayback(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_recordPlayback,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().RecordPlayback(ctx, fc.Args["input"].(model.RecordPlaybackInput))
+		},
+		nil,
+		ec.marshalNPlaybackHistory2ᚖgithubᚗcomᚋwalnuts1018ᚋbeastᚋapiserverᚋgraphᚋmodelᚐPlaybackHistory,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_recordPlayback(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_PlaybackHistory_id(ctx, field)
+			case "videoId":
+				return ec.fieldContext_PlaybackHistory_videoId(ctx, field)
+			case "playedAt":
+				return ec.fieldContext_PlaybackHistory_playedAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type PlaybackHistory", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_recordPlayback_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -2061,6 +2335,93 @@ func (ec *executionContext) fieldContext_PlaybackGrant_encryption(_ context.Cont
 	return fc, nil
 }
 
+func (ec *executionContext) _PlaybackHistory_id(ctx context.Context, field graphql.CollectedField, obj *model.PlaybackHistory) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_PlaybackHistory_id,
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_PlaybackHistory_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PlaybackHistory",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PlaybackHistory_videoId(ctx context.Context, field graphql.CollectedField, obj *model.PlaybackHistory) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_PlaybackHistory_videoId,
+		func(ctx context.Context) (any, error) {
+			return obj.VideoID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_PlaybackHistory_videoId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PlaybackHistory",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PlaybackHistory_playedAt(ctx context.Context, field graphql.CollectedField, obj *model.PlaybackHistory) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_PlaybackHistory_playedAt,
+		func(ctx context.Context) (any, error) {
+			return obj.PlayedAt, nil
+		},
+		nil,
+		ec.marshalNDateTime2githubᚗcomᚋCodeᚑHexᚋsynchroᚐTime,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_PlaybackHistory_playedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PlaybackHistory",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type DateTime does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_me(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -2147,6 +2508,12 @@ func (ec *executionContext) fieldContext_Query_video(ctx context.Context, field 
 				return ec.fieldContext_Video_tags(ctx, field)
 			case "contentEncryption":
 				return ec.fieldContext_Video_contentEncryption(ctx, field)
+			case "rating":
+				return ec.fieldContext_Video_rating(ctx, field)
+			case "playCount":
+				return ec.fieldContext_Video_playCount(ctx, field)
+			case "lastPlayedAt":
+				return ec.fieldContext_Video_lastPlayedAt(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Video", field.Name)
 		},
@@ -3055,6 +3422,93 @@ func (ec *executionContext) fieldContext_Video_contentEncryption(_ context.Conte
 	return fc, nil
 }
 
+func (ec *executionContext) _Video_rating(ctx context.Context, field graphql.CollectedField, obj *model.Video) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Video_rating,
+		func(ctx context.Context) (any, error) {
+			return obj.Rating, nil
+		},
+		nil,
+		ec.marshalOInt2ᚖint,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_Video_rating(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Video",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Video_playCount(ctx context.Context, field graphql.CollectedField, obj *model.Video) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Video_playCount,
+		func(ctx context.Context) (any, error) {
+			return obj.PlayCount, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Video_playCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Video",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Video_lastPlayedAt(ctx context.Context, field graphql.CollectedField, obj *model.Video) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Video_lastPlayedAt,
+		func(ctx context.Context) (any, error) {
+			return obj.LastPlayedAt, nil
+		},
+		nil,
+		ec.marshalODateTime2ᚖgithubᚗcomᚋCodeᚑHexᚋsynchroᚐTime,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_Video_lastPlayedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Video",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type DateTime does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _VideoConnection_edges(ctx context.Context, field graphql.CollectedField, obj *model.VideoConnection) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -3202,6 +3656,12 @@ func (ec *executionContext) fieldContext_VideoEdge_node(_ context.Context, field
 				return ec.fieldContext_Video_tags(ctx, field)
 			case "contentEncryption":
 				return ec.fieldContext_Video_contentEncryption(ctx, field)
+			case "rating":
+				return ec.fieldContext_Video_rating(ctx, field)
+			case "playCount":
+				return ec.fieldContext_Video_playCount(ctx, field)
+			case "lastPlayedAt":
+				return ec.fieldContext_Video_lastPlayedAt(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Video", field.Name)
 		},
@@ -4903,6 +5363,65 @@ func (ec *executionContext) unmarshalInputPaginationInput(ctx context.Context, o
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputRateVideoInput(ctx context.Context, obj any) (model.RateVideoInput, error) {
+	var it model.RateVideoInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"videoId", "rating"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "videoId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("videoId"))
+			data, err := ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.VideoID = data
+		case "rating":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("rating"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Rating = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputRecordPlaybackInput(ctx context.Context, obj any) (model.RecordPlaybackInput, error) {
+	var it model.RecordPlaybackInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"videoId"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "videoId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("videoId"))
+			data, err := ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.VideoID = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputRegisterDeviceKeyInput(ctx context.Context, obj any) (model.RegisterDeviceKeyInput, error) {
 	var it model.RegisterDeviceKeyInput
 	asMap := map[string]any{}
@@ -5299,6 +5818,20 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "rateVideo":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_rateVideo(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "recordPlayback":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_recordPlayback(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -5391,6 +5924,55 @@ func (ec *executionContext) _PlaybackGrant(ctx context.Context, sel ast.Selectio
 			}
 		case "encryption":
 			out.Values[i] = ec._PlaybackGrant_encryption(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var playbackHistoryImplementors = []string{"PlaybackHistory"}
+
+func (ec *executionContext) _PlaybackHistory(ctx context.Context, sel ast.SelectionSet, obj *model.PlaybackHistory) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, playbackHistoryImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("PlaybackHistory")
+		case "id":
+			out.Values[i] = ec._PlaybackHistory_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "videoId":
+			out.Values[i] = ec._PlaybackHistory_videoId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "playedAt":
+			out.Values[i] = ec._PlaybackHistory_playedAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -5732,6 +6314,15 @@ func (ec *executionContext) _Video(ctx context.Context, sel ast.SelectionSet, ob
 			}
 		case "contentEncryption":
 			out.Values[i] = ec._Video_contentEncryption(ctx, field, obj)
+		case "rating":
+			out.Values[i] = ec._Video_rating(ctx, field, obj)
+		case "playCount":
+			out.Values[i] = ec._Video_playCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "lastPlayedAt":
+			out.Values[i] = ec._Video_lastPlayedAt(ctx, field, obj)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -6405,6 +6996,30 @@ func (ec *executionContext) marshalNPageInfo2ᚖgithubᚗcomᚋwalnuts1018ᚋbea
 		return graphql.Null
 	}
 	return ec._PageInfo(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNPlaybackHistory2githubᚗcomᚋwalnuts1018ᚋbeastᚋapiserverᚋgraphᚋmodelᚐPlaybackHistory(ctx context.Context, sel ast.SelectionSet, v model.PlaybackHistory) graphql.Marshaler {
+	return ec._PlaybackHistory(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNPlaybackHistory2ᚖgithubᚗcomᚋwalnuts1018ᚋbeastᚋapiserverᚋgraphᚋmodelᚐPlaybackHistory(ctx context.Context, sel ast.SelectionSet, v *model.PlaybackHistory) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._PlaybackHistory(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNRateVideoInput2githubᚗcomᚋwalnuts1018ᚋbeastᚋapiserverᚋgraphᚋmodelᚐRateVideoInput(ctx context.Context, v any) (model.RateVideoInput, error) {
+	res, err := ec.unmarshalInputRateVideoInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNRecordPlaybackInput2githubᚗcomᚋwalnuts1018ᚋbeastᚋapiserverᚋgraphᚋmodelᚐRecordPlaybackInput(ctx context.Context, v any) (model.RecordPlaybackInput, error) {
+	res, err := ec.unmarshalInputRecordPlaybackInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) unmarshalNRegisterDeviceKeyInput2githubᚗcomᚋwalnuts1018ᚋbeastᚋapiserverᚋgraphᚋmodelᚐRegisterDeviceKeyInput(ctx context.Context, v any) (model.RegisterDeviceKeyInput, error) {

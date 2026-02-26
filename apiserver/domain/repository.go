@@ -3,6 +3,9 @@ package domain
 import (
 	"context"
 	"time"
+
+	"github.com/Code-Hex/synchro"
+	"github.com/Code-Hex/synchro/tz"
 )
 
 type VideoRepository interface {
@@ -11,6 +14,8 @@ type VideoRepository interface {
 	ListByOwner(ctx context.Context, ownerUserID string, status *VideoStatus, p Pagination) (VideoConnection, error)
 	ListByOwnerAndTag(ctx context.Context, ownerUserID string, tag string, status *VideoStatus, p Pagination) (VideoConnection, error)
 	Update(ctx context.Context, video Video) error
+	UpdateRating(ctx context.Context, videoID string, ownerUserID string, rating *Rating) error
+	IncrementPlayCount(ctx context.Context, videoID string, playedAt synchro.Time[tz.UTC]) error
 }
 
 type VideoTagRepository interface {
@@ -46,4 +51,9 @@ type EncodingProgressRepository interface {
 type ObjectStorage interface {
 	CreateUploadURL(ctx context.Context, objectKey string, expiresIn time.Duration) (string, error)
 	Exists(ctx context.Context, objectKey string) (bool, error)
+}
+
+type PlaybackHistoryRepository interface {
+	Record(ctx context.Context, history PlaybackHistory) error
+	ListByVideo(ctx context.Context, videoID string, limit int) ([]PlaybackHistory, error)
 }

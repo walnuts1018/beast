@@ -280,6 +280,33 @@ func (r *VideoRepository) ListByOwnerAndTag(
 	return domain.VideoConnection{Edges: edges, HasNext: hasNext, NextCursor: next}, nil
 }
 
+func (r *VideoRepository) UpdateRating(ctx context.Context, videoID string, ownerUserID string, rating *domain.Rating) error {
+	rowsAffected, err := r.store.queries.UpdateVideoRating(ctx, sqlcgen.UpdateVideoRatingParams{
+		ID:          videoID,
+		OwnerUserID: ownerUserID,
+		Rating:      toRatingInt32Ptr(rating),
+		UpdatedAt:   toPgTimestamptz(synchro.Now[tz.UTC]()),
+	})
+	if err != nil {
+		return fmt.Errorf("update video rating: %w", err)
+	}
+	if rowsAffected == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func (r *VideoRepository) IncrementPlayCount(ctx context.Context, videoID string, playedAt synchro.Time[tz.UTC]) error {
+	if err := r.store.queries.IncrementVideoPlayCount(ctx, sqlcgen.IncrementVideoPlayCountParams{
+		ID:        videoID,
+		PlayedAt:  toPgTimestamptz(playedAt),
+		UpdatedAt: toPgTimestamptz(synchro.Now[tz.UTC]()),
+	}); err != nil {
+		return fmt.Errorf("increment play count: %w", err)
+	}
+	return nil
+}
+
 // VideoTagRepository
 
 type VideoTagRepository struct{ store *Store }
@@ -596,4 +623,39 @@ func (r *EncodingProgressRepository) Subscribe(
 	}()
 
 	return ch, cleanup, nil
+}
+
+// PlaybackHistoryRepository
+
+type PlaybackHistoryRepository struct{ store *Store }
+
+func NewPlaybackHistoryRepository(store *Store) *PlaybackHistoryRepository {
+	return &PlaybackHistoryRepository{store: store}
+}
+
+func (r *PlaybackHistoryRepository) Record(ctx context.Context, history domain.PlaybackHistory) error {
+	if err := r.store.queries.InsertPlaybackHistory(ctx, sqlcgen.InsertPlaybackHistoryParams{
+		ID:          history.ID,
+		VideoID:     history.VideoID,
+		OwnerUserID: history.OwnerUserID,
+		PlayedAt:    toPgTimestamptz(history.PlayedAt),
+	}); err != nil {
+		return fmt.Errorf("insert playback history: %w", err)
+	}
+	return nil
+}
+
+func (r *PlaybackHistoryRepository) ListByVideo(ctx context.Context, videoID string, limit int) ([]domain.PlaybackHistory, error) {
+	rows, err := r.store.queries.ListPlaybackHistoriesByVideo(ctx, sqlcgen.ListPlaybackHistoriesByVideoParams{
+		VideoID:    videoID,
+		LimitCount: int32(limit),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("list playback histories: %w", err)
+	}
+	items := make([]domain.PlaybackHistory, 0, len(rows))
+	for _, row := range rows {
+		items = append(items, toDomainPlaybackHistory(row))
+	}
+	return items, nil
 }

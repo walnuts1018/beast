@@ -124,6 +124,36 @@ func (r *mutationResolver) RetryEncoding(ctx context.Context, input model.RetryE
 	return toModelVideo(*video), nil
 }
 
+// RateVideo is the resolver for the rateVideo field.
+func (r *mutationResolver) RateVideo(ctx context.Context, input model.RateVideoInput) (*model.Video, error) {
+	userID, err := userIDFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	video, err := r.Service.RateVideo(ctx, userID, input.VideoID, input.Rating)
+	if err != nil {
+		return nil, err
+	}
+
+	return toModelVideo(*video), nil
+}
+
+// RecordPlayback is the resolver for the recordPlayback field.
+func (r *mutationResolver) RecordPlayback(ctx context.Context, input model.RecordPlaybackInput) (*model.PlaybackHistory, error) {
+	userID, err := userIDFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	history, err := r.Service.RecordPlayback(ctx, userID, input.VideoID)
+	if err != nil {
+		return nil, err
+	}
+
+	return toModelPlaybackHistory(*history), nil
+}
+
 // Me is the resolver for the me field.
 func (r *queryResolver) Me(ctx context.Context) (*model.Me, error) {
 	userID, err := userIDFromContext(ctx)

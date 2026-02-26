@@ -22,15 +22,19 @@ type Querier interface {
 	GetVideoByID(ctx context.Context, id string) (Video, error)
 	GetVideoTags(ctx context.Context, videoID string) ([]string, error)
 	GetVideoTagsBatch(ctx context.Context, videoIds []string) ([]GetVideoTagsBatchRow, error)
+	IncrementVideoPlayCount(ctx context.Context, arg IncrementVideoPlayCountParams) error
+	InsertPlaybackHistory(ctx context.Context, arg InsertPlaybackHistoryParams) error
 	InsertSharedKeyVersion(ctx context.Context, arg InsertSharedKeyVersionParams) error
 	InsertVideoTag(ctx context.Context, arg InsertVideoTagParams) error
 	ListDeviceWrappedSharedKeys(ctx context.Context, userID string) ([]ListDeviceWrappedSharedKeysRow, error)
+	ListPlaybackHistoriesByVideo(ctx context.Context, arg ListPlaybackHistoriesByVideoParams) ([]PlaybackHistory, error)
 	ListSharedKeyVersions(ctx context.Context, userID string) ([]ListSharedKeyVersionsRow, error)
 	ListVideosByOwner(ctx context.Context, arg ListVideosByOwnerParams) ([]Video, error)
 	ListVideosByOwnerAndTag(ctx context.Context, arg ListVideosByOwnerAndTagParams) ([]Video, error)
 	LoadVideoUploadedAt(ctx context.Context, arg LoadVideoUploadedAtParams) (pgtype.Timestamptz, error)
 	RevokeSharedKeyVersion(ctx context.Context, arg RevokeSharedKeyVersionParams) (RevokeSharedKeyVersionRow, error)
 	UpdateVideo(ctx context.Context, arg UpdateVideoParams) (int64, error)
+	UpdateVideoRating(ctx context.Context, arg UpdateVideoRatingParams) (int64, error)
 	UpsertDeviceWrappedSharedKey(ctx context.Context, arg UpsertDeviceWrappedSharedKeyParams) error
 	UpsertEncodingProgress(ctx context.Context, arg UpsertEncodingProgressParams) error
 }

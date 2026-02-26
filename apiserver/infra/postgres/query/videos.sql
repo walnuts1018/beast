@@ -20,6 +20,9 @@ INSERT INTO
         content_enc_key_version,
         content_enc_nonce,
         content_enc_encrypted_data_key,
+        rating,
+        play_count,
+        last_played_at,
         created_at,
         updated_at
     )
@@ -44,6 +47,9 @@ VALUES
         @content_enc_key_version,
         @content_enc_nonce,
         @content_enc_encrypted_data_key,
+        @rating,
+        @play_count,
+        @last_played_at,
         @created_at,
         @updated_at
     );
@@ -69,6 +75,9 @@ SELECT
     content_enc_key_version,
     content_enc_nonce,
     content_enc_encrypted_data_key,
+    rating,
+    play_count,
+    last_played_at,
     created_at,
     updated_at
 FROM
@@ -97,6 +106,9 @@ SELECT
     content_enc_key_version,
     content_enc_nonce,
     content_enc_encrypted_data_key,
+    rating,
+    play_count,
+    last_played_at,
     created_at,
     updated_at
 FROM
@@ -111,7 +123,7 @@ WHERE
         sqlc.narg('cursor_uploaded_at') :: timestamptz IS NULL
         OR (uploaded_at, id) < (
             sqlc.narg('cursor_uploaded_at'),
-            sqlc.narg('cursor_id')::text
+            sqlc.narg('cursor_id') :: text
         )
     )
 ORDER BY
@@ -141,6 +153,9 @@ SELECT
     v.content_enc_key_version,
     v.content_enc_nonce,
     v.content_enc_encrypted_data_key,
+    v.rating,
+    v.play_count,
+    v.last_played_at,
     v.created_at,
     v.updated_at
 FROM
@@ -157,7 +172,7 @@ WHERE
         sqlc.narg('cursor_uploaded_at') :: timestamptz IS NULL
         OR (v.uploaded_at, v.id) < (
             sqlc.narg('cursor_uploaded_at'),
-            sqlc.narg('cursor_id')::text
+            sqlc.narg('cursor_id') :: text
         )
     )
 ORDER BY
@@ -189,6 +204,26 @@ SET
     content_enc_nonce = @content_enc_nonce,
     content_enc_encrypted_data_key = @content_enc_encrypted_data_key,
     created_at = @created_at,
+    updated_at = @updated_at
+WHERE
+    id = @id;
+
+-- name: UpdateVideoRating :execrows
+UPDATE
+    videos
+SET
+    rating = sqlc.narg('rating'),
+    updated_at = @updated_at
+WHERE
+    id = @id
+    AND owner_user_id = @owner_user_id;
+
+-- name: IncrementVideoPlayCount :exec
+UPDATE
+    videos
+SET
+    play_count = play_count + 1,
+    last_played_at = @played_at,
     updated_at = @updated_at
 WHERE
     id = @id;

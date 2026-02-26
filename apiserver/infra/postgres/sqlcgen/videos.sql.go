@@ -33,6 +33,9 @@ INSERT INTO
         content_enc_key_version,
         content_enc_nonce,
         content_enc_encrypted_data_key,
+        rating,
+        play_count,
+        last_played_at,
         created_at,
         updated_at
     )
@@ -58,7 +61,10 @@ VALUES
         $18,
         $19,
         $20,
-        $21
+        $21,
+        $22,
+        $23,
+        $24
     )
 `
 
@@ -82,6 +88,9 @@ type CreateVideoParams struct {
 	ContentEncKeyVersion        *int32
 	ContentEncNonce             []byte
 	ContentEncEncryptedDataKey  []byte
+	Rating                      *int32
+	PlayCount                   int32
+	LastPlayedAt                pgtype.Timestamptz
 	CreatedAt                   pgtype.Timestamptz
 	UpdatedAt                   pgtype.Timestamptz
 }
@@ -107,6 +116,9 @@ func (q *Queries) CreateVideo(ctx context.Context, arg CreateVideoParams) error 
 		arg.ContentEncKeyVersion,
 		arg.ContentEncNonce,
 		arg.ContentEncEncryptedDataKey,
+		arg.Rating,
+		arg.PlayCount,
+		arg.LastPlayedAt,
 		arg.CreatedAt,
 		arg.UpdatedAt,
 	)
@@ -134,6 +146,9 @@ SELECT
     content_enc_key_version,
     content_enc_nonce,
     content_enc_encrypted_data_key,
+    rating,
+    play_count,
+    last_played_at,
     created_at,
     updated_at
 FROM
@@ -165,10 +180,35 @@ func (q *Queries) GetVideoByID(ctx context.Context, id string) (Video, error) {
 		&i.ContentEncKeyVersion,
 		&i.ContentEncNonce,
 		&i.ContentEncEncryptedDataKey,
+		&i.Rating,
+		&i.PlayCount,
+		&i.LastPlayedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const incrementVideoPlayCount = `-- name: IncrementVideoPlayCount :exec
+UPDATE
+    videos
+SET
+    play_count = play_count + 1,
+    last_played_at = $1,
+    updated_at = $2
+WHERE
+    id = $3
+`
+
+type IncrementVideoPlayCountParams struct {
+	PlayedAt  pgtype.Timestamptz
+	UpdatedAt pgtype.Timestamptz
+	ID        string
+}
+
+func (q *Queries) IncrementVideoPlayCount(ctx context.Context, arg IncrementVideoPlayCountParams) error {
+	_, err := q.db.Exec(ctx, incrementVideoPlayCount, arg.PlayedAt, arg.UpdatedAt, arg.ID)
+	return err
 }
 
 const listVideosByOwner = `-- name: ListVideosByOwner :many
@@ -192,6 +232,9 @@ SELECT
     content_enc_key_version,
     content_enc_nonce,
     content_enc_encrypted_data_key,
+    rating,
+    play_count,
+    last_played_at,
     created_at,
     updated_at
 FROM
@@ -206,7 +249,7 @@ WHERE
         $3 :: timestamptz IS NULL
         OR (uploaded_at, id) < (
             $3,
-            $4::text
+            $4 :: text
         )
     )
 ORDER BY
@@ -259,6 +302,9 @@ func (q *Queries) ListVideosByOwner(ctx context.Context, arg ListVideosByOwnerPa
 			&i.ContentEncKeyVersion,
 			&i.ContentEncNonce,
 			&i.ContentEncEncryptedDataKey,
+			&i.Rating,
+			&i.PlayCount,
+			&i.LastPlayedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -293,6 +339,9 @@ SELECT
     v.content_enc_key_version,
     v.content_enc_nonce,
     v.content_enc_encrypted_data_key,
+    v.rating,
+    v.play_count,
+    v.last_played_at,
     v.created_at,
     v.updated_at
 FROM
@@ -309,7 +358,7 @@ WHERE
         $4 :: timestamptz IS NULL
         OR (v.uploaded_at, v.id) < (
             $4,
-            $5::text
+            $5 :: text
         )
     )
 ORDER BY
@@ -364,6 +413,9 @@ func (q *Queries) ListVideosByOwnerAndTag(ctx context.Context, arg ListVideosByO
 			&i.ContentEncKeyVersion,
 			&i.ContentEncNonce,
 			&i.ContentEncEncryptedDataKey,
+			&i.Rating,
+			&i.PlayCount,
+			&i.LastPlayedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -474,6 +526,37 @@ func (q *Queries) UpdateVideo(ctx context.Context, arg UpdateVideoParams) (int64
 		arg.CreatedAt,
 		arg.UpdatedAt,
 		arg.ID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const updateVideoRating = `-- name: UpdateVideoRating :execrows
+UPDATE
+    videos
+SET
+    rating = $1,
+    updated_at = $2
+WHERE
+    id = $3
+    AND owner_user_id = $4
+`
+
+type UpdateVideoRatingParams struct {
+	Rating      *int32
+	UpdatedAt   pgtype.Timestamptz
+	ID          string
+	OwnerUserID string
+}
+
+func (q *Queries) UpdateVideoRating(ctx context.Context, arg UpdateVideoRatingParams) (int64, error) {
+	result, err := q.db.Exec(ctx, updateVideoRating,
+		arg.Rating,
+		arg.UpdatedAt,
+		arg.ID,
+		arg.OwnerUserID,
 	)
 	if err != nil {
 		return 0, err

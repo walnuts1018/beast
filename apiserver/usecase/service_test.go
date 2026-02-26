@@ -44,6 +44,7 @@ func newTestService() (*usecase.Service, *memory.Store, *stubObjectStorage) {
 		memory.NewUploadSessionRepository(store),
 		memory.NewEncodingProgressRepository(store),
 		objects,
+		memory.NewPlaybackHistoryRepository(store),
 	)
 	return svc, store, objects
 }

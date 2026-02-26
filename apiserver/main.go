@@ -80,6 +80,7 @@ func main() {
 		postgres.NewUploadSessionRepository(store),
 		postgres.NewEncodingProgressRepository(store),
 		objectStore,
+		postgres.NewPlaybackHistoryRepository(store),
 	)
 
 	resolvers := &graph.Resolver{Service: service}

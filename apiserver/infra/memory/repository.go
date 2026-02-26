@@ -16,24 +16,26 @@ var ErrNotFound = errors.New("not found")
 type Store struct {
 	mu sync.RWMutex
 
-	videos         map[string]domain.Video
-	videoTags      map[string][]string
-	sharedKeys     map[string][]domain.SharedKeyVersion
-	deviceKeys     map[string][]domain.DeviceWrappedSharedKey
-	uploadSessions map[string]domain.UploadSession
-	progress       map[string]domain.VideoEncodingProgress
-	subscribers    map[string]map[chan domain.VideoEncodingProgress]struct{}
+	videos            map[string]domain.Video
+	videoTags         map[string][]string
+	sharedKeys        map[string][]domain.SharedKeyVersion
+	deviceKeys        map[string][]domain.DeviceWrappedSharedKey
+	uploadSessions    map[string]domain.UploadSession
+	progress          map[string]domain.VideoEncodingProgress
+	subscribers       map[string]map[chan domain.VideoEncodingProgress]struct{}
+	playbackHistories map[string][]domain.PlaybackHistory
 }
 
 func NewStore() *Store {
 	return &Store{
-		videos:         make(map[string]domain.Video),
-		videoTags:      make(map[string][]string),
-		sharedKeys:     make(map[string][]domain.SharedKeyVersion),
-		deviceKeys:     make(map[string][]domain.DeviceWrappedSharedKey),
-		uploadSessions: make(map[string]domain.UploadSession),
-		progress:       make(map[string]domain.VideoEncodingProgress),
-		subscribers:    make(map[string]map[chan domain.VideoEncodingProgress]struct{}),
+		videos:            make(map[string]domain.Video),
+		videoTags:         make(map[string][]string),
+		sharedKeys:        make(map[string][]domain.SharedKeyVersion),
+		deviceKeys:        make(map[string][]domain.DeviceWrappedSharedKey),
+		uploadSessions:    make(map[string]domain.UploadSession),
+		progress:          make(map[string]domain.VideoEncodingProgress),
+		subscribers:       make(map[string]map[chan domain.VideoEncodingProgress]struct{}),
+		playbackHistories: make(map[string][]domain.PlaybackHistory),
 	}
 }
 
@@ -209,6 +211,33 @@ func (r *VideoRepository) ListByOwnerAndTag(
 	}
 
 	return domain.VideoConnection{Edges: edges, HasNext: hasNext, NextCursor: next}, nil
+}
+
+func (r *VideoRepository) UpdateRating(ctx context.Context, videoID string, ownerUserID string, rating *domain.Rating) error {
+	_ = ctx
+	r.store.mu.Lock()
+	defer r.store.mu.Unlock()
+	v, ok := r.store.videos[videoID]
+	if !ok || v.OwnerUserID != ownerUserID {
+		return ErrNotFound
+	}
+	v.Rating = rating
+	r.store.videos[videoID] = v
+	return nil
+}
+
+func (r *VideoRepository) IncrementPlayCount(ctx context.Context, videoID string, playedAt synchro.Time[tz.UTC]) error {
+	_ = ctx
+	r.store.mu.Lock()
+	defer r.store.mu.Unlock()
+	v, ok := r.store.videos[videoID]
+	if !ok {
+		return ErrNotFound
+	}
+	v.PlayCount++
+	v.LastPlayedAt = &playedAt
+	r.store.videos[videoID] = v
+	return nil
 }
 
 type VideoTagRepository struct{ store *Store }
@@ -465,4 +494,34 @@ func (r *EncodingProgressRepository) Subscribe(
 	}()
 
 	return ch, cleanup, nil
+}
+
+// PlaybackHistoryRepository
+
+type PlaybackHistoryRepository struct{ store *Store }
+
+func NewPlaybackHistoryRepository(store *Store) *PlaybackHistoryRepository {
+	return &PlaybackHistoryRepository{store: store}
+}
+
+func (r *PlaybackHistoryRepository) Record(ctx context.Context, history domain.PlaybackHistory) error {
+	_ = ctx
+	r.store.mu.Lock()
+	defer r.store.mu.Unlock()
+	r.store.playbackHistories[history.VideoID] = append(r.store.playbackHistories[history.VideoID], history)
+	return nil
+}
+
+func (r *PlaybackHistoryRepository) ListByVideo(ctx context.Context, videoID string, limit int) ([]domain.PlaybackHistory, error) {
+	_ = ctx
+	r.store.mu.RLock()
+	defer r.store.mu.RUnlock()
+	src := r.store.playbackHistories[videoID]
+	out := make([]domain.PlaybackHistory, len(src))
+	copy(out, src)
+	sort.Slice(out, func(i, j int) bool { return out[i].PlayedAt.After(out[j].PlayedAt) })
+	if limit > 0 && len(out) > limit {
+		out = out[:limit]
+	}
+	return out, nil
 }

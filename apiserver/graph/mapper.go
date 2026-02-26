@@ -79,6 +79,14 @@ func toModelPlaybackGrant(item *domain.PlaybackGrant) *model.PlaybackGrant {
 	}
 }
 
+func toModelRating(r *domain.Rating) *int {
+	if r == nil {
+		return nil
+	}
+	v := int(*r)
+	return &v
+}
+
 func toModelVideo(item domain.Video) *model.Video {
 	return &model.Video{
 		ID:                item.ID,
@@ -93,6 +101,17 @@ func toModelVideo(item domain.Video) *model.Video {
 		Playback:          toModelPlaybackGrant(item.Playback),
 		Tags:              item.Tags,
 		ContentEncryption: toModelEncryptionMetadataPtr(item.ContentEncryption),
+		Rating:            toModelRating(item.Rating),
+		PlayCount:         item.PlayCount,
+		LastPlayedAt:      toModelDateTimePtr(item.LastPlayedAt),
+	}
+}
+
+func toModelPlaybackHistory(item domain.PlaybackHistory) *model.PlaybackHistory {
+	return &model.PlaybackHistory{
+		ID:       item.ID,
+		VideoID:  item.VideoID,
+		PlayedAt: toModelDateTime(item.PlayedAt),
 	}
 }
 

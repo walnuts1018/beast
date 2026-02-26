@@ -1,9 +1,21 @@
 package domain
 
 import (
+	"fmt"
+
 	"github.com/Code-Hex/synchro"
 	"github.com/Code-Hex/synchro/tz"
 )
+
+// Rating は1-5の星評価を表す値型。ポインタで扱い、nilは未評価を意味する。
+type Rating int
+
+func NewRating(v int) (Rating, error) {
+	if v < 1 || v > 5 {
+		return 0, fmt.Errorf("レーティングは1-5の範囲で指定してください: %d", v)
+	}
+	return Rating(v), nil
+}
 
 type VideoStatus string
 
@@ -88,8 +100,18 @@ type Video struct {
 	Playback          *PlaybackGrant
 	Tags              []string
 	ContentEncryption *EncryptionMetadata
+	Rating            *Rating
+	PlayCount         int
+	LastPlayedAt      *synchro.Time[tz.UTC]
 	CreatedAt         synchro.Time[tz.UTC]
 	UpdatedAt         synchro.Time[tz.UTC]
+}
+
+type PlaybackHistory struct {
+	ID          string
+	VideoID     string
+	OwnerUserID string
+	PlayedAt    synchro.Time[tz.UTC]
 }
 
 type Pagination struct {
