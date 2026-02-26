@@ -4,7 +4,7 @@ namespace: authelia
 resources:
 - deployment.yaml
 - service.yaml
-configMapGenerator:
+secretGenerator:
 - name: authelia-config
   files:
   - configuration.yml=./config/configuration.yml

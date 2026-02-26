@@ -62,7 +62,7 @@ spec:
         runAsGroup: 65532
       volumes:
       - name: authelia-config
-        configMap:
-          name: authelia-config
+        secret:
+          secretName: authelia-config
       - name: authelia-data
         emptyDir: {}
