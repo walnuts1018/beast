@@ -172,10 +172,8 @@ func (w *Worker) Run(ctx context.Context) error {
 			// ただし無限に待たないよう、キャンセル検知後にログを出力して
 			// 失敗イベントを送信してからジョブをNackする。
 			if ctx.Err() != nil {
-				reason := "encoder shutting down"
-				if pubErr := w.publishFailed(context.Background(), job, reason); pubErr != nil {
-					w.logger.ErrorContext(ctx, "failed to publish failure event on shutdown", slog.Any("error", pubErr), slog.String("videoID", job.VideoID))
-				}
+				// シャットダウン時はジョブを再キューイングするだけにする。
+				// 失敗イベントは送信しない（再キューされたジョブが再処理時にFAILEDになることを防ぐ）。
 				_ = delivery.Nack(false, true)
 				w.logger.InfoContext(ctx, "ジョブを再キューイングしてシャットダウン", slog.String("videoID", job.VideoID))
 				return nil
@@ -602,7 +600,9 @@ func (w *Worker) downloadSource(ctx context.Context, objectKey string, outputPat
 	if _, err := io.Copy(f, resp.Body); err != nil {
 		// io.Copy失敗時は明示的にファイルをクローズしてから不完全なファイルを削除する
 		_ = f.Close()
-		_ = os.Remove(outputPath)
+		if removeErr := os.Remove(outputPath); removeErr != nil {
+			w.logger.Warn("不完全なソースファイルの削除に失敗", slog.Any("error", removeErr), slog.String("path", outputPath))
+		}
 		return fmt.Errorf("write source file: %w", err)
 	}
 
