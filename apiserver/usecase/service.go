@@ -16,6 +16,8 @@ var (
 	ErrInvalidInput        = errors.New("invalid input")
 	ErrUploadSessionGone   = errors.New("upload session expired or missing")
 	ErrUploadObjectMissing = errors.New("uploaded object is missing")
+	ErrInvalidStateChange  = errors.New("invalid video state transition")
+	ErrAlreadyRevoked      = errors.New("key version already revoked")
 )
 
 type Service struct {
@@ -88,6 +90,17 @@ func (s *Service) RegisterSharedKey(ctx context.Context, userID string, publicKe
 func (s *Service) RevokeSharedKeyVersion(ctx context.Context, userID string, version int) (*domain.SharedKeyVersion, error) {
 	if userID == "" {
 		return nil, ErrUnauthorized
+	}
+
+	existing, err := s.sharedKeys.Get(ctx, userID, version)
+	if err != nil {
+		return nil, err
+	}
+	if existing == nil {
+		return nil, ErrNotFound
+	}
+	if existing.Status == domain.SharedKeyVersionStatusRevoked {
+		return nil, ErrAlreadyRevoked
 	}
 
 	result, err := s.sharedKeys.Revoke(ctx, userID, version)
@@ -259,6 +272,10 @@ func (s *Service) RetryEncoding(ctx context.Context, userID string, videoID stri
 	}
 	if video == nil || video.OwnerUserID != userID {
 		return nil, ErrNotFound
+	}
+
+	if video.Status != domain.VideoStatusFailed {
+		return nil, fmt.Errorf("%w: retry encoding requires FAILED status, got %s", ErrInvalidStateChange, video.Status)
 	}
 
 	video.Status = domain.VideoStatusEncoding
