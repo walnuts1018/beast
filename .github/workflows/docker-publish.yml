@@ -10,22 +10,28 @@ permissions:
   contents: read
   packages: write
 
-env:
-  IMAGE_NAME: ghcr.io/${{ github.repository }}/apiserver
-
 jobs:
   build:
-    name: Build Docker Image
+    name: Build Docker Image (${{ matrix.service.key }} / ${{ matrix.arch.key }})
     strategy:
       matrix:
-        include:
+        service:
+          - key: apiserver
+            image_suffix: apiserver
+            context: .
+            dockerfile: ./Dockerfile.apiserver
+          - key: encoder
+            image_suffix: encoder
+            context: ./encoder
+            dockerfile: ./encoder/Dockerfile
+        arch:
           - key: linux-amd64
             os: ubuntu-latest
             platform: linux/amd64
           - key: linux-arm64
             os: ubuntu-24.04-arm
             platform: linux/arm64
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ matrix.arch.os }}
     steps:
       - name: Check out
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -47,12 +53,12 @@ jobs:
         id: build
         uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         with:
-          context: .
-          file: ./Dockerfile.apiserver
-          platforms: ${{ matrix.platform }}
-          outputs: type=image,name=${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
-          cache-from: type=gha,scope=${{ matrix.key }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.key }}
+          context: ${{ matrix.service.context }}
+          file: ${{ matrix.service.dockerfile }}
+          platforms: ${{ matrix.arch.platform }}
+          outputs: type=image,name=ghcr.io/${{ github.repository }}/${{ matrix.service.image_suffix }},push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha,scope=${{ matrix.service.key }}-${{ matrix.arch.key }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service.key }}-${{ matrix.arch.key }}
 
       - name: Export digest
         run: |
@@ -63,21 +69,28 @@ jobs:
       - name: Upload digest
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
-          name: digests-${{ matrix.key }}
+          name: digests-${{ matrix.service.key }}-${{ matrix.arch.key }}
           path: /tmp/digests/*
           if-no-files-found: error
           retention-days: 1
 
   merge:
-    name: Merge Docker Image
+    name: Merge Docker Image (${{ matrix.service.key }})
     runs-on: ubuntu-latest
     needs: build
+    strategy:
+      matrix:
+        service:
+          - key: apiserver
+            image_suffix: apiserver
+          - key: encoder
+            image_suffix: encoder
     steps:
       - name: Download digests
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
           path: /tmp/digests
-          pattern: digests-*
+          pattern: digests-${{ matrix.service.key }}-*
           merge-multiple: true
 
       - name: Set up Docker Buildx
@@ -97,6 +110,6 @@ jobs:
         working-directory: /tmp/digests
         run: |
           docker buildx imagetools create \
-            -t ${{ env.IMAGE_NAME }}:latest \
-            -t ${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }} \
-            $(printf '${{ env.IMAGE_NAME }}@sha256:%s ' *)
+            -t ghcr.io/${{ github.repository }}/${{ matrix.service.image_suffix }}:latest \
+            -t ghcr.io/${{ github.repository }}/${{ matrix.service.image_suffix }}:${{ env.IMAGE_TAG }} \
+            $(printf 'ghcr.io/${{ github.repository }}/${{ matrix.service.image_suffix }}@sha256:%s ' *)
