@@ -43,6 +43,7 @@
   - Domain Modeling Made Functional: Tackle Software Complexity with Domain-Driven Design and F#のような、型を活用したドメイン駆動設計のアプローチを参考にしてください。
 - `usecase` にはフレームワーク依存（echo/gqlgenの型）を直接持ち込まないでください。
 - 認可では、IdPのToken Introspection結果を短時間キャッシュしてよいですが、有効期限を超えて再利用しないでください。
+- Graceful Shutdownを適切に実装してください。
 
 ### ローカル開発構成の整合性ルール
 
