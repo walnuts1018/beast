@@ -52,6 +52,7 @@ type Config struct {
 	FFmpegPath         string        `env:"FFMPEG_PATH" envDefault:"ffmpeg"`
 	FFprobePath        string        `env:"FFPROBE_PATH" envDefault:"ffprobe"`
 	DashSegmentSeconds int           `env:"ENCODER_DASH_SEGMENT_SECONDS" envDefault:"4" validate:"gte=1,lte=30"`
+	JobTimeout         time.Duration `env:"ENCODER_JOB_TIMEOUT" envDefault:"6h"`
 }
 
 func Load() (*Config, error) {
