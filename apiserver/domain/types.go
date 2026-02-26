@@ -1,6 +1,9 @@
 package domain
 
-import "time"
+import (
+	"github.com/Code-Hex/synchro"
+	"github.com/Code-Hex/synchro/tz"
+)
 
 type VideoStatus string
 
@@ -35,8 +38,8 @@ type SharedKeyVersion struct {
 	Version      int
 	PublicKeyPEM string
 	Status       SharedKeyVersionStatus
-	CreatedAt    time.Time
-	RevokedAt    *time.Time
+	CreatedAt    synchro.Time[tz.UTC]
+	RevokedAt    *synchro.Time[tz.UTC]
 }
 
 type DeviceWrappedSharedKey struct {
@@ -44,7 +47,7 @@ type DeviceWrappedSharedKey struct {
 	DevicePublicKeyPEM        string
 	SharedKeyVersion          int
 	EncryptedSharedPrivateKey []byte
-	CreatedAt                 time.Time
+	CreatedAt                 synchro.Time[tz.UTC]
 }
 
 type UploadSession struct {
@@ -52,15 +55,15 @@ type UploadSession struct {
 	OwnerUser string
 	ObjectKey string
 	UploadURL string
-	ExpiresAt time.Time
-	CreatedAt time.Time
+	ExpiresAt synchro.Time[tz.UTC]
+	CreatedAt synchro.Time[tz.UTC]
 }
 
 type VideoEncodingProgress struct {
 	VideoID   string
 	Status    VideoStatus
 	Percent   float64
-	UpdatedAt time.Time
+	UpdatedAt synchro.Time[tz.UTC]
 	Message   *string
 	OwnerUser string
 }
@@ -68,7 +71,7 @@ type VideoEncodingProgress struct {
 type PlaybackGrant struct {
 	VideoID     string
 	ManifestURL string
-	ExpiresAt   time.Time
+	ExpiresAt   synchro.Time[tz.UTC]
 	Encryption  EncryptionMetadata
 }
 
@@ -76,8 +79,8 @@ type Video struct {
 	ID                string
 	OwnerUserID       string
 	Status            VideoStatus
-	UploadedAt        time.Time
-	ReadyAt           *time.Time
+	UploadedAt        synchro.Time[tz.UTC]
+	ReadyAt           *synchro.Time[tz.UTC]
 	FailedReason      *string
 	DurationMillis    *int
 	Width             *int
@@ -86,8 +89,8 @@ type Video struct {
 	EncryptedTags     []byte
 	TagEncryption     EncryptionMetadata
 	ContentEncryption *EncryptionMetadata
-	CreatedAt         time.Time
-	UpdatedAt         time.Time
+	CreatedAt         synchro.Time[tz.UTC]
+	UpdatedAt         synchro.Time[tz.UTC]
 }
 
 type Pagination struct {

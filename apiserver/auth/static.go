@@ -4,6 +4,9 @@ import (
 	"context"
 	"crypto/subtle"
 	"time"
+
+	"github.com/Code-Hex/synchro"
+	"github.com/Code-Hex/synchro/tz"
 )
 
 type StaticTokenIntrospector struct {
@@ -22,6 +25,6 @@ func (i *StaticTokenIntrospector) Introspect(_ context.Context, token string) (P
 
 	return Principal{
 		Subject:   i.subject,
-		ExpiresAt: time.Now().UTC().Add(24 * time.Hour),
+		ExpiresAt: synchro.Now[tz.UTC]().Add(24 * time.Hour),
 	}, nil
 }

@@ -11,6 +11,9 @@ import (
 	"net/url"
 	"sync"
 	"time"
+
+	"github.com/Code-Hex/synchro"
+	"github.com/Code-Hex/synchro/tz"
 )
 
 type Introspector interface {
@@ -76,8 +79,8 @@ func (i *HTTPIntrospector) Introspect(ctx context.Context, token string) (Princi
 		return Principal{}, ErrUnauthorized
 	}
 
-	expiresAt := time.Unix(payload.Exp, 0).UTC()
-	if expiresAt.Before(time.Now().UTC()) {
+	expiresAt := synchro.In[tz.UTC](time.Unix(payload.Exp, 0))
+	if expiresAt.Before(synchro.Now[tz.UTC]()) {
 		return Principal{}, ErrUnauthorized
 	}
 
@@ -86,7 +89,7 @@ func (i *HTTPIntrospector) Introspect(ctx context.Context, token string) (Princi
 
 type cachedPrincipal struct {
 	principal Principal
-	until     time.Time
+	until     synchro.Time[tz.UTC]
 }
 
 type CachedIntrospector struct {
@@ -106,7 +109,7 @@ func NewCachedIntrospector(base Introspector, maxTTL time.Duration) *CachedIntro
 }
 
 func (i *CachedIntrospector) Introspect(ctx context.Context, token string) (Principal, error) {
-	now := time.Now().UTC()
+	now := synchro.Now[tz.UTC]()
 
 	i.mu.RLock()
 	entry, ok := i.cache[token]
@@ -120,7 +123,7 @@ func (i *CachedIntrospector) Introspect(ctx context.Context, token string) (Prin
 		return Principal{}, err
 	}
 
-	ttl := time.Until(principal.ExpiresAt)
+	ttl := time.Until(principal.ExpiresAt.StdTime())
 	if ttl <= 0 {
 		return Principal{}, errors.New("expired token")
 	}

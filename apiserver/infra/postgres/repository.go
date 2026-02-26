@@ -9,6 +9,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Code-Hex/synchro"
+	"github.com/Code-Hex/synchro/tz"
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/pgx/v5"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
@@ -242,7 +244,7 @@ func (r *SharedKeyRepository) Register(ctx context.Context, userID string, publi
 		return domain.SharedKeyVersion{}, fmt.Errorf("next shared key version: %w", err)
 	}
 
-	now := time.Now().UTC()
+	now := synchro.Now[tz.UTC]()
 	if err := qtx.InsertSharedKeyVersion(ctx, sqlcgen.InsertSharedKeyVersionParams{
 		UserID:       userID,
 		Version:      nextVersion,
@@ -266,7 +268,7 @@ func (r *SharedKeyRepository) Register(ctx context.Context, userID string, publi
 }
 
 func (r *SharedKeyRepository) Revoke(ctx context.Context, userID string, version int) (domain.SharedKeyVersion, error) {
-	now := time.Now().UTC()
+	now := synchro.Now[tz.UTC]()
 	row, err := r.store.queries.RevokeSharedKeyVersion(ctx, sqlcgen.RevokeSharedKeyVersionParams{
 		Status:    string(domain.SharedKeyVersionStatusRevoked),
 		RevokedAt: toPgTimestamptz(now),

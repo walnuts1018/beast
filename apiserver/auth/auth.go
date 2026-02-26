@@ -3,12 +3,14 @@ package auth
 import (
 	"context"
 	"errors"
-	"time"
+
+	"github.com/Code-Hex/synchro"
+	"github.com/Code-Hex/synchro/tz"
 )
 
 type Principal struct {
 	Subject   string
-	ExpiresAt time.Time
+	ExpiresAt synchro.Time[tz.UTC]
 }
 
 type contextKey string

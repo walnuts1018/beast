@@ -5,8 +5,9 @@ import (
 	"errors"
 	"sort"
 	"sync"
-	"time"
 
+	"github.com/Code-Hex/synchro"
+	"github.com/Code-Hex/synchro/tz"
 	"github.com/walnuts1018/beast/apiserver/domain"
 )
 
@@ -149,7 +150,7 @@ func (r *SharedKeyRepository) Register(ctx context.Context, userID string, publi
 		Version:      version,
 		PublicKeyPEM: publicKeyPEM,
 		Status:       domain.SharedKeyVersionStatusActive,
-		CreatedAt:    time.Now().UTC(),
+		CreatedAt:    synchro.Now[tz.UTC](),
 	}
 
 	r.store.sharedKeys[userID] = append(versions, item)
@@ -164,7 +165,7 @@ func (r *SharedKeyRepository) Revoke(ctx context.Context, userID string, version
 	versions := r.store.sharedKeys[userID]
 	for i := range versions {
 		if versions[i].Version == version {
-			now := time.Now().UTC()
+			now := synchro.Now[tz.UTC]()
 			versions[i].Status = domain.SharedKeyVersionStatusRevoked
 			versions[i].RevokedAt = &now
 			r.store.sharedKeys[userID] = versions

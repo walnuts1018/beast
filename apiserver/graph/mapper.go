@@ -1,10 +1,6 @@
 package graph
 
 import (
-	"time"
-
-	"github.com/Code-Hex/synchro"
-	"github.com/Code-Hex/synchro/tz"
 	"github.com/walnuts1018/beast/apiserver/domain"
 	"github.com/walnuts1018/beast/apiserver/graph/model"
 	"github.com/walnuts1018/beast/apiserver/graph/scalar"
@@ -151,15 +147,10 @@ func toModelVideoConnection(conn domain.VideoConnection) *model.VideoConnection 
 	}
 }
 
-func toModelDateTime(value time.Time) scalar.DateTime {
-	return synchro.In[tz.UTC](value)
+func toModelDateTime(value scalar.DateTime) scalar.DateTime {
+	return value
 }
 
-func toModelDateTimePtr(value *time.Time) *scalar.DateTime {
-	if value == nil {
-		return nil
-	}
-
-	converted := synchro.In[tz.UTC](*value)
-	return &converted
+func toModelDateTimePtr(value *scalar.DateTime) *scalar.DateTime {
+	return value
 }

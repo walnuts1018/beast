@@ -1,8 +1,8 @@
 package postgres
 
 import (
-	"time"
-
+	"github.com/Code-Hex/synchro"
+	"github.com/Code-Hex/synchro/tz"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/walnuts1018/beast/apiserver/domain"
 	"github.com/walnuts1018/beast/apiserver/infra/postgres/sqlcgen"
@@ -10,26 +10,27 @@ import (
 
 // pgtype変換ヘルパー
 
-func toPgTimestamptz(t time.Time) pgtype.Timestamptz {
-	return pgtype.Timestamptz{Time: t, Valid: true}
+func toPgTimestamptz(t synchro.Time[tz.UTC]) pgtype.Timestamptz {
+	return pgtype.Timestamptz{Time: t.StdTime(), Valid: true}
 }
 
-func toPgTimestamptzPtr(t *time.Time) pgtype.Timestamptz {
+func toPgTimestamptzPtr(t *synchro.Time[tz.UTC]) pgtype.Timestamptz {
 	if t == nil {
 		return pgtype.Timestamptz{}
 	}
-	return pgtype.Timestamptz{Time: *t, Valid: true}
+	return pgtype.Timestamptz{Time: t.StdTime(), Valid: true}
 }
 
-func fromPgTimestamptz(t pgtype.Timestamptz) time.Time {
-	return t.Time
+func fromPgTimestamptz(t pgtype.Timestamptz) synchro.Time[tz.UTC] {
+	return synchro.In[tz.UTC](t.Time)
 }
 
-func fromPgTimestamptzPtr(t pgtype.Timestamptz) *time.Time {
+func fromPgTimestamptzPtr(t pgtype.Timestamptz) *synchro.Time[tz.UTC] {
 	if !t.Valid {
 		return nil
 	}
-	return &t.Time
+	v := synchro.In[tz.UTC](t.Time)
+	return &v
 }
 
 func toPgText(s string) pgtype.Text {
@@ -94,7 +95,7 @@ func toDomainVideo(row sqlcgen.Video) domain.Video {
 		v.Playback = &domain.PlaybackGrant{
 			VideoID:     row.ID,
 			ManifestURL: row.PlaybackManifestUrl.String,
-			ExpiresAt:   row.PlaybackExpiresAt.Time,
+			ExpiresAt:   synchro.In[tz.UTC](row.PlaybackExpiresAt.Time),
 			Encryption: domain.EncryptionMetadata{
 				Algorithm:        domain.EncryptionAlgorithm(row.PlaybackEncAlgorithm.String),
 				KeyVersion:       int(*row.PlaybackEncKeyVersion),

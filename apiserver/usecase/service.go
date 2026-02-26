@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/Code-Hex/synchro"
+	"github.com/Code-Hex/synchro/tz"
 	"github.com/google/uuid"
 	"github.com/walnuts1018/beast/apiserver/domain"
 )
@@ -27,7 +29,7 @@ type Service struct {
 	uploads    domain.UploadSessionRepository
 	progress   domain.EncodingProgressRepository
 	objects    domain.ObjectStorage
-	now        func() time.Time
+	now        func() synchro.Time[tz.UTC]
 }
 
 func NewService(
@@ -45,7 +47,7 @@ func NewService(
 		uploads:    uploads,
 		progress:   progress,
 		objects:    objects,
-		now:        time.Now,
+		now:        synchro.Now[tz.UTC],
 	}
 }
 
@@ -135,7 +137,7 @@ func (s *Service) RegisterDeviceKey(
 		DevicePublicKeyPEM:        devicePublicKeyPEM,
 		SharedKeyVersion:          sharedKeyVersion,
 		EncryptedSharedPrivateKey: encryptedSharedPrivateKey,
-		CreatedAt:                 s.now().UTC(),
+		CreatedAt:                 s.now(),
 	})
 	if err != nil {
 		return nil, err
@@ -149,7 +151,7 @@ func (s *Service) CreateUploadSession(ctx context.Context, userID string) (*doma
 		return nil, ErrUnauthorized
 	}
 
-	now := s.now().UTC()
+	now := s.now()
 	id := uuid.NewString()
 	objectKey := fmt.Sprintf("videos/%s/%s/input", userID, id)
 	session := domain.UploadSession{
@@ -182,7 +184,7 @@ func (s *Service) CompleteUpload(ctx context.Context, userID string, uploadSessi
 	if err != nil {
 		return nil, err
 	}
-	if session == nil || session.OwnerUser != userID || session.ExpiresAt.Before(s.now().UTC()) {
+	if session == nil || session.OwnerUser != userID || session.ExpiresAt.Before(s.now()) {
 		return nil, ErrUploadSessionGone
 	}
 
@@ -194,7 +196,7 @@ func (s *Service) CompleteUpload(ctx context.Context, userID string, uploadSessi
 		return nil, ErrUploadObjectMissing
 	}
 
-	now := s.now().UTC()
+	now := s.now()
 	video := domain.Video{
 		ID:            uuid.NewString(),
 		OwnerUserID:   userID,
@@ -254,7 +256,7 @@ func (s *Service) UpdateEncryptedTags(
 
 	video.EncryptedTags = encryptedTags
 	video.TagEncryption = tagEncryption
-	video.UpdatedAt = s.now().UTC()
+	video.UpdatedAt = s.now()
 
 	if err := s.videos.Update(ctx, *video); err != nil {
 		return nil, err
@@ -282,7 +284,7 @@ func (s *Service) RetryEncoding(ctx context.Context, userID string, videoID stri
 
 	video.Status = domain.VideoStatusEncoding
 	video.FailedReason = nil
-	video.UpdatedAt = s.now().UTC()
+	video.UpdatedAt = s.now()
 
 	if err := s.videos.Update(ctx, *video); err != nil {
 		return nil, err
@@ -292,7 +294,7 @@ func (s *Service) RetryEncoding(ctx context.Context, userID string, videoID stri
 		VideoID:   video.ID,
 		Status:    domain.VideoStatusEncoding,
 		Percent:   0,
-		UpdatedAt: s.now().UTC(),
+		UpdatedAt: s.now(),
 		OwnerUser: userID,
 	}
 
@@ -352,7 +354,7 @@ func (s *Service) EncodingProgress(ctx context.Context, userID string, videoID s
 			VideoID:   videoID,
 			Status:    video.Status,
 			Percent:   0,
-			UpdatedAt: s.now().UTC(),
+			UpdatedAt: s.now(),
 			OwnerUser: userID,
 		}
 		return &defaultProgress, nil
