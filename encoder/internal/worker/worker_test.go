@@ -77,6 +77,16 @@ func TestChooseBestAudioEncoder(t *testing.T) {
 	}
 }
 
+func TestChooseBestAudioEncoder_DoNotUseLibfdkAAC(t *testing.T) {
+	encoders := map[string]struct{}{
+		"libfdk_aac": {},
+		"libopus":    {},
+	}
+	if got := chooseBestAudioEncoder(encoders); got != "libopus" {
+		t.Fatalf("unexpected audio encoder: %s", got)
+	}
+}
+
 func TestBuildFFmpegDashArgs_Copy(t *testing.T) {
 	w := &Worker{dashSegmentSeconds: 4}
 	plan := ffmpegPlan{copyVideo: true, copyAudio: true}

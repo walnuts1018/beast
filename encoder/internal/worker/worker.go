@@ -347,14 +347,13 @@ func (w *Worker) buildFFmpegDashArgs(inputPath string, manifestPath string, plan
 
 func chooseBestVideoEncoder(encoders map[string]struct{}) string {
 	preferred := []string{
-		"hevc_nvenc",
 		"h264_nvenc",
-		"hevc_qsv",
 		"h264_qsv",
-		"hevc_videotoolbox",
 		"h264_videotoolbox",
+		"av1_nvenc",
+		"av1_qsv",
+		"av1_videotoolbox",
 		"libx264",
-		"libx265",
 		"libsvtav1",
 	}
 	for _, encoder := range preferred {
@@ -366,7 +365,7 @@ func chooseBestVideoEncoder(encoders map[string]struct{}) string {
 }
 
 func chooseBestAudioEncoder(encoders map[string]struct{}) string {
-	preferred := []string{"aac", "libfdk_aac", "libopus"}
+	preferred := []string{"aac", "libopus"}
 	for _, encoder := range preferred {
 		if _, ok := encoders[encoder]; ok {
 			return encoder
@@ -379,15 +378,13 @@ func videoEncoderOptions(encoder string) []string {
 	switch encoder {
 	case "libx264":
 		return []string{"-preset", "veryfast", "-crf", "22"}
-	case "libx265":
-		return []string{"-preset", "medium", "-x265-params", "crf=28"}
 	case "libsvtav1":
 		return []string{"-preset", "8", "-crf", "32"}
-	case "hevc_nvenc", "h264_nvenc":
+	case "h264_nvenc", "av1_nvenc":
 		return []string{"-preset", "p4", "-cq", "28", "-b:v", "0"}
-	case "hevc_qsv", "h264_qsv":
+	case "h264_qsv", "av1_qsv":
 		return []string{"-global_quality", "26"}
-	case "hevc_videotoolbox", "h264_videotoolbox":
+	case "h264_videotoolbox", "av1_videotoolbox":
 		return []string{"-b:v", "0", "-q:v", "65"}
 	default:
 		return nil
@@ -396,7 +393,7 @@ func videoEncoderOptions(encoder string) []string {
 
 func audioEncoderOptions(encoder string) []string {
 	switch encoder {
-	case "aac", "libfdk_aac":
+	case "aac":
 		return []string{"-b:a", "128k"}
 	case "libopus":
 		return []string{"-b:a", "96k"}
