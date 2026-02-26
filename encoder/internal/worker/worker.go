@@ -12,12 +12,25 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 
 	"github.com/walnuts1018/beast/encoder/internal/rabbitmq"
 )
+
+type commandRunner interface {
+	Run(ctx context.Context, name string, args ...string) (string, error)
+}
+
+type execCommandRunner struct{}
+
+func (execCommandRunner) Run(ctx context.Context, name string, args ...string) (string, error) {
+	cmd := exec.CommandContext(ctx, name, args...)
+	output, err := cmd.CombinedOutput()
+	return string(output), err
+}
 
 type Worker struct {
 	rmq                *rabbitmq.Client
@@ -28,6 +41,11 @@ type Worker struct {
 	ffprobePath        string
 	dashSegmentSeconds int
 	logger             *slog.Logger
+	runner             commandRunner
+
+	encoderProbeOnce sync.Once
+	encoderProbeErr  error
+	encoders         map[string]struct{}
 }
 
 type probeResult struct {
@@ -52,6 +70,34 @@ type mediaMeta struct {
 	DurationMillis *int
 	Width          *int
 	Height         *int
+}
+
+type ffmpegPlan struct {
+	copyVideo    bool
+	copyAudio    bool
+	videoEncoder string
+	audioEncoder string
+}
+
+var dashCopyVideoCodecs = map[string]struct{}{
+	"h264":   {},
+	"hevc":   {},
+	"h265":   {},
+	"av1":    {},
+	"vp9":    {},
+	"vp8":    {},
+	"mpeg4":  {},
+	"theora": {},
+}
+
+var dashCopyAudioCodecs = map[string]struct{}{
+	"aac":    {},
+	"mp3":    {},
+	"opus":   {},
+	"vorbis": {},
+	"ac3":    {},
+	"eac3":   {},
+	"flac":   {},
 }
 
 func New(
@@ -89,6 +135,7 @@ func New(
 		ffprobePath:        ffprobePath,
 		dashSegmentSeconds: dashSegmentSeconds,
 		logger:             logger,
+		runner:             execCommandRunner{},
 	}
 }
 
@@ -201,6 +248,188 @@ func (w *Worker) encodeDash(ctx context.Context, job rabbitmq.EncodeJobMessage) 
 	return nil
 }
 
+func (w *Worker) runFFmpegDash(ctx context.Context, inputPath string, manifestPath string, meta mediaMeta) error {
+	initialPlan := w.buildInitialPlan(meta)
+	initialArgs := w.buildFFmpegDashArgs(inputPath, manifestPath, initialPlan)
+	output, err := w.runner.Run(ctx, w.ffmpegPath, initialArgs...)
+	if err == nil {
+		return nil
+	}
+
+	if !initialPlan.copyVideo && !initialPlan.copyAudio {
+		return fmt.Errorf("ffmpeg dash failed: %w: %s", err, strings.TrimSpace(output))
+	}
+
+	encoders, encoderErr := w.getAvailableEncoders(ctx)
+	if encoderErr != nil {
+		return fmt.Errorf("ffmpeg dash failed and fallback encoder probe failed: %w: %s", err, strings.TrimSpace(output))
+	}
+
+	fallbackPlan := w.buildFallbackPlan(encoders)
+	fallbackArgs := w.buildFFmpegDashArgs(inputPath, manifestPath, fallbackPlan)
+	fallbackOutput, fallbackErr := w.runner.Run(ctx, w.ffmpegPath, fallbackArgs...)
+	if fallbackErr != nil {
+		return fmt.Errorf("ffmpeg dash failed (initial: %s, fallback: %s)", strings.TrimSpace(output), strings.TrimSpace(fallbackOutput))
+	}
+
+	w.logger.WarnContext(ctx, "ffmpeg initial plan failed, fallback reencode succeeded", slog.String("videoCodec", meta.VideoCodec), slog.String("audioCodec", meta.AudioCodec), slog.String("fallbackVideoEncoder", fallbackPlan.videoEncoder))
+	return nil
+}
+
+func (w *Worker) buildInitialPlan(meta mediaMeta) ffmpegPlan {
+	videoCodec := strings.ToLower(strings.TrimSpace(meta.VideoCodec))
+	audioCodec := strings.ToLower(strings.TrimSpace(meta.AudioCodec))
+	_, canCopyVideo := dashCopyVideoCodecs[videoCodec]
+	_, canCopyAudio := dashCopyAudioCodecs[audioCodec]
+	if audioCodec == "" {
+		canCopyAudio = true
+	}
+
+	return ffmpegPlan{
+		copyVideo:    canCopyVideo,
+		copyAudio:    canCopyAudio,
+		videoEncoder: "libx264",
+		audioEncoder: "aac",
+	}
+}
+
+func (w *Worker) buildFallbackPlan(encoders map[string]struct{}) ffmpegPlan {
+	return ffmpegPlan{
+		copyVideo:    false,
+		copyAudio:    false,
+		videoEncoder: chooseBestVideoEncoder(encoders),
+		audioEncoder: chooseBestAudioEncoder(encoders),
+	}
+}
+
+func (w *Worker) buildFFmpegDashArgs(inputPath string, manifestPath string, plan ffmpegPlan) []string {
+	args := []string{
+		"-hide_banner",
+		"-loglevel", "error",
+		"-y",
+		"-i", inputPath,
+		"-map", "0:v:0",
+		"-map", "0:a?",
+	}
+
+	if plan.copyVideo {
+		args = append(args, "-c:v", "copy")
+	} else {
+		args = append(args, "-c:v", plan.videoEncoder)
+		args = append(args, videoEncoderOptions(plan.videoEncoder)...)
+	}
+
+	if plan.copyAudio {
+		args = append(args, "-c:a", "copy")
+	} else {
+		args = append(args, "-c:a", plan.audioEncoder)
+		args = append(args, audioEncoderOptions(plan.audioEncoder)...)
+	}
+
+	args = append(args,
+		"-f", "dash",
+		"-seg_duration", strconv.Itoa(w.dashSegmentSeconds),
+		"-use_timeline", "1",
+		"-use_template", "1",
+		"-window_size", "5",
+		"-extra_window_size", "5",
+		"-adaptation_sets", "id=0,streams=v id=1,streams=a",
+		manifestPath,
+	)
+
+	return args
+}
+
+func chooseBestVideoEncoder(encoders map[string]struct{}) string {
+	preferred := []string{
+		"hevc_nvenc",
+		"h264_nvenc",
+		"hevc_qsv",
+		"h264_qsv",
+		"hevc_videotoolbox",
+		"h264_videotoolbox",
+		"libx264",
+		"libx265",
+		"libsvtav1",
+	}
+	for _, encoder := range preferred {
+		if _, ok := encoders[encoder]; ok {
+			return encoder
+		}
+	}
+	return "libx264"
+}
+
+func chooseBestAudioEncoder(encoders map[string]struct{}) string {
+	preferred := []string{"aac", "libfdk_aac", "libopus"}
+	for _, encoder := range preferred {
+		if _, ok := encoders[encoder]; ok {
+			return encoder
+		}
+	}
+	return "aac"
+}
+
+func videoEncoderOptions(encoder string) []string {
+	switch encoder {
+	case "libx264":
+		return []string{"-preset", "veryfast", "-crf", "22"}
+	case "libx265":
+		return []string{"-preset", "medium", "-x265-params", "crf=28"}
+	case "libsvtav1":
+		return []string{"-preset", "8", "-crf", "32"}
+	case "hevc_nvenc", "h264_nvenc":
+		return []string{"-preset", "p4", "-cq", "28", "-b:v", "0"}
+	case "hevc_qsv", "h264_qsv":
+		return []string{"-global_quality", "26"}
+	case "hevc_videotoolbox", "h264_videotoolbox":
+		return []string{"-b:v", "0", "-q:v", "65"}
+	default:
+		return nil
+	}
+}
+
+func audioEncoderOptions(encoder string) []string {
+	switch encoder {
+	case "aac", "libfdk_aac":
+		return []string{"-b:a", "128k"}
+	case "libopus":
+		return []string{"-b:a", "96k"}
+	default:
+		return nil
+	}
+}
+
+func (w *Worker) getAvailableEncoders(ctx context.Context) (map[string]struct{}, error) {
+	w.encoderProbeOnce.Do(func() {
+		output, err := w.runner.Run(ctx, w.ffmpegPath, "-hide_banner", "-encoders")
+		if err != nil {
+			w.encoderProbeErr = fmt.Errorf("probe ffmpeg encoders: %w", err)
+			return
+		}
+
+		result := make(map[string]struct{})
+		for _, line := range strings.Split(output, "\n") {
+			line = strings.TrimSpace(line)
+			if line == "" || strings.HasPrefix(line, "------") {
+				continue
+			}
+			fields := strings.Fields(line)
+			if len(fields) < 2 {
+				continue
+			}
+			name := fields[1]
+			result[name] = struct{}{}
+		}
+		w.encoders = result
+	})
+
+	if w.encoderProbeErr != nil {
+		return nil, w.encoderProbeErr
+	}
+	return w.encoders, nil
+}
+
 func (w *Worker) publishProgress(ctx context.Context, job rabbitmq.EncodeJobMessage, percent float64, message *string) error {
 	event := rabbitmq.EncodeEventMessage{
 		Type:        "progress",
@@ -229,53 +458,8 @@ func (w *Worker) publishFailed(ctx context.Context, job rabbitmq.EncodeJobMessag
 	return nil
 }
 
-func (w *Worker) runFFmpegDash(ctx context.Context, inputPath string, manifestPath string, meta mediaMeta) error {
-	videoCopy := strings.EqualFold(meta.VideoCodec, "h264")
-	audioCopy := meta.AudioCodec == "" || strings.EqualFold(meta.AudioCodec, "aac")
-
-	args := []string{
-		"-hide_banner",
-		"-loglevel", "error",
-		"-y",
-		"-i", inputPath,
-		"-map", "0:v:0",
-		"-map", "0:a?",
-	}
-
-	if videoCopy {
-		args = append(args, "-c:v", "copy")
-	} else {
-		args = append(args, "-c:v", "libx264", "-preset", "veryfast", "-crf", "23")
-	}
-
-	if audioCopy {
-		args = append(args, "-c:a", "copy")
-	} else {
-		args = append(args, "-c:a", "aac", "-b:a", "128k")
-	}
-
-	args = append(args,
-		"-f", "dash",
-		"-seg_duration", strconv.Itoa(w.dashSegmentSeconds),
-		"-use_timeline", "1",
-		"-use_template", "1",
-		"-window_size", "5",
-		"-extra_window_size", "5",
-		"-adaptation_sets", "id=0,streams=v id=1,streams=a",
-		manifestPath,
-	)
-
-	cmd := exec.CommandContext(ctx, w.ffmpegPath, args...)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("ffmpeg dash failed: %w: %s", err, strings.TrimSpace(string(output)))
-	}
-
-	return nil
-}
-
 func (w *Worker) probeInput(ctx context.Context, inputPath string) (mediaMeta, error) {
-	cmd := exec.CommandContext(
+	output, err := w.runner.Run(
 		ctx,
 		w.ffprobePath,
 		"-v", "error",
@@ -284,14 +468,12 @@ func (w *Worker) probeInput(ctx context.Context, inputPath string) (mediaMeta, e
 		"-show_format",
 		inputPath,
 	)
-
-	output, err := cmd.Output()
 	if err != nil {
 		return mediaMeta{}, fmt.Errorf("ffprobe failed: %w", err)
 	}
 
 	var result probeResult
-	if err := json.Unmarshal(output, &result); err != nil {
+	if err := json.Unmarshal([]byte(output), &result); err != nil {
 		return mediaMeta{}, fmt.Errorf("decode ffprobe json: %w", err)
 	}
 
