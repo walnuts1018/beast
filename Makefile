@@ -2,7 +2,7 @@
 generate:
 	cd apiserver && go generate ./...
 
-.PHONY:lint
+.PHONY: lint
 lint:
 	cd apiserver && go tool golangci-lint run
 
