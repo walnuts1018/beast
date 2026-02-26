@@ -1,0 +1,187 @@
+"""
+RFC3339形式の日時文字列。
+"""
+scalar DateTime
+
+"""
+Base64でエンコードされたバイナリ。
+"""
+scalar Base64
+
+enum VideoStatus {
+  UPLOADED
+  ENCODING
+  READY
+  FAILED
+}
+
+enum EncryptionAlgorithm {
+  XCHACHA20_POLY1305
+}
+
+"""
+暗号化データに付与するEnvelope Encryptionメタデータ。
+"""
+type EncryptionMetadata {
+  algorithm: EncryptionAlgorithm!
+  keyVersion: Int!
+  nonce: Base64!
+  encryptedDataKey: Base64!
+}
+
+"""
+ユーザーのShared Key公開鍵のバージョン。
+"""
+type SharedKeyVersion {
+  version: Int!
+  publicKeyPem: String!
+  status: SharedKeyVersionStatus!
+  createdAt: DateTime!
+  revokedAt: DateTime
+}
+
+enum SharedKeyVersionStatus {
+  ACTIVE
+  REVOKED
+}
+
+"""
+Device Keyで暗号化されたShared Key秘密鍵の配布情報。
+"""
+type DeviceWrappedSharedKey {
+  deviceId: ID!
+  sharedKeyVersion: Int!
+  encryptedSharedPrivateKey: Base64!
+  createdAt: DateTime!
+}
+
+type UploadSession {
+  id: ID!
+  objectKey: String!
+  uploadUrl: String!
+  expiresAt: DateTime!
+}
+
+type VideoEncodingProgress {
+  videoId: ID!
+  status: VideoStatus!
+  percent: Float!
+  updatedAt: DateTime!
+  message: String
+}
+
+"""
+再生時にクライアントが復号に必要な情報を取得するためのトークン。
+復号処理は常にクライアントで実行される。
+"""
+type PlaybackGrant {
+  videoId: ID!
+  manifestUrl: String!
+  expiresAt: DateTime!
+  encryption: EncryptionMetadata!
+}
+
+type Video {
+  id: ID!
+  ownerUserId: ID!
+  status: VideoStatus!
+  uploadedAt: DateTime!
+  readyAt: DateTime
+  failedReason: String
+  durationMillis: Int
+  width: Int
+  height: Int
+  playback: PlaybackGrant
+  encryptedTags: Base64!
+  tagEncryption: EncryptionMetadata!
+  contentEncryption: EncryptionMetadata
+}
+
+type Me {
+  userId: ID!
+  sharedKeyVersions: [SharedKeyVersion!]!
+  deviceWrappedSharedKeys: [DeviceWrappedSharedKey!]!
+}
+
+input PaginationInput {
+  after: String
+  first: Int! = 20
+}
+
+type VideoEdge {
+  cursor: String!
+  node: Video!
+}
+
+type PageInfo {
+  hasNextPage: Boolean!
+  endCursor: String
+}
+
+type VideoConnection {
+  edges: [VideoEdge!]!
+  pageInfo: PageInfo!
+}
+
+input RegisterSharedKeyInput {
+  publicKeyPem: String!
+}
+
+input RevokeSharedKeyVersionInput {
+  version: Int!
+}
+
+input RegisterDeviceKeyInput {
+  deviceId: ID!
+  devicePublicKeyPem: String!
+  encryptedSharedPrivateKey: Base64!
+  sharedKeyVersion: Int!
+}
+
+input CreateUploadSessionInput {
+  fileSizeBytes: Int!
+  contentType: String!
+  checksumSha256: Base64
+}
+
+input CompleteUploadInput {
+  uploadSessionId: ID!
+}
+
+input UpdateEncryptedTagsInput {
+  videoId: ID!
+  encryptedTags: Base64!
+  tagEncryption: EncryptionMetadataInput!
+}
+
+input EncryptionMetadataInput {
+  algorithm: EncryptionAlgorithm!
+  keyVersion: Int!
+  nonce: Base64!
+  encryptedDataKey: Base64!
+}
+
+input RetryEncodingInput {
+  videoId: ID!
+}
+
+type Query {
+  me: Me!
+  video(videoId: ID!): Video
+  videos(status: VideoStatus, pagination: PaginationInput): VideoConnection!
+  encodingProgress(videoId: ID!): VideoEncodingProgress!
+}
+
+type Mutation {
+  registerSharedKey(input: RegisterSharedKeyInput!): SharedKeyVersion!
+  revokeSharedKeyVersion(input: RevokeSharedKeyVersionInput!): SharedKeyVersion!
+  registerDeviceKey(input: RegisterDeviceKeyInput!): DeviceWrappedSharedKey!
+  createUploadSession(input: CreateUploadSessionInput!): UploadSession!
+  completeUpload(input: CompleteUploadInput!): Video!
+  updateEncryptedTags(input: UpdateEncryptedTagsInput!): Video!
+  retryEncoding(input: RetryEncodingInput!): Video!
+}
+
+type Subscription {
+  encodingProgressUpdated(videoId: ID!): VideoEncodingProgress!
+}
