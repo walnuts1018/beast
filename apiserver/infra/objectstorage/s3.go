@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 	"time"
 
@@ -77,6 +78,32 @@ func (s *S3Storage) Exists(ctx context.Context, objectKey string) (bool, error) 
 	}
 
 	return false, fmt.Errorf("head object: %w", err)
+}
+
+func (s *S3Storage) Download(ctx context.Context, objectKey string) (io.ReadCloser, error) {
+	output, err := s.client.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(s.bucket),
+		Key:    aws.String(objectKey),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("get object: %w", err)
+	}
+
+	return output.Body, nil
+}
+
+func (s *S3Storage) Upload(ctx context.Context, objectKey string, body io.Reader, contentType string) error {
+	_, err := s.client.PutObject(ctx, &s3.PutObjectInput{
+		Bucket:      aws.String(s.bucket),
+		Key:         aws.String(objectKey),
+		Body:        body,
+		ContentType: aws.String(contentType),
+	})
+	if err != nil {
+		return fmt.Errorf("put object: %w", err)
+	}
+
+	return nil
 }
 
 func (s *S3Storage) HealthCheck(ctx context.Context) error {

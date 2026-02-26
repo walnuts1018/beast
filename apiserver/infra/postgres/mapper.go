@@ -71,20 +71,22 @@ func fromInt32Ptr(v *int32) *int {
 
 func toDomainVideo(row sqlcgen.Video) domain.Video {
 	v := domain.Video{
-		ID:             row.ID,
-		OwnerUserID:    row.OwnerUserID,
-		Status:         domain.VideoStatus(row.Status),
-		UploadedAt:     fromPgTimestamptz(row.UploadedAt),
-		ReadyAt:        fromPgTimestamptzPtr(row.ReadyAt),
-		FailedReason:   fromPgTextPtr(row.FailedReason),
-		DurationMillis: fromInt32Ptr(row.DurationMillis),
-		Width:          fromInt32Ptr(row.Width),
-		Height:         fromInt32Ptr(row.Height),
-		Rating:         fromInt32PtrToRating(row.Rating),
-		PlayCount:      int(row.PlayCount),
-		LastPlayedAt:   fromPgTimestamptzPtr(row.LastPlayedAt),
-		CreatedAt:      fromPgTimestamptz(row.CreatedAt),
-		UpdatedAt:      fromPgTimestamptz(row.UpdatedAt),
+		ID:               row.ID,
+		OwnerUserID:      row.OwnerUserID,
+		Status:           domain.VideoStatus(row.Status),
+		SourceObjectKey:  row.SourceObjectKey,
+		EncodedObjectKey: fromPgTextPtr(row.EncodedObjectKey),
+		UploadedAt:       fromPgTimestamptz(row.UploadedAt),
+		ReadyAt:          fromPgTimestamptzPtr(row.ReadyAt),
+		FailedReason:     fromPgTextPtr(row.FailedReason),
+		DurationMillis:   fromInt32Ptr(row.DurationMillis),
+		Width:            fromInt32Ptr(row.Width),
+		Height:           fromInt32Ptr(row.Height),
+		Rating:           fromInt32PtrToRating(row.Rating),
+		PlayCount:        int(row.PlayCount),
+		LastPlayedAt:     fromPgTimestamptzPtr(row.LastPlayedAt),
+		CreatedAt:        fromPgTimestamptz(row.CreatedAt),
+		UpdatedAt:        fromPgTimestamptz(row.UpdatedAt),
 	}
 
 	if row.PlaybackManifestUrl.Valid && row.PlaybackExpiresAt.Valid && row.PlaybackEncAlgorithm.Valid && row.PlaybackEncKeyVersion != nil {
@@ -115,24 +117,24 @@ func toDomainVideo(row sqlcgen.Video) domain.Video {
 
 // toCreateVideoParamsとtoUpdateVideoParamsはsqlcが生成する別々の型に対する変換のため、
 // 構造が同一でも共通化できない。
-//
-//nolint:dupl
 func toCreateVideoParams(v domain.Video) sqlcgen.CreateVideoParams {
 	p := sqlcgen.CreateVideoParams{
-		ID:             v.ID,
-		OwnerUserID:    v.OwnerUserID,
-		Status:         string(v.Status),
-		UploadedAt:     toPgTimestamptz(v.UploadedAt),
-		ReadyAt:        toPgTimestamptzPtr(v.ReadyAt),
-		FailedReason:   toPgTextPtr(v.FailedReason),
-		DurationMillis: toInt32Ptr(v.DurationMillis),
-		Width:          toInt32Ptr(v.Width),
-		Height:         toInt32Ptr(v.Height),
-		Rating:         toRatingInt32Ptr(v.Rating),
-		PlayCount:      int32(v.PlayCount),
-		LastPlayedAt:   toPgTimestamptzPtr(v.LastPlayedAt),
-		CreatedAt:      toPgTimestamptz(v.CreatedAt),
-		UpdatedAt:      toPgTimestamptz(v.UpdatedAt),
+		ID:               v.ID,
+		OwnerUserID:      v.OwnerUserID,
+		Status:           string(v.Status),
+		SourceObjectKey:  v.SourceObjectKey,
+		EncodedObjectKey: toPgTextPtr(v.EncodedObjectKey),
+		UploadedAt:       toPgTimestamptz(v.UploadedAt),
+		ReadyAt:          toPgTimestamptzPtr(v.ReadyAt),
+		FailedReason:     toPgTextPtr(v.FailedReason),
+		DurationMillis:   toInt32Ptr(v.DurationMillis),
+		Width:            toInt32Ptr(v.Width),
+		Height:           toInt32Ptr(v.Height),
+		Rating:           toRatingInt32Ptr(v.Rating),
+		PlayCount:        int32(v.PlayCount),
+		LastPlayedAt:     toPgTimestamptzPtr(v.LastPlayedAt),
+		CreatedAt:        toPgTimestamptz(v.CreatedAt),
+		UpdatedAt:        toPgTimestamptz(v.UpdatedAt),
 	}
 
 	if v.Playback != nil {
@@ -155,21 +157,21 @@ func toCreateVideoParams(v domain.Video) sqlcgen.CreateVideoParams {
 
 	return p
 }
-
-//nolint:dupl
 func toUpdateVideoParams(v domain.Video) sqlcgen.UpdateVideoParams {
 	p := sqlcgen.UpdateVideoParams{
-		ID:             v.ID,
-		OwnerUserID:    v.OwnerUserID,
-		Status:         string(v.Status),
-		UploadedAt:     toPgTimestamptz(v.UploadedAt),
-		ReadyAt:        toPgTimestamptzPtr(v.ReadyAt),
-		FailedReason:   toPgTextPtr(v.FailedReason),
-		DurationMillis: toInt32Ptr(v.DurationMillis),
-		Width:          toInt32Ptr(v.Width),
-		Height:         toInt32Ptr(v.Height),
-		CreatedAt:      toPgTimestamptz(v.CreatedAt),
-		UpdatedAt:      toPgTimestamptz(v.UpdatedAt),
+		ID:               v.ID,
+		OwnerUserID:      v.OwnerUserID,
+		Status:           string(v.Status),
+		SourceObjectKey:  v.SourceObjectKey,
+		EncodedObjectKey: toPgTextPtr(v.EncodedObjectKey),
+		UploadedAt:       toPgTimestamptz(v.UploadedAt),
+		ReadyAt:          toPgTimestamptzPtr(v.ReadyAt),
+		FailedReason:     toPgTextPtr(v.FailedReason),
+		DurationMillis:   toInt32Ptr(v.DurationMillis),
+		Width:            toInt32Ptr(v.Width),
+		Height:           toInt32Ptr(v.Height),
+		CreatedAt:        toPgTimestamptz(v.CreatedAt),
+		UpdatedAt:        toPgTimestamptz(v.UpdatedAt),
 	}
 
 	if v.Playback != nil {

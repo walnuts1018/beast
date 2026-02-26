@@ -65,6 +65,35 @@ func (r *VideoRepository) GetByID(ctx context.Context, videoID string) (*domain.
 	return &copyVideo, nil
 }
 
+func (r *VideoRepository) ClaimNextUploadedForEncoding(ctx context.Context, now synchro.Time[tz.UTC]) (*domain.Video, error) {
+	_ = ctx
+	r.store.mu.Lock()
+	defer r.store.mu.Unlock()
+
+	var picked *domain.Video
+	for _, v := range r.store.videos {
+		if v.Status != domain.VideoStatusUploaded {
+			continue
+		}
+		if picked == nil || v.UploadedAt.Before(picked.UploadedAt) {
+			copyVideo := v
+			picked = &copyVideo
+		}
+	}
+
+	if picked == nil {
+		return nil, nil
+	}
+
+	picked.Status = domain.VideoStatusEncoding
+	picked.FailedReason = nil
+	picked.UpdatedAt = now
+	r.store.videos[picked.ID] = *picked
+
+	result := *picked
+	return &result, nil
+}
+
 func (r *VideoRepository) ListByOwner(
 	ctx context.Context,
 	ownerUserID string,

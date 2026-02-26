@@ -11,12 +11,101 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const claimNextUploadedVideoForEncoding = `-- name: ClaimNextUploadedVideoForEncoding :one
+WITH picked AS (
+    SELECT
+        id
+    FROM
+        videos
+    WHERE
+        status = 'UPLOADED'
+    ORDER BY
+        uploaded_at ASC,
+        id ASC
+    LIMIT
+        1 FOR
+    UPDATE
+        SKIP LOCKED
+)
+UPDATE
+    videos v
+SET
+    status = 'ENCODING',
+    failed_reason = NULL,
+    updated_at = $1
+FROM
+    picked
+WHERE
+    v.id = picked.id RETURNING v.id,
+    v.owner_user_id,
+    v.status,
+    v.source_object_key,
+    v.encoded_object_key,
+    v.uploaded_at,
+    v.ready_at,
+    v.failed_reason,
+    v.duration_millis,
+    v.width,
+    v.height,
+    v.playback_manifest_url,
+    v.playback_expires_at,
+    v.playback_enc_algorithm,
+    v.playback_enc_key_version,
+    v.playback_enc_nonce,
+    v.playback_enc_encrypted_data_key,
+    v.content_enc_algorithm,
+    v.content_enc_key_version,
+    v.content_enc_nonce,
+    v.content_enc_encrypted_data_key,
+    v.rating,
+    v.play_count,
+    v.last_played_at,
+    v.created_at,
+    v.updated_at
+`
+
+func (q *Queries) ClaimNextUploadedVideoForEncoding(ctx context.Context, updatedAt pgtype.Timestamptz) (Video, error) {
+	row := q.db.QueryRow(ctx, claimNextUploadedVideoForEncoding, updatedAt)
+	var i Video
+	err := row.Scan(
+		&i.ID,
+		&i.OwnerUserID,
+		&i.Status,
+		&i.SourceObjectKey,
+		&i.EncodedObjectKey,
+		&i.UploadedAt,
+		&i.ReadyAt,
+		&i.FailedReason,
+		&i.DurationMillis,
+		&i.Width,
+		&i.Height,
+		&i.PlaybackManifestUrl,
+		&i.PlaybackExpiresAt,
+		&i.PlaybackEncAlgorithm,
+		&i.PlaybackEncKeyVersion,
+		&i.PlaybackEncNonce,
+		&i.PlaybackEncEncryptedDataKey,
+		&i.ContentEncAlgorithm,
+		&i.ContentEncKeyVersion,
+		&i.ContentEncNonce,
+		&i.ContentEncEncryptedDataKey,
+		&i.Rating,
+		&i.PlayCount,
+		&i.LastPlayedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const createVideo = `-- name: CreateVideo :exec
 INSERT INTO
     videos (
         id,
         owner_user_id,
         status,
+        source_object_key,
+        encoded_object_key,
         uploaded_at,
         ready_at,
         failed_reason,
@@ -64,7 +153,9 @@ VALUES
         $21,
         $22,
         $23,
-        $24
+        $24,
+        $25,
+        $26
     )
 `
 
@@ -72,6 +163,8 @@ type CreateVideoParams struct {
 	ID                          string
 	OwnerUserID                 string
 	Status                      string
+	SourceObjectKey             string
+	EncodedObjectKey            pgtype.Text
 	UploadedAt                  pgtype.Timestamptz
 	ReadyAt                     pgtype.Timestamptz
 	FailedReason                pgtype.Text
@@ -100,6 +193,8 @@ func (q *Queries) CreateVideo(ctx context.Context, arg CreateVideoParams) error 
 		arg.ID,
 		arg.OwnerUserID,
 		arg.Status,
+		arg.SourceObjectKey,
+		arg.EncodedObjectKey,
 		arg.UploadedAt,
 		arg.ReadyAt,
 		arg.FailedReason,
@@ -130,6 +225,8 @@ SELECT
     id,
     owner_user_id,
     status,
+    source_object_key,
+    encoded_object_key,
     uploaded_at,
     ready_at,
     failed_reason,
@@ -164,6 +261,8 @@ func (q *Queries) GetVideoByID(ctx context.Context, id string) (Video, error) {
 		&i.ID,
 		&i.OwnerUserID,
 		&i.Status,
+		&i.SourceObjectKey,
+		&i.EncodedObjectKey,
 		&i.UploadedAt,
 		&i.ReadyAt,
 		&i.FailedReason,
@@ -216,6 +315,8 @@ SELECT
     id,
     owner_user_id,
     status,
+    source_object_key,
+    encoded_object_key,
     uploaded_at,
     ready_at,
     failed_reason,
@@ -286,6 +387,8 @@ func (q *Queries) ListVideosByOwner(ctx context.Context, arg ListVideosByOwnerPa
 			&i.ID,
 			&i.OwnerUserID,
 			&i.Status,
+			&i.SourceObjectKey,
+			&i.EncodedObjectKey,
 			&i.UploadedAt,
 			&i.ReadyAt,
 			&i.FailedReason,
@@ -323,6 +426,8 @@ SELECT
     v.id,
     v.owner_user_id,
     v.status,
+    v.source_object_key,
+    v.encoded_object_key,
     v.uploaded_at,
     v.ready_at,
     v.failed_reason,
@@ -397,6 +502,8 @@ func (q *Queries) ListVideosByOwnerAndTag(ctx context.Context, arg ListVideosByO
 			&i.ID,
 			&i.OwnerUserID,
 			&i.Status,
+			&i.SourceObjectKey,
+			&i.EncodedObjectKey,
 			&i.UploadedAt,
 			&i.ReadyAt,
 			&i.FailedReason,
@@ -457,31 +564,35 @@ UPDATE
 SET
     owner_user_id = $1,
     status = $2,
-    uploaded_at = $3,
-    ready_at = $4,
-    failed_reason = $5,
-    duration_millis = $6,
-    width = $7,
-    height = $8,
-    playback_manifest_url = $9,
-    playback_expires_at = $10,
-    playback_enc_algorithm = $11,
-    playback_enc_key_version = $12,
-    playback_enc_nonce = $13,
-    playback_enc_encrypted_data_key = $14,
-    content_enc_algorithm = $15,
-    content_enc_key_version = $16,
-    content_enc_nonce = $17,
-    content_enc_encrypted_data_key = $18,
-    created_at = $19,
-    updated_at = $20
+    source_object_key = $3,
+    encoded_object_key = $4,
+    uploaded_at = $5,
+    ready_at = $6,
+    failed_reason = $7,
+    duration_millis = $8,
+    width = $9,
+    height = $10,
+    playback_manifest_url = $11,
+    playback_expires_at = $12,
+    playback_enc_algorithm = $13,
+    playback_enc_key_version = $14,
+    playback_enc_nonce = $15,
+    playback_enc_encrypted_data_key = $16,
+    content_enc_algorithm = $17,
+    content_enc_key_version = $18,
+    content_enc_nonce = $19,
+    content_enc_encrypted_data_key = $20,
+    created_at = $21,
+    updated_at = $22
 WHERE
-    id = $21
+    id = $23
 `
 
 type UpdateVideoParams struct {
 	OwnerUserID                 string
 	Status                      string
+	SourceObjectKey             string
+	EncodedObjectKey            pgtype.Text
 	UploadedAt                  pgtype.Timestamptz
 	ReadyAt                     pgtype.Timestamptz
 	FailedReason                pgtype.Text
@@ -507,6 +618,8 @@ func (q *Queries) UpdateVideo(ctx context.Context, arg UpdateVideoParams) (int64
 	result, err := q.db.Exec(ctx, updateVideo,
 		arg.OwnerUserID,
 		arg.Status,
+		arg.SourceObjectKey,
+		arg.EncodedObjectKey,
 		arg.UploadedAt,
 		arg.ReadyAt,
 		arg.FailedReason,

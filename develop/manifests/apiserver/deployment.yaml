@@ -45,6 +45,12 @@ spec:
           value: "true"
         - name: UPLOAD_URL_TTL
           value: 15m
+        - name: RABBITMQ_URL
+          value: amqp://guest:guest@rabbitmq.rabbitmq.svc.cluster.local:5672/
+        - name: RABBITMQ_ENCODE_JOB_QUEUE
+          value: beast.encoder.jobs
+        - name: RABBITMQ_ENCODE_EVENT_QUEUE
+          value: beast.encoder.events
         - name: AUTH_MODE
           value: introspection
         - name: OIDC_INTROSPECTION_URL

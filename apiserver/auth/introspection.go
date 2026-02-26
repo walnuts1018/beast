@@ -63,7 +63,9 @@ func (i *HTTPIntrospector) Introspect(ctx context.Context, token string) (Princi
 	if err != nil {
 		return Principal{}, fmt.Errorf("send introspection request: %w", err)
 	}
-	defer res.Body.Close()
+	defer func() {
+		_ = res.Body.Close()
+	}()
 
 	if res.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(res.Body, 1024))

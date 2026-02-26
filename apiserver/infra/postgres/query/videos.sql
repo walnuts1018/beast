@@ -4,6 +4,8 @@ INSERT INTO
         id,
         owner_user_id,
         status,
+        source_object_key,
+        encoded_object_key,
         uploaded_at,
         ready_at,
         failed_reason,
@@ -31,6 +33,8 @@ VALUES
         @id,
         @owner_user_id,
         @status,
+        @source_object_key,
+        @encoded_object_key,
         @uploaded_at,
         @ready_at,
         @failed_reason,
@@ -59,6 +63,8 @@ SELECT
     id,
     owner_user_id,
     status,
+    source_object_key,
+    encoded_object_key,
     uploaded_at,
     ready_at,
     failed_reason,
@@ -90,6 +96,8 @@ SELECT
     id,
     owner_user_id,
     status,
+    source_object_key,
+    encoded_object_key,
     uploaded_at,
     ready_at,
     failed_reason,
@@ -137,6 +145,8 @@ SELECT
     v.id,
     v.owner_user_id,
     v.status,
+    v.source_object_key,
+    v.encoded_object_key,
     v.uploaded_at,
     v.ready_at,
     v.failed_reason,
@@ -187,6 +197,8 @@ UPDATE
 SET
     owner_user_id = @owner_user_id,
     status = @status,
+    source_object_key = @source_object_key,
+    encoded_object_key = @encoded_object_key,
     uploaded_at = @uploaded_at,
     ready_at = @ready_at,
     failed_reason = @failed_reason,
@@ -207,6 +219,58 @@ SET
     updated_at = @updated_at
 WHERE
     id = @id;
+
+-- name: ClaimNextUploadedVideoForEncoding :one
+WITH picked AS (
+    SELECT
+        id
+    FROM
+        videos
+    WHERE
+        status = 'UPLOADED'
+    ORDER BY
+        uploaded_at ASC,
+        id ASC
+    LIMIT
+        1 FOR
+    UPDATE
+        SKIP LOCKED
+)
+UPDATE
+    videos v
+SET
+    status = 'ENCODING',
+    failed_reason = NULL,
+    updated_at = @updated_at
+FROM
+    picked
+WHERE
+    v.id = picked.id RETURNING v.id,
+    v.owner_user_id,
+    v.status,
+    v.source_object_key,
+    v.encoded_object_key,
+    v.uploaded_at,
+    v.ready_at,
+    v.failed_reason,
+    v.duration_millis,
+    v.width,
+    v.height,
+    v.playback_manifest_url,
+    v.playback_expires_at,
+    v.playback_enc_algorithm,
+    v.playback_enc_key_version,
+    v.playback_enc_nonce,
+    v.playback_enc_encrypted_data_key,
+    v.content_enc_algorithm,
+    v.content_enc_key_version,
+    v.content_enc_nonce,
+    v.content_enc_encrypted_data_key,
+    v.rating,
+    v.play_count,
+    v.last_played_at,
+    v.created_at,
+    v.updated_at;
 
 -- name: UpdateVideoRating :execrows
 UPDATE

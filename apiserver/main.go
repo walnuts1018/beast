@@ -28,6 +28,7 @@ import (
 	"github.com/walnuts1018/beast/apiserver/graph"
 	"github.com/walnuts1018/beast/apiserver/infra/objectstorage"
 	"github.com/walnuts1018/beast/apiserver/infra/postgres"
+	"github.com/walnuts1018/beast/apiserver/infra/rabbitmq"
 	"github.com/walnuts1018/beast/apiserver/logger"
 	"github.com/walnuts1018/beast/apiserver/usecase"
 )
@@ -72,6 +73,13 @@ func main() {
 		os.Exit(1)
 	}
 
+	rabbitClient, err := rabbitmq.New(cfg.RabbitMQ)
+	if err != nil {
+		slog.ErrorContext(ctx, "rabbitmq initialization error", slog.Any("error", err))
+		os.Exit(1)
+	}
+	defer rabbitClient.Close()
+
 	service := usecase.NewService(
 		postgres.NewVideoRepository(store),
 		postgres.NewVideoTagRepository(store),
@@ -79,10 +87,16 @@ func main() {
 		postgres.NewDeviceKeyRepository(store),
 		postgres.NewUploadSessionRepository(store),
 		postgres.NewEncodingProgressRepository(store),
+		rabbitClient,
 		objectStore,
 		postgres.NewPlaybackHistoryRepository(store),
 		cfg.S3.UploadURLTTL,
 	)
+
+	if err := rabbitClient.StartEventConsumer(ctx, service.ApplyEncodingEvent); err != nil {
+		slog.ErrorContext(ctx, "failed to start encoder event consumer", slog.Any("error", err))
+		os.Exit(1)
+	}
 
 	resolvers := &graph.Resolver{Service: service}
 	gqlHandler := handler.New(graph.NewExecutableSchema(graph.Config{Resolvers: resolvers}))

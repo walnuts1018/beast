@@ -1,4 +1,12 @@
+DROP INDEX IF EXISTS idx_playback_histories_owner;
+
+DROP INDEX IF EXISTS idx_playback_histories_video_id;
+
+DROP TABLE IF EXISTS playback_histories;
+
 DROP TABLE IF EXISTS encoding_progress;
+
+DROP TABLE IF EXISTS video_tags;
 
 DROP TABLE IF EXISTS videos;
 

@@ -9,17 +9,26 @@ permissions:
 
 jobs:
   golangci-lint:
-    name: golangci-lint
+    name: golangci-lint (${{ matrix.module.name }})
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        module:
+          - name: apiserver
+            dir: apiserver
+            go_mod: apiserver/go.mod
+          - name: encoder
+            dir: encoder
+            go_mod: encoder/go.mod
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-go@v6
         with:
-          go-version-file: apiserver/go.mod
+          go-version-file: ${{ matrix.module.go_mod }}
       - name: golangci-lint
         uses: golangci/golangci-lint-action@1e7e51e771db61008b38414a730f564565cf7c20 # v9.2.0
         with:
-          working-directory: apiserver
+          working-directory: ${{ matrix.module.dir }}
 
   go-generate-diff:
     name: go generate 差分確認
@@ -36,15 +45,22 @@ jobs:
         run: git --no-pager diff --exit-code
 
   go-test:
-    name: go test
+    name: go test (${{ matrix.module.name }})
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: apiserver
+    strategy:
+      matrix:
+        module:
+          - name: apiserver
+            dir: apiserver
+            go_mod: apiserver/go.mod
+          - name: encoder
+            dir: encoder
+            go_mod: encoder/go.mod
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-go@v6
         with:
-          go-version-file: apiserver/go.mod
+          go-version-file: ${{ matrix.module.go_mod }}
       - name: go test
+        working-directory: ${{ matrix.module.dir }}
         run: go test ./...

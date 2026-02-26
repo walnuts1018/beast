@@ -11,6 +11,7 @@ import (
 )
 
 type Querier interface {
+	ClaimNextUploadedVideoForEncoding(ctx context.Context, updatedAt pgtype.Timestamptz) (Video, error)
 	CreateUploadSession(ctx context.Context, arg CreateUploadSessionParams) error
 	CreateVideo(ctx context.Context, arg CreateVideoParams) error
 	DeleteUploadSession(ctx context.Context, id string) error

@@ -31,6 +31,8 @@ CREATE TABLE IF NOT EXISTS videos (
     id TEXT PRIMARY KEY,
     owner_user_id TEXT NOT NULL,
     status TEXT NOT NULL,
+    source_object_key TEXT NOT NULL,
+    encoded_object_key TEXT,
     uploaded_at TIMESTAMPTZ NOT NULL,
     ready_at TIMESTAMPTZ,
     failed_reason TEXT,

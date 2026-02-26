@@ -2,6 +2,7 @@ package domain
 
 import (
 	"context"
+	"io"
 	"time"
 
 	"github.com/Code-Hex/synchro"
@@ -11,6 +12,7 @@ import (
 type VideoRepository interface {
 	Create(ctx context.Context, video Video) error
 	GetByID(ctx context.Context, videoID string) (*Video, error)
+	ClaimNextUploadedForEncoding(ctx context.Context, now synchro.Time[tz.UTC]) (*Video, error)
 	ListByOwner(ctx context.Context, ownerUserID string, status *VideoStatus, p Pagination) (VideoConnection, error)
 	ListByOwnerAndTag(ctx context.Context, ownerUserID string, tag string, status *VideoStatus, p Pagination) (VideoConnection, error)
 	Update(ctx context.Context, video Video) error
@@ -51,9 +53,15 @@ type EncodingProgressRepository interface {
 type ObjectStorage interface {
 	CreateUploadURL(ctx context.Context, objectKey string, expiresIn time.Duration) (string, error)
 	Exists(ctx context.Context, objectKey string) (bool, error)
+	Download(ctx context.Context, objectKey string) (io.ReadCloser, error)
+	Upload(ctx context.Context, objectKey string, body io.Reader, contentType string) error
 }
 
 type PlaybackHistoryRepository interface {
 	Record(ctx context.Context, history PlaybackHistory) error
 	ListByVideo(ctx context.Context, videoID string, limit int) ([]PlaybackHistory, error)
+}
+
+type EncodingJobPublisher interface {
+	PublishEncodeVideo(ctx context.Context, job EncodeVideoJob) error
 }

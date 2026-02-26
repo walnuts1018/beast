@@ -152,6 +152,19 @@ func (r *VideoRepository) GetByID(ctx context.Context, videoID string) (*domain.
 	return &video, nil
 }
 
+func (r *VideoRepository) ClaimNextUploadedForEncoding(ctx context.Context, now synchro.Time[tz.UTC]) (*domain.Video, error) {
+	row, err := r.store.queries.ClaimNextUploadedVideoForEncoding(ctx, toPgTimestamptz(now))
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("claim next uploaded video: %w", err)
+	}
+
+	video := toDomainVideo(row)
+	return &video, nil
+}
+
 func (r *VideoRepository) ListByOwner(
 	ctx context.Context,
 	ownerUserID string,

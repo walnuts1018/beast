@@ -55,6 +55,8 @@ type Video struct {
 	ID                          string
 	OwnerUserID                 string
 	Status                      string
+	SourceObjectKey             string
+	EncodedObjectKey            pgtype.Text
 	UploadedAt                  pgtype.Timestamptz
 	ReadyAt                     pgtype.Timestamptz
 	FailedReason                pgtype.Text
