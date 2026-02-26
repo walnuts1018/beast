@@ -10,19 +10,19 @@ import (
 )
 
 func CreateLogger(logLevel slog.Level, logType config.LogType) *slog.Logger {
-	var hander slog.Handler
+	var handler slog.Handler
 	switch logType {
 	case config.LogTypeText:
-		hander = tint.NewHandler(os.Stdout, &tint.Options{
+		handler = tint.NewHandler(os.Stdout, &tint.Options{
 			Level:     logLevel,
 			AddSource: logLevel == slog.LevelDebug,
 		})
 	case config.LogTypeJSON:
-		hander = slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+		handler = slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 			Level:     logLevel,
 			AddSource: logLevel == slog.LevelDebug,
 		})
 	}
 
-	return slog.New(slogctx.NewHandler(hander, nil))
+	return slog.New(slogctx.NewHandler(handler, nil))
 }

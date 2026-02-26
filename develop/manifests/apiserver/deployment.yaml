@@ -45,6 +45,12 @@ spec:
           value: "true"
         - name: UPLOAD_URL_TTL
           value: 15m
+        - name: OIDC_INTROSPECTION_URL
+          value: https://auth.walnuts.dev/oauth/v2/introspect
+        - name: OIDC_CLIENT_ID
+          value: beast-apiserver
+        - name: OIDC_CLIENT_SECRET
+          value: change-me
         livenessProbe:
           httpGet:
             path: /livez

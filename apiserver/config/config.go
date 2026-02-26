@@ -22,8 +22,8 @@ func Load() (*Config, error) {
 	cfg := &Config{}
 	if err := env.ParseWithOptions(cfg, env.Options{
 		FuncMap: map[reflect.Type]env.ParserFunc{
-			reflect.TypeOf(slog.Level(0)): returnAny(ParseLogLevel),
-			reflect.TypeOf(LogType("")):   returnAny(ParseLogType),
+			reflect.TypeFor[slog.Level](): returnAny(ParseLogLevel),
+			reflect.TypeFor[LogType]():    returnAny(ParseLogType),
 		},
 	}); err != nil {
 		return nil, err
