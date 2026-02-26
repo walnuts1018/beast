@@ -42,6 +42,7 @@ type ComplexityRoot struct {
 	DeviceWrappedSharedKey struct {
 		CreatedAt                 func(childComplexity int) int
 		DeviceID                  func(childComplexity int) int
+		DevicePublicKeyPem        func(childComplexity int) int
 		EncryptedSharedPrivateKey func(childComplexity int) int
 		SharedKeyVersion          func(childComplexity int) int
 	}
@@ -187,6 +188,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.DeviceWrappedSharedKey.DeviceID(childComplexity), true
+	case "DeviceWrappedSharedKey.devicePublicKeyPem":
+		if e.ComplexityRoot.DeviceWrappedSharedKey.DevicePublicKeyPem == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DeviceWrappedSharedKey.DevicePublicKeyPem(childComplexity), true
 	case "DeviceWrappedSharedKey.encryptedSharedPrivateKey":
 		if e.ComplexityRoot.DeviceWrappedSharedKey.EncryptedSharedPrivateKey == nil {
 			break
@@ -766,6 +773,7 @@ Device Keyで暗号化されたShared Key秘密鍵の配布情報。
 """
 type DeviceWrappedSharedKey {
   deviceId: ID!
+  devicePublicKeyPem: String!
   sharedKeyVersion: Int!
   encryptedSharedPrivateKey: Base64!
   createdAt: DateTime!
@@ -1127,6 +1135,35 @@ func (ec *executionContext) fieldContext_DeviceWrappedSharedKey_deviceId(_ conte
 	return fc, nil
 }
 
+func (ec *executionContext) _DeviceWrappedSharedKey_devicePublicKeyPem(ctx context.Context, field graphql.CollectedField, obj *model.DeviceWrappedSharedKey) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_DeviceWrappedSharedKey_devicePublicKeyPem,
+		func(ctx context.Context) (any, error) {
+			return obj.DevicePublicKeyPem, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_DeviceWrappedSharedKey_devicePublicKeyPem(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DeviceWrappedSharedKey",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _DeviceWrappedSharedKey_sharedKeyVersion(ctx context.Context, field graphql.CollectedField, obj *model.DeviceWrappedSharedKey) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -1426,6 +1463,8 @@ func (ec *executionContext) fieldContext_Me_deviceWrappedSharedKeys(_ context.Co
 			switch field.Name {
 			case "deviceId":
 				return ec.fieldContext_DeviceWrappedSharedKey_deviceId(ctx, field)
+			case "devicePublicKeyPem":
+				return ec.fieldContext_DeviceWrappedSharedKey_devicePublicKeyPem(ctx, field)
 			case "sharedKeyVersion":
 				return ec.fieldContext_DeviceWrappedSharedKey_sharedKeyVersion(ctx, field)
 			case "encryptedSharedPrivateKey":
@@ -1572,6 +1611,8 @@ func (ec *executionContext) fieldContext_Mutation_registerDeviceKey(ctx context.
 			switch field.Name {
 			case "deviceId":
 				return ec.fieldContext_DeviceWrappedSharedKey_deviceId(ctx, field)
+			case "devicePublicKeyPem":
+				return ec.fieldContext_DeviceWrappedSharedKey_devicePublicKeyPem(ctx, field)
 			case "sharedKeyVersion":
 				return ec.fieldContext_DeviceWrappedSharedKey_sharedKeyVersion(ctx, field)
 			case "encryptedSharedPrivateKey":
@@ -5156,6 +5197,11 @@ func (ec *executionContext) _DeviceWrappedSharedKey(ctx context.Context, sel ast
 			out.Values[i] = graphql.MarshalString("DeviceWrappedSharedKey")
 		case "deviceId":
 			out.Values[i] = ec._DeviceWrappedSharedKey_deviceId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "devicePublicKeyPem":
+			out.Values[i] = ec._DeviceWrappedSharedKey_devicePublicKeyPem(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}

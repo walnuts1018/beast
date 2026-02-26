@@ -26,6 +26,7 @@ type CreateUploadSessionInput struct {
 // Device Keyで暗号化されたShared Key秘密鍵の配布情報。
 type DeviceWrappedSharedKey struct {
 	DeviceID                  string               `json:"deviceId"`
+	DevicePublicKeyPem        string               `json:"devicePublicKeyPem"`
 	SharedKeyVersion          int                  `json:"sharedKeyVersion"`
 	EncryptedSharedPrivateKey scalar.Base64        `json:"encryptedSharedPrivateKey"`
 	CreatedAt                 synchro.Time[tz.UTC] `json:"createdAt"`
