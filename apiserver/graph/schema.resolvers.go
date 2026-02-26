@@ -10,6 +10,7 @@ import (
 
 	"github.com/walnuts1018/beast/apiserver/domain"
 	"github.com/walnuts1018/beast/apiserver/graph/model"
+	"github.com/walnuts1018/beast/apiserver/usecase"
 )
 
 // RegisterSharedKey is the resolver for the registerSharedKey field.
@@ -71,7 +72,11 @@ func (r *mutationResolver) CreateUploadSession(ctx context.Context, input model.
 		return nil, err
 	}
 
-	session, err := r.Service.CreateUploadSession(ctx, userID)
+	session, err := r.Service.CreateUploadSession(ctx, userID, usecase.CreateUploadSessionInput{
+		FileSizeBytes:  int64(input.FileSizeBytes),
+		ContentType:    input.ContentType,
+		ChecksumSHA256: []byte(input.ChecksumSha256),
+	})
 	if err != nil {
 		return nil, err
 	}

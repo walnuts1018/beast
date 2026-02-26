@@ -89,15 +89,16 @@ func NewS3Storage(ctx context.Context, cfg Config) (*S3Storage, error) {
 	return storage, nil
 }
 
-func (s *S3Storage) CreateUploadURL(ctx context.Context, objectKey string, expiresIn time.Duration) (string, error) {
+func (s *S3Storage) CreateUploadURL(ctx context.Context, objectKey string, contentType string, expiresIn time.Duration) (string, error) {
 	ttl := expiresIn
 	if ttl <= 0 {
 		ttl = s.uploadTTL
 	}
 
 	request, err := s.presigner.PresignPutObject(ctx, &s3.PutObjectInput{
-		Bucket: aws.String(s.bucket),
-		Key:    aws.String(objectKey),
+		Bucket:      aws.String(s.bucket),
+		Key:         aws.String(objectKey),
+		ContentType: aws.String(contentType),
 	}, func(options *s3.PresignOptions) {
 		options.Expires = ttl
 	})

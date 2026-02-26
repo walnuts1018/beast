@@ -21,7 +21,7 @@ func newStubObjectStorage() *stubObjectStorage {
 	return &stubObjectStorage{objects: make(map[string]bool)}
 }
 
-func (s *stubObjectStorage) CreateUploadURL(_ context.Context, objectKey string, _ time.Duration) (string, error) {
+func (s *stubObjectStorage) CreateUploadURL(_ context.Context, objectKey string, _ string, _ time.Duration) (string, error) {
 	return fmt.Sprintf("https://fake-s3/%s", objectKey), nil
 }
 
@@ -218,15 +218,31 @@ func TestRegisterDeviceKey_Upsert(t *testing.T) {
 
 func TestCreateUploadSession_EmptyUserID(t *testing.T) {
 	svc, _, _ := newTestService()
-	_, err := svc.CreateUploadSession(context.Background(), "")
+	_, err := svc.CreateUploadSession(context.Background(), "", usecase.CreateUploadSessionInput{ContentType: "video/mp4", FileSizeBytes: 1024})
 	if !errors.Is(err, usecase.ErrUnauthorized) {
 		t.Fatalf("expected ErrUnauthorized, got %v", err)
 	}
 }
 
+func TestCreateUploadSession_EmptyContentType(t *testing.T) {
+	svc, _, _ := newTestService()
+	_, err := svc.CreateUploadSession(context.Background(), "user-1", usecase.CreateUploadSessionInput{ContentType: "", FileSizeBytes: 1024})
+	if !errors.Is(err, usecase.ErrInvalidInput) {
+		t.Fatalf("expected ErrInvalidInput, got %v", err)
+	}
+}
+
+func TestCreateUploadSession_InvalidFileSize(t *testing.T) {
+	svc, _, _ := newTestService()
+	_, err := svc.CreateUploadSession(context.Background(), "user-1", usecase.CreateUploadSessionInput{ContentType: "video/mp4", FileSizeBytes: 0})
+	if !errors.Is(err, usecase.ErrInvalidInput) {
+		t.Fatalf("expected ErrInvalidInput, got %v", err)
+	}
+}
+
 func TestCreateUploadSession_Success(t *testing.T) {
 	svc, _, _ := newTestService()
-	session, err := svc.CreateUploadSession(context.Background(), "user-1")
+	session, err := svc.CreateUploadSession(context.Background(), "user-1", usecase.CreateUploadSessionInput{ContentType: "video/mp4", FileSizeBytes: 1024})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -238,6 +254,12 @@ func TestCreateUploadSession_Success(t *testing.T) {
 	}
 	if session.OwnerUser != "user-1" {
 		t.Fatalf("expected user-1, got %s", session.OwnerUser)
+	}
+	if session.ContentType != "video/mp4" {
+		t.Fatalf("expected video/mp4, got %s", session.ContentType)
+	}
+	if session.FileSizeBytes != 1024 {
+		t.Fatalf("expected 1024, got %d", session.FileSizeBytes)
 	}
 }
 
@@ -253,7 +275,7 @@ func TestCompleteUpload_ObjectMissing(t *testing.T) {
 	svc, _, _ := newTestService()
 	ctx := context.Background()
 
-	session, _ := svc.CreateUploadSession(ctx, "user-1")
+	session, _ := svc.CreateUploadSession(ctx, "user-1", usecase.CreateUploadSessionInput{ContentType: "video/mp4", FileSizeBytes: 1024})
 	// オブジェクトをアップロードしていないため、CompleteUploadは失敗するはず
 	_, err := svc.CompleteUpload(ctx, "user-1", session.ID)
 	if !errors.Is(err, usecase.ErrUploadObjectMissing) {
@@ -265,7 +287,7 @@ func TestCompleteUpload_Success(t *testing.T) {
 	svc, _, objects := newTestService()
 	ctx := context.Background()
 
-	session, _ := svc.CreateUploadSession(ctx, "user-1")
+	session, _ := svc.CreateUploadSession(ctx, "user-1", usecase.CreateUploadSessionInput{ContentType: "video/mp4", FileSizeBytes: 1024})
 	// オブジェクトが存在することをシミュレート
 	objects.objects[session.ObjectKey] = true
 
@@ -288,7 +310,7 @@ func TestCompleteUpload_WrongUser(t *testing.T) {
 	svc, _, objects := newTestService()
 	ctx := context.Background()
 
-	session, _ := svc.CreateUploadSession(ctx, "user-1")
+	session, _ := svc.CreateUploadSession(ctx, "user-1", usecase.CreateUploadSessionInput{ContentType: "video/mp4", FileSizeBytes: 1024})
 	objects.objects[session.ObjectKey] = true
 
 	_, err := svc.CompleteUpload(ctx, "user-2", session.ID)
@@ -301,7 +323,7 @@ func TestRetryEncoding_NotFailed(t *testing.T) {
 	svc, _, objects := newTestService()
 	ctx := context.Background()
 
-	session, _ := svc.CreateUploadSession(ctx, "user-1")
+	session, _ := svc.CreateUploadSession(ctx, "user-1", usecase.CreateUploadSessionInput{ContentType: "video/mp4", FileSizeBytes: 1024})
 	objects.objects[session.ObjectKey] = true
 	video, _ := svc.CompleteUpload(ctx, "user-1", session.ID)
 
@@ -316,7 +338,7 @@ func TestRetryEncoding_WrongUser(t *testing.T) {
 	svc, _, objects := newTestService()
 	ctx := context.Background()
 
-	session, _ := svc.CreateUploadSession(ctx, "user-1")
+	session, _ := svc.CreateUploadSession(ctx, "user-1", usecase.CreateUploadSessionInput{ContentType: "video/mp4", FileSizeBytes: 1024})
 	objects.objects[session.ObjectKey] = true
 	video, _ := svc.CompleteUpload(ctx, "user-1", session.ID)
 
@@ -330,7 +352,7 @@ func TestUpdateVideoTags_Success(t *testing.T) {
 	svc, _, objects := newTestService()
 	ctx := context.Background()
 
-	session, _ := svc.CreateUploadSession(ctx, "user-1")
+	session, _ := svc.CreateUploadSession(ctx, "user-1", usecase.CreateUploadSessionInput{ContentType: "video/mp4", FileSizeBytes: 1024})
 	objects.objects[session.ObjectKey] = true
 	video, _ := svc.CompleteUpload(ctx, "user-1", session.ID)
 
@@ -349,7 +371,7 @@ func TestUpdateVideoTags_WrongUser(t *testing.T) {
 	svc, _, objects := newTestService()
 	ctx := context.Background()
 
-	session, _ := svc.CreateUploadSession(ctx, "user-1")
+	session, _ := svc.CreateUploadSession(ctx, "user-1", usecase.CreateUploadSessionInput{ContentType: "video/mp4", FileSizeBytes: 1024})
 	objects.objects[session.ObjectKey] = true
 	video, _ := svc.CompleteUpload(ctx, "user-1", session.ID)
 
@@ -363,7 +385,7 @@ func TestVideo_WrongUser(t *testing.T) {
 	svc, _, objects := newTestService()
 	ctx := context.Background()
 
-	session, _ := svc.CreateUploadSession(ctx, "user-1")
+	session, _ := svc.CreateUploadSession(ctx, "user-1", usecase.CreateUploadSessionInput{ContentType: "video/mp4", FileSizeBytes: 1024})
 	objects.objects[session.ObjectKey] = true
 	video, _ := svc.CompleteUpload(ctx, "user-1", session.ID)
 
@@ -380,7 +402,7 @@ func TestVideo_Success(t *testing.T) {
 	svc, _, objects := newTestService()
 	ctx := context.Background()
 
-	session, _ := svc.CreateUploadSession(ctx, "user-1")
+	session, _ := svc.CreateUploadSession(ctx, "user-1", usecase.CreateUploadSessionInput{ContentType: "video/mp4", FileSizeBytes: 1024})
 	objects.objects[session.ObjectKey] = true
 	video, _ := svc.CompleteUpload(ctx, "user-1", session.ID)
 
@@ -407,7 +429,7 @@ func TestVideos_Pagination(t *testing.T) {
 
 	// 3本のビデオを作成
 	for range 3 {
-		session, _ := svc.CreateUploadSession(ctx, "user-1")
+		session, _ := svc.CreateUploadSession(ctx, "user-1", usecase.CreateUploadSessionInput{ContentType: "video/mp4", FileSizeBytes: 1024})
 		objects.objects[session.ObjectKey] = true
 		svc.CompleteUpload(ctx, "user-1", session.ID)
 	}
@@ -428,7 +450,7 @@ func TestEncodingProgress_DefaultProgress(t *testing.T) {
 	svc, _, objects := newTestService()
 	ctx := context.Background()
 
-	session, _ := svc.CreateUploadSession(ctx, "user-1")
+	session, _ := svc.CreateUploadSession(ctx, "user-1", usecase.CreateUploadSessionInput{ContentType: "video/mp4", FileSizeBytes: 1024})
 	objects.objects[session.ObjectKey] = true
 	video, _ := svc.CompleteUpload(ctx, "user-1", session.ID)
 

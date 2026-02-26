@@ -49,7 +49,7 @@ type EncodingProgressRepository interface {
 }
 
 type ObjectStorage interface {
-	CreateUploadURL(ctx context.Context, objectKey string, expiresIn time.Duration) (string, error)
+	CreateUploadURL(ctx context.Context, objectKey string, contentType string, expiresIn time.Duration) (string, error)
 	Exists(ctx context.Context, objectKey string) (bool, error)
 }
 

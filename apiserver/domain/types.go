@@ -63,12 +63,15 @@ type DeviceWrappedSharedKey struct {
 }
 
 type UploadSession struct {
-	ID        string
-	OwnerUser string
-	ObjectKey string
-	UploadURL string
-	ExpiresAt synchro.Time[tz.UTC]
-	CreatedAt synchro.Time[tz.UTC]
+	ID             string
+	OwnerUser      string
+	ObjectKey      string
+	UploadURL      string
+	FileSizeBytes  int64
+	ContentType    string
+	ChecksumSHA256 []byte
+	ExpiresAt      synchro.Time[tz.UTC]
+	CreatedAt      synchro.Time[tz.UTC]
 }
 
 type VideoEncodingProgress struct {

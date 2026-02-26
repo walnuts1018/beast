@@ -153,23 +153,39 @@ func (s *Service) RegisterDeviceKey(
 	return &registered, nil
 }
 
-func (s *Service) CreateUploadSession(ctx context.Context, userID string) (*domain.UploadSession, error) {
+// CreateUploadSessionInput はアップロードセッション作成に必要な情報を保持する。
+type CreateUploadSessionInput struct {
+	FileSizeBytes  int64
+	ContentType    string
+	ChecksumSHA256 []byte
+}
+
+func (s *Service) CreateUploadSession(ctx context.Context, userID string, input CreateUploadSessionInput) (*domain.UploadSession, error) {
 	if userID == "" {
 		return nil, ErrUnauthorized
+	}
+	if input.ContentType == "" {
+		return nil, ErrInvalidInput
+	}
+	if input.FileSizeBytes <= 0 {
+		return nil, ErrInvalidInput
 	}
 
 	now := s.now()
 	id := uuid.NewString()
 	objectKey := fmt.Sprintf("videos/%s/%s/input", userID, id)
 	session := domain.UploadSession{
-		ID:        id,
-		OwnerUser: userID,
-		ObjectKey: objectKey,
-		ExpiresAt: now.Add(15 * time.Minute),
-		CreatedAt: now,
+		ID:             id,
+		OwnerUser:      userID,
+		ObjectKey:      objectKey,
+		FileSizeBytes:  input.FileSizeBytes,
+		ContentType:    input.ContentType,
+		ChecksumSHA256: input.ChecksumSHA256,
+		ExpiresAt:      now.Add(15 * time.Minute),
+		CreatedAt:      now,
 	}
 
-	uploadURL, err := s.objects.CreateUploadURL(ctx, objectKey, 15*time.Minute)
+	uploadURL, err := s.objects.CreateUploadURL(ctx, objectKey, input.ContentType, 15*time.Minute)
 	if err != nil {
 		return nil, fmt.Errorf("create upload url: %w", err)
 	}
