@@ -18,9 +18,6 @@ spec:
       - name: apiserver
         image: ghcr.io/walnuts1018/beast/apiserver:latest
         imagePullPolicy: IfNotPresent
-        env:
-        - name: RUST_BACKTRACE
-          value: "1"
         livenessProbe:
           httpGet:
             path: /livez

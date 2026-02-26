@@ -67,7 +67,6 @@ requires:
 manifests:
   kustomize:
     paths:
-    - develop/manifests/imgproxy
     - develop/manifests/postgres
     - develop/manifests/rabbitmq
 deploy:
@@ -101,14 +100,6 @@ requires:
   - dependencies
 build:
   artifacts:
-  - image: ghcr.io/walnuts1018/beast/frontend
-    context: .
-    docker:
-      dockerfile: Dockerfile.frontend.local
-    sync:
-      infer:
-        - "frontend/src/**/*"
-        - "frontend/public/**/*"
   - image: ghcr.io/walnuts1018/beast/apiserver
     context: .
     docker:
@@ -117,7 +108,5 @@ manifests:
   kustomize:
     paths:
     - develop/manifests/apiserver
-    - develop/manifests/frontend
-    - develop/manifests/thumbnailer
 deploy:
   kubectl: {}
