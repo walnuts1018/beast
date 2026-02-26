@@ -2,6 +2,10 @@
 generate:
 	cd apiserver && go generate ./...
 
+.PHONY:lint
+lint:
+	cd apiserver && go tool golangci-lint run
+
 .PHONY: setup
 setup:
 	kind create cluster --config=./develop/kind.yaml --name beast
