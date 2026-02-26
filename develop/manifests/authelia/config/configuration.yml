@@ -125,7 +125,7 @@ identity_providers:
         client_secret: '$pbkdf2-sha512$310000$tOX1bvEeZYrlJMWDI2xlpQ$7Zc0v3QAFSbowP1LwrOjmWP0lor96KVEe3VtA34kp.QzEhBammAubU.bdbkQ5yRQHtIhf8qWq95SUJQUY1Y.ug' # 平文: beast_client_secret
         public: false
         redirect_uris:
-          - 'https://app.local.walnuts.dev/auth/callback'
+          - 'https://beast.local.walnuts.dev/auth/callback'
         scopes:
           - 'openid'
           - 'profile'
@@ -133,15 +133,8 @@ identity_providers:
           - 'offline_access'
         grant_types:
           - 'authorization_code'
-          - 'client_credentials'
           - 'refresh_token'
         response_types:
           - 'code'
         authorization_policy: 'one_factor'
         require_pkce: false
-
-    lifespans:
-      access_token: '24 hour'
-      authorize_code: '10 minute'
-      id_token: '1 hour'
-      refresh_token: '1 month'
