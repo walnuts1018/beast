@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/url"
 	"sync"
 	"time"
 
@@ -85,13 +86,27 @@ func NewStoreWithOptions(ctx context.Context, dsn string, options StoreOptions) 
 	return store, nil
 }
 
+func buildMigrateURL(dsn string) (string, error) {
+	u, err := url.Parse(dsn)
+	if err != nil {
+		return "", fmt.Errorf("parse dsn: %w", err)
+	}
+	u.Scheme = "pgx5"
+	return u.String(), nil
+}
+
 func (s *Store) runMigrations(dsn string) error {
 	source, err := iofs.New(migrationsFS, "migrations")
 	if err != nil {
 		return fmt.Errorf("create migration source: %w", err)
 	}
 
-	m, err := migrate.NewWithSourceInstance("iofs", source, "pgx5://"+dsn)
+	migrateURL, err := buildMigrateURL(dsn)
+	if err != nil {
+		return fmt.Errorf("build migrate url: %w", err)
+	}
+
+	m, err := migrate.NewWithSourceInstance("iofs", source, migrateURL)
 	if err != nil {
 		return fmt.Errorf("create migrate instance: %w", err)
 	}
