@@ -54,11 +54,7 @@ func main() {
 		slog.ErrorContext(ctx, "postgres initialization error", slog.Any("error", err))
 		os.Exit(1)
 	}
-	defer func() {
-		if closeErr := store.Close(); closeErr != nil {
-			slog.ErrorContext(ctx, "postgres close error", slog.Any("error", closeErr))
-		}
-	}()
+	defer store.Close()
 
 	objectStore, err := objectstorage.NewS3Storage(ctx, objectstorage.Config{
 		Region:          cfg.S3.Region,
