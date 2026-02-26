@@ -15,3 +15,4 @@ packages:
 - name: kubernetes-sigs/kustomize@kustomize/v5.8.1
 - name: GoogleContainerTools/skaffold@v2.17.2
 - name: golang/go@go1.26.0
+- name: derailed/k9s@v0.50.18
