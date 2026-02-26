@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"strings"
 	"testing"
 	"time"
 
@@ -29,6 +31,14 @@ func (s *stubObjectStorage) Exists(_ context.Context, objectKey string) (bool, e
 	return s.objects[objectKey], nil
 }
 
+func (s *stubObjectStorage) Download(_ context.Context, _ string) (io.ReadCloser, error) {
+	return io.NopCloser(strings.NewReader("")), errors.New("not implemented in tests")
+}
+
+func (s *stubObjectStorage) Upload(_ context.Context, _ string, _ io.Reader, _ string) error {
+	return errors.New("not implemented in tests")
+}
+
 func (s *stubObjectStorage) HealthCheck(_ context.Context) error {
 	return nil
 }
@@ -43,6 +53,7 @@ func newTestService() (*usecase.Service, *memory.Store, *stubObjectStorage) {
 		memory.NewDeviceKeyRepository(store),
 		memory.NewUploadSessionRepository(store),
 		memory.NewEncodingProgressRepository(store),
+		nil,
 		objects,
 		memory.NewPlaybackHistoryRepository(store),
 		15*time.Minute,

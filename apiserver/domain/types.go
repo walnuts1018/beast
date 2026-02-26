@@ -80,6 +80,33 @@ type VideoEncodingProgress struct {
 	OwnerUser string
 }
 
+type EncodeVideoJob struct {
+	VideoID         string
+	OwnerUserID     string
+	SourceObjectKey string
+}
+
+type EncodingEventType string
+
+const (
+	EncodingEventTypeProgress  EncodingEventType = "progress"
+	EncodingEventTypeCompleted EncodingEventType = "completed"
+	EncodingEventTypeFailed    EncodingEventType = "failed"
+)
+
+type EncodingEvent struct {
+	Type              EncodingEventType
+	VideoID           string
+	OwnerUserID       string
+	Percent           *float64
+	Message           *string
+	ManifestObjectKey *string
+	EncodedObjectKey  *string
+	DurationMillis    *int
+	Width             *int
+	Height            *int
+}
+
 type PlaybackGrant struct {
 	VideoID     string
 	ManifestURL string
@@ -91,6 +118,8 @@ type Video struct {
 	ID                string
 	OwnerUserID       string
 	Status            VideoStatus
+	SourceObjectKey   string
+	EncodedObjectKey  *string
 	UploadedAt        synchro.Time[tz.UTC]
 	ReadyAt           *synchro.Time[tz.UTC]
 	FailedReason      *string

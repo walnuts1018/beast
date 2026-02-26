@@ -26,6 +26,7 @@ require (
 	github.com/joho/godotenv v1.5.1
 	github.com/labstack/echo/v5 v5.0.4
 	github.com/lmittmann/tint v1.1.3
+	github.com/rabbitmq/amqp091-go v1.10.0
 	github.com/vektah/gqlparser/v2 v2.5.32
 	github.com/veqryn/slog-context v0.9.0
 )

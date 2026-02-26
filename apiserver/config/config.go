@@ -18,6 +18,7 @@ type Config struct {
 	OIDC     OIDCConfig
 	DB       DBConfig
 	S3       S3Config
+	RabbitMQ RabbitMQConfig
 }
 
 func Load() (*Config, error) {

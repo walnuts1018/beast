@@ -24,16 +24,17 @@ var (
 )
 
 type Service struct {
-	videos        domain.VideoRepository
-	tags          domain.VideoTagRepository
-	sharedKeys    domain.SharedKeyRepository
-	deviceKeys    domain.DeviceKeyRepository
-	uploads       domain.UploadSessionRepository
-	progress      domain.EncodingProgressRepository
-	objects       domain.ObjectStorage
-	playbacks     domain.PlaybackHistoryRepository
-	uploadURLTTL  time.Duration
-	now           func() synchro.Time[tz.UTC]
+	videos       domain.VideoRepository
+	tags         domain.VideoTagRepository
+	sharedKeys   domain.SharedKeyRepository
+	deviceKeys   domain.DeviceKeyRepository
+	uploads      domain.UploadSessionRepository
+	progress     domain.EncodingProgressRepository
+	encodeJobs   domain.EncodingJobPublisher
+	objects      domain.ObjectStorage
+	playbacks    domain.PlaybackHistoryRepository
+	uploadURLTTL time.Duration
+	now          func() synchro.Time[tz.UTC]
 }
 
 func NewService(
@@ -43,6 +44,7 @@ func NewService(
 	deviceKeys domain.DeviceKeyRepository,
 	uploads domain.UploadSessionRepository,
 	progress domain.EncodingProgressRepository,
+	encodeJobs domain.EncodingJobPublisher,
 	objects domain.ObjectStorage,
 	playbacks domain.PlaybackHistoryRepository,
 	uploadURLTTL time.Duration,
@@ -57,6 +59,7 @@ func NewService(
 		deviceKeys:   deviceKeys,
 		uploads:      uploads,
 		progress:     progress,
+		encodeJobs:   encodeJobs,
 		objects:      objects,
 		playbacks:    playbacks,
 		uploadURLTTL: uploadURLTTL,
@@ -211,12 +214,13 @@ func (s *Service) CompleteUpload(ctx context.Context, userID string, uploadSessi
 
 	now := s.now()
 	video := domain.Video{
-		ID:          uuid.NewString(),
-		OwnerUserID: userID,
-		Status:      domain.VideoStatusUploaded,
-		UploadedAt:  now,
-		CreatedAt:   now,
-		UpdatedAt:   now,
+		ID:              uuid.NewString(),
+		OwnerUserID:     userID,
+		Status:          domain.VideoStatusUploaded,
+		SourceObjectKey: session.ObjectKey,
+		UploadedAt:      now,
+		CreatedAt:       now,
+		UpdatedAt:       now,
 	}
 
 	if err := s.videos.Create(ctx, video); err != nil {
@@ -236,6 +240,16 @@ func (s *Service) CompleteUpload(ctx context.Context, userID string, uploadSessi
 	}
 	if err := s.progress.Set(ctx, progress); err != nil {
 		return nil, err
+	}
+
+	if s.encodeJobs != nil {
+		if err := s.encodeJobs.PublishEncodeVideo(ctx, domain.EncodeVideoJob{
+			VideoID:         video.ID,
+			OwnerUserID:     video.OwnerUserID,
+			SourceObjectKey: video.SourceObjectKey,
+		}); err != nil {
+			return nil, fmt.Errorf("publish encode job: %w", err)
+		}
 	}
 
 	return &video, nil
@@ -284,7 +298,7 @@ func (s *Service) RetryEncoding(ctx context.Context, userID string, videoID stri
 		return nil, fmt.Errorf("%w: retry encoding requires FAILED status, got %s", ErrInvalidStateChange, video.Status)
 	}
 
-	video.Status = domain.VideoStatusEncoding
+	video.Status = domain.VideoStatusUploaded
 	video.FailedReason = nil
 	video.UpdatedAt = s.now()
 
@@ -294,7 +308,7 @@ func (s *Service) RetryEncoding(ctx context.Context, userID string, videoID stri
 
 	progress := domain.VideoEncodingProgress{
 		VideoID:   video.ID,
-		Status:    domain.VideoStatusEncoding,
+		Status:    domain.VideoStatusUploaded,
 		Percent:   0,
 		UpdatedAt: s.now(),
 		OwnerUser: userID,
@@ -304,7 +318,88 @@ func (s *Service) RetryEncoding(ctx context.Context, userID string, videoID stri
 		return nil, err
 	}
 
+	if s.encodeJobs != nil {
+		if err := s.encodeJobs.PublishEncodeVideo(ctx, domain.EncodeVideoJob{
+			VideoID:         video.ID,
+			OwnerUserID:     video.OwnerUserID,
+			SourceObjectKey: video.SourceObjectKey,
+		}); err != nil {
+			return nil, fmt.Errorf("publish encode job: %w", err)
+		}
+	}
+
 	return video, nil
+}
+
+func (s *Service) ApplyEncodingEvent(ctx context.Context, event domain.EncodingEvent) error {
+	video, err := s.videos.GetByID(ctx, event.VideoID)
+	if err != nil {
+		return err
+	}
+	if video == nil {
+		return ErrNotFound
+	}
+
+	switch event.Type {
+	case domain.EncodingEventTypeProgress:
+		if event.Percent == nil {
+			return ErrInvalidInput
+		}
+		message := event.Message
+		return s.progress.Set(ctx, domain.VideoEncodingProgress{
+			VideoID:   video.ID,
+			Status:    domain.VideoStatusEncoding,
+			Percent:   *event.Percent,
+			UpdatedAt: s.now(),
+			Message:   message,
+			OwnerUser: video.OwnerUserID,
+		})
+	case domain.EncodingEventTypeCompleted:
+		now := s.now()
+		video.Status = domain.VideoStatusReady
+		video.ReadyAt = &now
+		video.FailedReason = nil
+		video.DurationMillis = event.DurationMillis
+		video.Width = event.Width
+		video.Height = event.Height
+		video.EncodedObjectKey = event.EncodedObjectKey
+		video.UpdatedAt = now
+		if err := s.videos.Update(ctx, *video); err != nil {
+			return err
+		}
+		msg := "encoding completed"
+		if event.Message != nil {
+			msg = *event.Message
+		}
+		percent := 100.0
+		return s.progress.Set(ctx, domain.VideoEncodingProgress{
+			VideoID:   video.ID,
+			Status:    domain.VideoStatusReady,
+			Percent:   percent,
+			UpdatedAt: s.now(),
+			Message:   &msg,
+			OwnerUser: video.OwnerUserID,
+		})
+	case domain.EncodingEventTypeFailed:
+		now := s.now()
+		video.Status = domain.VideoStatusFailed
+		video.FailedReason = event.Message
+		video.UpdatedAt = now
+		if err := s.videos.Update(ctx, *video); err != nil {
+			return err
+		}
+		percent := 100.0
+		return s.progress.Set(ctx, domain.VideoEncodingProgress{
+			VideoID:   video.ID,
+			Status:    domain.VideoStatusFailed,
+			Percent:   percent,
+			UpdatedAt: s.now(),
+			Message:   event.Message,
+			OwnerUser: video.OwnerUserID,
+		})
+	default:
+		return ErrInvalidInput
+	}
 }
 
 func (s *Service) Video(ctx context.Context, userID string, videoID string) (*domain.Video, error) {
