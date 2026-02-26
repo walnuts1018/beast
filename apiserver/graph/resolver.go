@@ -6,6 +6,8 @@ package graph
 
 import "github.com/walnuts1018/beast/apiserver/usecase"
 
+//go:generate go tool gqlgen generate
+
 type Resolver struct {
 	Service *usecase.Service
 }

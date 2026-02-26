@@ -1,4 +1,8 @@
-.PHONY: setup 
+.PHONY: generate
+generate:
+	cd apiserver && go generate ./...
+
+.PHONY: setup
 setup:
 	kind create cluster --config=./develop/kind.yaml --name beast
 
