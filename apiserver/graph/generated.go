@@ -67,7 +67,7 @@ type ComplexityRoot struct {
 		RegisterSharedKey      func(childComplexity int, input model.RegisterSharedKeyInput) int
 		RetryEncoding          func(childComplexity int, input model.RetryEncodingInput) int
 		RevokeSharedKeyVersion func(childComplexity int, input model.RevokeSharedKeyVersionInput) int
-		UpdateEncryptedTags    func(childComplexity int, input model.UpdateEncryptedTagsInput) int
+		UpdateVideoTags        func(childComplexity int, input model.UpdateVideoTagsInput) int
 	}
 
 	PageInfo struct {
@@ -86,7 +86,7 @@ type ComplexityRoot struct {
 		EncodingProgress func(childComplexity int, videoID string) int
 		Me               func(childComplexity int) int
 		Video            func(childComplexity int, videoID string) int
-		Videos           func(childComplexity int, status *model.VideoStatus, pagination *model.PaginationInput) int
+		Videos           func(childComplexity int, status *model.VideoStatus, tag *string, pagination *model.PaginationInput) int
 	}
 
 	SharedKeyVersion struct {
@@ -111,7 +111,6 @@ type ComplexityRoot struct {
 	Video struct {
 		ContentEncryption func(childComplexity int) int
 		DurationMillis    func(childComplexity int) int
-		EncryptedTags     func(childComplexity int) int
 		FailedReason      func(childComplexity int) int
 		Height            func(childComplexity int) int
 		ID                func(childComplexity int) int
@@ -119,7 +118,7 @@ type ComplexityRoot struct {
 		Playback          func(childComplexity int) int
 		ReadyAt           func(childComplexity int) int
 		Status            func(childComplexity int) int
-		TagEncryption     func(childComplexity int) int
+		Tags              func(childComplexity int) int
 		UploadedAt        func(childComplexity int) int
 		Width             func(childComplexity int) int
 	}
@@ -149,13 +148,13 @@ type MutationResolver interface {
 	RegisterDeviceKey(ctx context.Context, input model.RegisterDeviceKeyInput) (*model.DeviceWrappedSharedKey, error)
 	CreateUploadSession(ctx context.Context, input model.CreateUploadSessionInput) (*model.UploadSession, error)
 	CompleteUpload(ctx context.Context, input model.CompleteUploadInput) (*model.Video, error)
-	UpdateEncryptedTags(ctx context.Context, input model.UpdateEncryptedTagsInput) (*model.Video, error)
+	UpdateVideoTags(ctx context.Context, input model.UpdateVideoTagsInput) (*model.Video, error)
 	RetryEncoding(ctx context.Context, input model.RetryEncodingInput) (*model.Video, error)
 }
 type QueryResolver interface {
 	Me(ctx context.Context) (*model.Me, error)
 	Video(ctx context.Context, videoID string) (*model.Video, error)
-	Videos(ctx context.Context, status *model.VideoStatus, pagination *model.PaginationInput) (*model.VideoConnection, error)
+	Videos(ctx context.Context, status *model.VideoStatus, tag *string, pagination *model.PaginationInput) (*model.VideoConnection, error)
 	EncodingProgress(ctx context.Context, videoID string) (*model.VideoEncodingProgress, error)
 }
 type SubscriptionResolver interface {
@@ -317,17 +316,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.RevokeSharedKeyVersion(childComplexity, args["input"].(model.RevokeSharedKeyVersionInput)), true
-	case "Mutation.updateEncryptedTags":
-		if e.ComplexityRoot.Mutation.UpdateEncryptedTags == nil {
+	case "Mutation.updateVideoTags":
+		if e.ComplexityRoot.Mutation.UpdateVideoTags == nil {
 			break
 		}
 
-		args, err := ec.field_Mutation_updateEncryptedTags_args(ctx, rawArgs)
+		args, err := ec.field_Mutation_updateVideoTags_args(ctx, rawArgs)
 		if err != nil {
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Mutation.UpdateEncryptedTags(childComplexity, args["input"].(model.UpdateEncryptedTagsInput)), true
+		return e.ComplexityRoot.Mutation.UpdateVideoTags(childComplexity, args["input"].(model.UpdateVideoTagsInput)), true
 
 	case "PageInfo.endCursor":
 		if e.ComplexityRoot.PageInfo.EndCursor == nil {
@@ -406,7 +405,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Query.Videos(childComplexity, args["status"].(*model.VideoStatus), args["pagination"].(*model.PaginationInput)), true
+		return e.ComplexityRoot.Query.Videos(childComplexity, args["status"].(*model.VideoStatus), args["tag"].(*string), args["pagination"].(*model.PaginationInput)), true
 
 	case "SharedKeyVersion.createdAt":
 		if e.ComplexityRoot.SharedKeyVersion.CreatedAt == nil {
@@ -488,12 +487,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Video.DurationMillis(childComplexity), true
-	case "Video.encryptedTags":
-		if e.ComplexityRoot.Video.EncryptedTags == nil {
-			break
-		}
-
-		return e.ComplexityRoot.Video.EncryptedTags(childComplexity), true
 	case "Video.failedReason":
 		if e.ComplexityRoot.Video.FailedReason == nil {
 			break
@@ -536,12 +529,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Video.Status(childComplexity), true
-	case "Video.tagEncryption":
-		if e.ComplexityRoot.Video.TagEncryption == nil {
+	case "Video.tags":
+		if e.ComplexityRoot.Video.Tags == nil {
 			break
 		}
 
-		return e.ComplexityRoot.Video.TagEncryption(childComplexity), true
+		return e.ComplexityRoot.Video.Tags(childComplexity), true
 	case "Video.uploadedAt":
 		if e.ComplexityRoot.Video.UploadedAt == nil {
 			break
@@ -622,13 +615,12 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 	inputUnmarshalMap := graphql.BuildUnmarshalerMap(
 		ec.unmarshalInputCompleteUploadInput,
 		ec.unmarshalInputCreateUploadSessionInput,
-		ec.unmarshalInputEncryptionMetadataInput,
 		ec.unmarshalInputPaginationInput,
 		ec.unmarshalInputRegisterDeviceKeyInput,
 		ec.unmarshalInputRegisterSharedKeyInput,
 		ec.unmarshalInputRetryEncodingInput,
 		ec.unmarshalInputRevokeSharedKeyVersionInput,
-		ec.unmarshalInputUpdateEncryptedTagsInput,
+		ec.unmarshalInputUpdateVideoTagsInput,
 	)
 	first := true
 
@@ -816,8 +808,7 @@ type Video {
   width: Int
   height: Int
   playback: PlaybackGrant
-  encryptedTags: Base64!
-  tagEncryption: EncryptionMetadata!
+  tags: [String!]!
   contentEncryption: EncryptionMetadata
 }
 
@@ -872,17 +863,9 @@ input CompleteUploadInput {
   uploadSessionId: ID!
 }
 
-input UpdateEncryptedTagsInput {
+input UpdateVideoTagsInput {
   videoId: ID!
-  encryptedTags: Base64!
-  tagEncryption: EncryptionMetadataInput!
-}
-
-input EncryptionMetadataInput {
-  algorithm: EncryptionAlgorithm!
-  keyVersion: Int!
-  nonce: Base64!
-  encryptedDataKey: Base64!
+  tags: [String!]!
 }
 
 input RetryEncodingInput {
@@ -892,7 +875,7 @@ input RetryEncodingInput {
 type Query {
   me: Me!
   video(videoId: ID!): Video
-  videos(status: VideoStatus, pagination: PaginationInput): VideoConnection!
+  videos(status: VideoStatus, tag: String, pagination: PaginationInput): VideoConnection!
   encodingProgress(videoId: ID!): VideoEncodingProgress!
 }
 
@@ -902,7 +885,7 @@ type Mutation {
   registerDeviceKey(input: RegisterDeviceKeyInput!): DeviceWrappedSharedKey!
   createUploadSession(input: CreateUploadSessionInput!): UploadSession!
   completeUpload(input: CompleteUploadInput!): Video!
-  updateEncryptedTags(input: UpdateEncryptedTagsInput!): Video!
+  updateVideoTags(input: UpdateVideoTagsInput!): Video!
   retryEncoding(input: RetryEncodingInput!): Video!
 }
 
@@ -983,10 +966,10 @@ func (ec *executionContext) field_Mutation_revokeSharedKeyVersion_args(ctx conte
 	return args, nil
 }
 
-func (ec *executionContext) field_Mutation_updateEncryptedTags_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+func (ec *executionContext) field_Mutation_updateVideoTags_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNUpdateEncryptedTagsInput2githubᚗcomᚋwalnuts1018ᚋbeastᚋapiserverᚋgraphᚋmodelᚐUpdateEncryptedTagsInput)
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNUpdateVideoTagsInput2githubᚗcomᚋwalnuts1018ᚋbeastᚋapiserverᚋgraphᚋmodelᚐUpdateVideoTagsInput)
 	if err != nil {
 		return nil, err
 	}
@@ -1035,11 +1018,16 @@ func (ec *executionContext) field_Query_videos_args(ctx context.Context, rawArgs
 		return nil, err
 	}
 	args["status"] = arg0
-	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "pagination", ec.unmarshalOPaginationInput2ᚖgithubᚗcomᚋwalnuts1018ᚋbeastᚋapiserverᚋgraphᚋmodelᚐPaginationInput)
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "tag", ec.unmarshalOString2ᚖstring)
 	if err != nil {
 		return nil, err
 	}
-	args["pagination"] = arg1
+	args["tag"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "pagination", ec.unmarshalOPaginationInput2ᚖgithubᚗcomᚋwalnuts1018ᚋbeastᚋapiserverᚋgraphᚋmodelᚐPaginationInput)
+	if err != nil {
+		return nil, err
+	}
+	args["pagination"] = arg2
 	return args, nil
 }
 
@@ -1733,10 +1721,8 @@ func (ec *executionContext) fieldContext_Mutation_completeUpload(ctx context.Con
 				return ec.fieldContext_Video_height(ctx, field)
 			case "playback":
 				return ec.fieldContext_Video_playback(ctx, field)
-			case "encryptedTags":
-				return ec.fieldContext_Video_encryptedTags(ctx, field)
-			case "tagEncryption":
-				return ec.fieldContext_Video_tagEncryption(ctx, field)
+			case "tags":
+				return ec.fieldContext_Video_tags(ctx, field)
 			case "contentEncryption":
 				return ec.fieldContext_Video_contentEncryption(ctx, field)
 			}
@@ -1757,15 +1743,15 @@ func (ec *executionContext) fieldContext_Mutation_completeUpload(ctx context.Con
 	return fc, nil
 }
 
-func (ec *executionContext) _Mutation_updateEncryptedTags(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+func (ec *executionContext) _Mutation_updateVideoTags(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
-		ec.fieldContext_Mutation_updateEncryptedTags,
+		ec.fieldContext_Mutation_updateVideoTags,
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().UpdateEncryptedTags(ctx, fc.Args["input"].(model.UpdateEncryptedTagsInput))
+			return ec.Resolvers.Mutation().UpdateVideoTags(ctx, fc.Args["input"].(model.UpdateVideoTagsInput))
 		},
 		nil,
 		ec.marshalNVideo2ᚖgithubᚗcomᚋwalnuts1018ᚋbeastᚋapiserverᚋgraphᚋmodelᚐVideo,
@@ -1774,7 +1760,7 @@ func (ec *executionContext) _Mutation_updateEncryptedTags(ctx context.Context, f
 	)
 }
 
-func (ec *executionContext) fieldContext_Mutation_updateEncryptedTags(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Mutation_updateVideoTags(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Mutation",
 		Field:      field,
@@ -1802,10 +1788,8 @@ func (ec *executionContext) fieldContext_Mutation_updateEncryptedTags(ctx contex
 				return ec.fieldContext_Video_height(ctx, field)
 			case "playback":
 				return ec.fieldContext_Video_playback(ctx, field)
-			case "encryptedTags":
-				return ec.fieldContext_Video_encryptedTags(ctx, field)
-			case "tagEncryption":
-				return ec.fieldContext_Video_tagEncryption(ctx, field)
+			case "tags":
+				return ec.fieldContext_Video_tags(ctx, field)
 			case "contentEncryption":
 				return ec.fieldContext_Video_contentEncryption(ctx, field)
 			}
@@ -1819,7 +1803,7 @@ func (ec *executionContext) fieldContext_Mutation_updateEncryptedTags(ctx contex
 		}
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Mutation_updateEncryptedTags_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+	if fc.Args, err = ec.field_Mutation_updateVideoTags_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -1871,10 +1855,8 @@ func (ec *executionContext) fieldContext_Mutation_retryEncoding(ctx context.Cont
 				return ec.fieldContext_Video_height(ctx, field)
 			case "playback":
 				return ec.fieldContext_Video_playback(ctx, field)
-			case "encryptedTags":
-				return ec.fieldContext_Video_encryptedTags(ctx, field)
-			case "tagEncryption":
-				return ec.fieldContext_Video_tagEncryption(ctx, field)
+			case "tags":
+				return ec.fieldContext_Video_tags(ctx, field)
 			case "contentEncryption":
 				return ec.fieldContext_Video_contentEncryption(ctx, field)
 			}
@@ -2161,10 +2143,8 @@ func (ec *executionContext) fieldContext_Query_video(ctx context.Context, field 
 				return ec.fieldContext_Video_height(ctx, field)
 			case "playback":
 				return ec.fieldContext_Video_playback(ctx, field)
-			case "encryptedTags":
-				return ec.fieldContext_Video_encryptedTags(ctx, field)
-			case "tagEncryption":
-				return ec.fieldContext_Video_tagEncryption(ctx, field)
+			case "tags":
+				return ec.fieldContext_Video_tags(ctx, field)
 			case "contentEncryption":
 				return ec.fieldContext_Video_contentEncryption(ctx, field)
 			}
@@ -2193,7 +2173,7 @@ func (ec *executionContext) _Query_videos(ctx context.Context, field graphql.Col
 		ec.fieldContext_Query_videos,
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Query().Videos(ctx, fc.Args["status"].(*model.VideoStatus), fc.Args["pagination"].(*model.PaginationInput))
+			return ec.Resolvers.Query().Videos(ctx, fc.Args["status"].(*model.VideoStatus), fc.Args["tag"].(*string), fc.Args["pagination"].(*model.PaginationInput))
 		},
 		nil,
 		ec.marshalNVideoConnection2ᚖgithubᚗcomᚋwalnuts1018ᚋbeastᚋapiserverᚋgraphᚋmodelᚐVideoConnection,
@@ -3007,69 +2987,30 @@ func (ec *executionContext) fieldContext_Video_playback(_ context.Context, field
 	return fc, nil
 }
 
-func (ec *executionContext) _Video_encryptedTags(ctx context.Context, field graphql.CollectedField, obj *model.Video) (ret graphql.Marshaler) {
+func (ec *executionContext) _Video_tags(ctx context.Context, field graphql.CollectedField, obj *model.Video) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
-		ec.fieldContext_Video_encryptedTags,
+		ec.fieldContext_Video_tags,
 		func(ctx context.Context) (any, error) {
-			return obj.EncryptedTags, nil
+			return obj.Tags, nil
 		},
 		nil,
-		ec.marshalNBase642githubᚗcomᚋwalnuts1018ᚋbeastᚋapiserverᚋgraphᚋscalarᚐBase64,
+		ec.marshalNString2ᚕstringᚄ,
 		true,
 		true,
 	)
 }
 
-func (ec *executionContext) fieldContext_Video_encryptedTags(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Video_tags(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Video",
 		Field:      field,
 		IsMethod:   false,
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Base64 does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Video_tagEncryption(ctx context.Context, field graphql.CollectedField, obj *model.Video) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		ec.fieldContext_Video_tagEncryption,
-		func(ctx context.Context) (any, error) {
-			return obj.TagEncryption, nil
-		},
-		nil,
-		ec.marshalNEncryptionMetadata2ᚖgithubᚗcomᚋwalnuts1018ᚋbeastᚋapiserverᚋgraphᚋmodelᚐEncryptionMetadata,
-		true,
-		true,
-	)
-}
-
-func (ec *executionContext) fieldContext_Video_tagEncryption(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Video",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			switch field.Name {
-			case "algorithm":
-				return ec.fieldContext_EncryptionMetadata_algorithm(ctx, field)
-			case "keyVersion":
-				return ec.fieldContext_EncryptionMetadata_keyVersion(ctx, field)
-			case "nonce":
-				return ec.fieldContext_EncryptionMetadata_nonce(ctx, field)
-			case "encryptedDataKey":
-				return ec.fieldContext_EncryptionMetadata_encryptedDataKey(ctx, field)
-			}
-			return nil, fmt.Errorf("no field named %q was found under type EncryptionMetadata", field.Name)
+			return nil, errors.New("field of type String does not have child fields")
 		},
 	}
 	return fc, nil
@@ -3257,10 +3198,8 @@ func (ec *executionContext) fieldContext_VideoEdge_node(_ context.Context, field
 				return ec.fieldContext_Video_height(ctx, field)
 			case "playback":
 				return ec.fieldContext_Video_playback(ctx, field)
-			case "encryptedTags":
-				return ec.fieldContext_Video_encryptedTags(ctx, field)
-			case "tagEncryption":
-				return ec.fieldContext_Video_tagEncryption(ctx, field)
+			case "tags":
+				return ec.fieldContext_Video_tags(ctx, field)
 			case "contentEncryption":
 				return ec.fieldContext_Video_contentEncryption(ctx, field)
 			}
@@ -4927,53 +4866,6 @@ func (ec *executionContext) unmarshalInputCreateUploadSessionInput(ctx context.C
 	return it, nil
 }
 
-func (ec *executionContext) unmarshalInputEncryptionMetadataInput(ctx context.Context, obj any) (model.EncryptionMetadataInput, error) {
-	var it model.EncryptionMetadataInput
-	asMap := map[string]any{}
-	for k, v := range obj.(map[string]any) {
-		asMap[k] = v
-	}
-
-	fieldsInOrder := [...]string{"algorithm", "keyVersion", "nonce", "encryptedDataKey"}
-	for _, k := range fieldsInOrder {
-		v, ok := asMap[k]
-		if !ok {
-			continue
-		}
-		switch k {
-		case "algorithm":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("algorithm"))
-			data, err := ec.unmarshalNEncryptionAlgorithm2githubᚗcomᚋwalnuts1018ᚋbeastᚋapiserverᚋgraphᚋmodelᚐEncryptionAlgorithm(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.Algorithm = data
-		case "keyVersion":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("keyVersion"))
-			data, err := ec.unmarshalNInt2int(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.KeyVersion = data
-		case "nonce":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("nonce"))
-			data, err := ec.unmarshalNBase642githubᚗcomᚋwalnuts1018ᚋbeastᚋapiserverᚋgraphᚋscalarᚐBase64(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.Nonce = data
-		case "encryptedDataKey":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("encryptedDataKey"))
-			data, err := ec.unmarshalNBase642githubᚗcomᚋwalnuts1018ᚋbeastᚋapiserverᚋgraphᚋscalarᚐBase64(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.EncryptedDataKey = data
-		}
-	}
-	return it, nil
-}
-
 func (ec *executionContext) unmarshalInputPaginationInput(ctx context.Context, obj any) (model.PaginationInput, error) {
 	var it model.PaginationInput
 	asMap := map[string]any{}
@@ -5136,14 +5028,14 @@ func (ec *executionContext) unmarshalInputRevokeSharedKeyVersionInput(ctx contex
 	return it, nil
 }
 
-func (ec *executionContext) unmarshalInputUpdateEncryptedTagsInput(ctx context.Context, obj any) (model.UpdateEncryptedTagsInput, error) {
-	var it model.UpdateEncryptedTagsInput
+func (ec *executionContext) unmarshalInputUpdateVideoTagsInput(ctx context.Context, obj any) (model.UpdateVideoTagsInput, error) {
+	var it model.UpdateVideoTagsInput
 	asMap := map[string]any{}
 	for k, v := range obj.(map[string]any) {
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"videoId", "encryptedTags", "tagEncryption"}
+	fieldsInOrder := [...]string{"videoId", "tags"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -5157,20 +5049,13 @@ func (ec *executionContext) unmarshalInputUpdateEncryptedTagsInput(ctx context.C
 				return it, err
 			}
 			it.VideoID = data
-		case "encryptedTags":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("encryptedTags"))
-			data, err := ec.unmarshalNBase642githubᚗcomᚋwalnuts1018ᚋbeastᚋapiserverᚋgraphᚋscalarᚐBase64(ctx, v)
+		case "tags":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("tags"))
+			data, err := ec.unmarshalNString2ᚕstringᚄ(ctx, v)
 			if err != nil {
 				return it, err
 			}
-			it.EncryptedTags = data
-		case "tagEncryption":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("tagEncryption"))
-			data, err := ec.unmarshalNEncryptionMetadataInput2ᚖgithubᚗcomᚋwalnuts1018ᚋbeastᚋapiserverᚋgraphᚋmodelᚐEncryptionMetadataInput(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.TagEncryption = data
+			it.Tags = data
 		}
 	}
 	return it, nil
@@ -5400,9 +5285,9 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "updateEncryptedTags":
+		case "updateVideoTags":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
-				return ec._Mutation_updateEncryptedTags(ctx, field)
+				return ec._Mutation_updateVideoTags(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -5840,13 +5725,8 @@ func (ec *executionContext) _Video(ctx context.Context, sel ast.SelectionSet, ob
 			out.Values[i] = ec._Video_height(ctx, field, obj)
 		case "playback":
 			out.Values[i] = ec._Video_playback(ctx, field, obj)
-		case "encryptedTags":
-			out.Values[i] = ec._Video_encryptedTags(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "tagEncryption":
-			out.Values[i] = ec._Video_tagEncryption(ctx, field, obj)
+		case "tags":
+			out.Values[i] = ec._Video_tags(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -6455,11 +6335,6 @@ func (ec *executionContext) marshalNEncryptionMetadata2ᚖgithubᚗcomᚋwalnuts
 	return ec._EncryptionMetadata(ctx, sel, v)
 }
 
-func (ec *executionContext) unmarshalNEncryptionMetadataInput2ᚖgithubᚗcomᚋwalnuts1018ᚋbeastᚋapiserverᚋgraphᚋmodelᚐEncryptionMetadataInput(ctx context.Context, v any) (*model.EncryptionMetadataInput, error) {
-	res, err := ec.unmarshalInputEncryptionMetadataInput(ctx, v)
-	return &res, graphql.ErrorOnPath(ctx, err)
-}
-
 func (ec *executionContext) unmarshalNFloat2float64(ctx context.Context, v any) (float64, error) {
 	res, err := graphql.UnmarshalFloatContext(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -6608,8 +6483,38 @@ func (ec *executionContext) marshalNString2string(ctx context.Context, sel ast.S
 	return res
 }
 
-func (ec *executionContext) unmarshalNUpdateEncryptedTagsInput2githubᚗcomᚋwalnuts1018ᚋbeastᚋapiserverᚋgraphᚋmodelᚐUpdateEncryptedTagsInput(ctx context.Context, v any) (model.UpdateEncryptedTagsInput, error) {
-	res, err := ec.unmarshalInputUpdateEncryptedTagsInput(ctx, v)
+func (ec *executionContext) unmarshalNString2ᚕstringᚄ(ctx context.Context, v any) ([]string, error) {
+	var vSlice []any
+	vSlice = graphql.CoerceList(v)
+	var err error
+	res := make([]string, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNString2string(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) marshalNString2ᚕstringᚄ(ctx context.Context, sel ast.SelectionSet, v []string) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	for i := range v {
+		ret[i] = ec.marshalNString2string(ctx, sel, v[i])
+	}
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) unmarshalNUpdateVideoTagsInput2githubᚗcomᚋwalnuts1018ᚋbeastᚋapiserverᚋgraphᚋmodelᚐUpdateVideoTagsInput(ctx context.Context, v any) (model.UpdateVideoTagsInput, error) {
+	res, err := ec.unmarshalInputUpdateVideoTagsInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 

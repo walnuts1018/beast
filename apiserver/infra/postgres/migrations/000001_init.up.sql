@@ -43,11 +43,6 @@ CREATE TABLE IF NOT EXISTS videos (
     playback_enc_key_version INTEGER,
     playback_enc_nonce BYTEA,
     playback_enc_encrypted_data_key BYTEA,
-    encrypted_tags BYTEA NOT NULL,
-    tag_enc_algorithm TEXT NOT NULL,
-    tag_enc_key_version INTEGER NOT NULL,
-    tag_enc_nonce BYTEA NOT NULL,
-    tag_enc_encrypted_data_key BYTEA NOT NULL,
     content_enc_algorithm TEXT,
     content_enc_key_version INTEGER,
     content_enc_nonce BYTEA,
@@ -57,6 +52,16 @@ CREATE TABLE IF NOT EXISTS videos (
 );
 
 CREATE INDEX IF NOT EXISTS videos_owner_uploaded_idx ON videos(owner_user_id, uploaded_at DESC, id DESC);
+
+-- TODO: 将来的にサーバー側管理の対称鍵による決定性暗号化を導入し、タグを暗号化して保存する
+CREATE TABLE IF NOT EXISTS video_tags (
+    video_id TEXT NOT NULL REFERENCES videos(id) ON DELETE CASCADE,
+    tag TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL,
+    PRIMARY KEY (video_id, tag)
+);
+
+CREATE INDEX IF NOT EXISTS idx_video_tags_tag ON video_tags(tag);
 
 CREATE TABLE IF NOT EXISTS encoding_progress (
     video_id TEXT PRIMARY KEY,

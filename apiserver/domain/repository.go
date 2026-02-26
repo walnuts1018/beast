@@ -9,7 +9,14 @@ type VideoRepository interface {
 	Create(ctx context.Context, video Video) error
 	GetByID(ctx context.Context, videoID string) (*Video, error)
 	ListByOwner(ctx context.Context, ownerUserID string, status *VideoStatus, p Pagination) (VideoConnection, error)
+	ListByOwnerAndTag(ctx context.Context, ownerUserID string, tag string, status *VideoStatus, p Pagination) (VideoConnection, error)
 	Update(ctx context.Context, video Video) error
+}
+
+type VideoTagRepository interface {
+	SetTags(ctx context.Context, videoID string, tags []string) error
+	GetTags(ctx context.Context, videoID string) ([]string, error)
+	GetTagsBatch(ctx context.Context, videoIDs []string) (map[string][]string, error)
 }
 
 type SharedKeyRepository interface {

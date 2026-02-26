@@ -74,6 +74,7 @@ func main() {
 
 	service := usecase.NewService(
 		postgres.NewVideoRepository(store),
+		postgres.NewVideoTagRepository(store),
 		postgres.NewSharedKeyRepository(store),
 		postgres.NewDeviceKeyRepository(store),
 		postgres.NewUploadSessionRepository(store),

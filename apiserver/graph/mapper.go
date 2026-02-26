@@ -18,15 +18,6 @@ func toDomainVideoStatus(status model.VideoStatus) domain.VideoStatus {
 	return domain.VideoStatus(status)
 }
 
-func toDomainEncryptionMetadata(input model.EncryptionMetadataInput) domain.EncryptionMetadata {
-	return domain.EncryptionMetadata{
-		Algorithm:        domain.EncryptionAlgorithm(input.Algorithm),
-		KeyVersion:       input.KeyVersion,
-		Nonce:            []byte(input.Nonce),
-		EncryptedDataKey: []byte(input.EncryptedDataKey),
-	}
-}
-
 func toModelEncryptionMetadata(item domain.EncryptionMetadata) *model.EncryptionMetadata {
 	return &model.EncryptionMetadata{
 		Algorithm:        toModelEncryptionAlgorithm(item.Algorithm),
@@ -100,8 +91,7 @@ func toModelVideo(item domain.Video) *model.Video {
 		Width:             item.Width,
 		Height:            item.Height,
 		Playback:          toModelPlaybackGrant(item.Playback),
-		EncryptedTags:     scalar.Base64(item.EncryptedTags),
-		TagEncryption:     toModelEncryptionMetadata(item.TagEncryption),
+		Tags:              item.Tags,
 		ContentEncryption: toModelEncryptionMetadataPtr(item.ContentEncryption),
 	}
 }

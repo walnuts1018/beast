@@ -86,8 +86,7 @@ type Video struct {
 	Width             *int
 	Height            *int
 	Playback          *PlaybackGrant
-	EncryptedTags     []byte
-	TagEncryption     EncryptionMetadata
+	Tags              []string
 	ContentEncryption *EncryptionMetadata
 	CreatedAt         synchro.Time[tz.UTC]
 	UpdatedAt         synchro.Time[tz.UTC]

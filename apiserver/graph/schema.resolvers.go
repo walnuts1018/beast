@@ -94,20 +94,14 @@ func (r *mutationResolver) CompleteUpload(ctx context.Context, input model.Compl
 	return toModelVideo(*video), nil
 }
 
-// UpdateEncryptedTags is the resolver for the updateEncryptedTags field.
-func (r *mutationResolver) UpdateEncryptedTags(ctx context.Context, input model.UpdateEncryptedTagsInput) (*model.Video, error) {
+// UpdateVideoTags is the resolver for the updateVideoTags field.
+func (r *mutationResolver) UpdateVideoTags(ctx context.Context, input model.UpdateVideoTagsInput) (*model.Video, error) {
 	userID, err := userIDFromContext(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	video, err := r.Service.UpdateEncryptedTags(
-		ctx,
-		userID,
-		input.VideoID,
-		[]byte(input.EncryptedTags),
-		toDomainEncryptionMetadata(*input.TagEncryption),
-	)
+	video, err := r.Service.UpdateVideoTags(ctx, userID, input.VideoID, input.Tags)
 	if err != nil {
 		return nil, err
 	}
@@ -164,7 +158,7 @@ func (r *queryResolver) Video(ctx context.Context, videoID string) (*model.Video
 }
 
 // Videos is the resolver for the videos field.
-func (r *queryResolver) Videos(ctx context.Context, status *model.VideoStatus, pagination *model.PaginationInput) (*model.VideoConnection, error) {
+func (r *queryResolver) Videos(ctx context.Context, status *model.VideoStatus, tag *string, pagination *model.PaginationInput) (*model.VideoConnection, error) {
 	userID, err := userIDFromContext(ctx)
 	if err != nil {
 		return nil, err
@@ -182,7 +176,7 @@ func (r *queryResolver) Videos(ctx context.Context, status *model.VideoStatus, p
 		pg.First = pagination.First
 	}
 
-	result, err := r.Service.Videos(ctx, userID, domainStatus, pg)
+	result, err := r.Service.Videos(ctx, userID, domainStatus, tag, pg)
 	if err != nil {
 		return nil, err
 	}

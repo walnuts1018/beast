@@ -60,15 +60,16 @@ type Video struct {
 	PlaybackEncKeyVersion       *int32
 	PlaybackEncNonce            []byte
 	PlaybackEncEncryptedDataKey []byte
-	EncryptedTags               []byte
-	TagEncAlgorithm             string
-	TagEncKeyVersion            int32
-	TagEncNonce                 []byte
-	TagEncEncryptedDataKey      []byte
 	ContentEncAlgorithm         pgtype.Text
 	ContentEncKeyVersion        *int32
 	ContentEncNonce             []byte
 	ContentEncEncryptedDataKey  []byte
 	CreatedAt                   pgtype.Timestamptz
 	UpdatedAt                   pgtype.Timestamptz
+}
+
+type VideoTag struct {
+	VideoID   string
+	Tag       string
+	CreatedAt pgtype.Timestamptz
 }

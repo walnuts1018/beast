@@ -93,8 +93,7 @@ type Video {
   width: Int
   height: Int
   playback: PlaybackGrant
-  encryptedTags: Base64!
-  tagEncryption: EncryptionMetadata!
+  tags: [String!]!
   contentEncryption: EncryptionMetadata
 }
 
@@ -149,17 +148,9 @@ input CompleteUploadInput {
   uploadSessionId: ID!
 }
 
-input UpdateEncryptedTagsInput {
+input UpdateVideoTagsInput {
   videoId: ID!
-  encryptedTags: Base64!
-  tagEncryption: EncryptionMetadataInput!
-}
-
-input EncryptionMetadataInput {
-  algorithm: EncryptionAlgorithm!
-  keyVersion: Int!
-  nonce: Base64!
-  encryptedDataKey: Base64!
+  tags: [String!]!
 }
 
 input RetryEncodingInput {
@@ -169,7 +160,7 @@ input RetryEncodingInput {
 type Query {
   me: Me!
   video(videoId: ID!): Video
-  videos(status: VideoStatus, pagination: PaginationInput): VideoConnection!
+  videos(status: VideoStatus, tag: String, pagination: PaginationInput): VideoConnection!
   encodingProgress(videoId: ID!): VideoEncodingProgress!
 }
 
@@ -179,7 +170,7 @@ type Mutation {
   registerDeviceKey(input: RegisterDeviceKeyInput!): DeviceWrappedSharedKey!
   createUploadSession(input: CreateUploadSessionInput!): UploadSession!
   completeUpload(input: CompleteUploadInput!): Video!
-  updateEncryptedTags(input: UpdateEncryptedTagsInput!): Video!
+  updateVideoTags(input: UpdateVideoTagsInput!): Video!
   retryEncoding(input: RetryEncodingInput!): Video!
 }
 

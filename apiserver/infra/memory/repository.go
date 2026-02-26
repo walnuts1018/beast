@@ -17,6 +17,7 @@ type Store struct {
 	mu sync.RWMutex
 
 	videos         map[string]domain.Video
+	videoTags      map[string][]string
 	sharedKeys     map[string][]domain.SharedKeyVersion
 	deviceKeys     map[string][]domain.DeviceWrappedSharedKey
 	uploadSessions map[string]domain.UploadSession
@@ -27,6 +28,7 @@ type Store struct {
 func NewStore() *Store {
 	return &Store{
 		videos:         make(map[string]domain.Video),
+		videoTags:      make(map[string][]string),
 		sharedKeys:     make(map[string][]domain.SharedKeyVersion),
 		deviceKeys:     make(map[string][]domain.DeviceWrappedSharedKey),
 		uploadSessions: make(map[string]domain.UploadSession),
@@ -131,6 +133,123 @@ func (r *VideoRepository) Update(ctx context.Context, video domain.Video) error 
 	}
 	r.store.videos[video.ID] = video
 	return nil
+}
+
+func (r *VideoRepository) ListByOwnerAndTag(
+	ctx context.Context,
+	ownerUserID string,
+	tag string,
+	status *domain.VideoStatus,
+	p domain.Pagination,
+) (domain.VideoConnection, error) {
+	_ = ctx
+	r.store.mu.RLock()
+	defer r.store.mu.RUnlock()
+
+	// タグが一致する動画IDを収集
+	taggedVideoIDs := make(map[string]struct{})
+	for videoID, tags := range r.store.videoTags {
+		for _, t := range tags {
+			if t == tag {
+				taggedVideoIDs[videoID] = struct{}{}
+				break
+			}
+		}
+	}
+
+	videos := make([]domain.Video, 0)
+	for _, v := range r.store.videos {
+		if v.OwnerUserID != ownerUserID {
+			continue
+		}
+		if _, ok := taggedVideoIDs[v.ID]; !ok {
+			continue
+		}
+		if status != nil && v.Status != *status {
+			continue
+		}
+		videos = append(videos, v)
+	}
+
+	sort.Slice(videos, func(i, j int) bool {
+		return videos[i].UploadedAt.After(videos[j].UploadedAt)
+	})
+
+	start := 0
+	if p.After != nil {
+		for i := range videos {
+			if videos[i].ID == *p.After {
+				start = i + 1
+				break
+			}
+		}
+	}
+
+	limit := p.First
+	if limit <= 0 {
+		limit = 20
+	}
+	end := start + limit
+	hasNext := false
+	if end < len(videos) {
+		hasNext = true
+	} else {
+		end = len(videos)
+	}
+
+	edges := make([]domain.VideoEdge, 0, end-start)
+	for _, video := range videos[start:end] {
+		edges = append(edges, domain.VideoEdge{Cursor: video.ID, Node: video})
+	}
+
+	var next *string
+	if len(edges) > 0 {
+		last := edges[len(edges)-1].Cursor
+		next = &last
+	}
+
+	return domain.VideoConnection{Edges: edges, HasNext: hasNext, NextCursor: next}, nil
+}
+
+type VideoTagRepository struct{ store *Store }
+
+func NewVideoTagRepository(store *Store) *VideoTagRepository {
+	return &VideoTagRepository{store: store}
+}
+
+func (r *VideoTagRepository) SetTags(ctx context.Context, videoID string, tags []string) error {
+	_ = ctx
+	r.store.mu.Lock()
+	defer r.store.mu.Unlock()
+	copied := make([]string, len(tags))
+	copy(copied, tags)
+	sort.Strings(copied)
+	r.store.videoTags[videoID] = copied
+	return nil
+}
+
+func (r *VideoTagRepository) GetTags(ctx context.Context, videoID string) ([]string, error) {
+	_ = ctx
+	r.store.mu.RLock()
+	defer r.store.mu.RUnlock()
+	src := r.store.videoTags[videoID]
+	out := make([]string, len(src))
+	copy(out, src)
+	return out, nil
+}
+
+func (r *VideoTagRepository) GetTagsBatch(ctx context.Context, videoIDs []string) (map[string][]string, error) {
+	_ = ctx
+	r.store.mu.RLock()
+	defer r.store.mu.RUnlock()
+	result := make(map[string][]string, len(videoIDs))
+	for _, id := range videoIDs {
+		src := r.store.videoTags[id]
+		out := make([]string, len(src))
+		copy(out, src)
+		result[id] = out
+	}
+	return result, nil
 }
 
 type SharedKeyRepository struct{ store *Store }

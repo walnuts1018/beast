@@ -38,6 +38,7 @@ func newTestService() (*usecase.Service, *memory.Store, *stubObjectStorage) {
 	objects := newStubObjectStorage()
 	svc := usecase.NewService(
 		memory.NewVideoRepository(store),
+		memory.NewVideoTagRepository(store),
 		memory.NewSharedKeyRepository(store),
 		memory.NewDeviceKeyRepository(store),
 		memory.NewUploadSessionRepository(store),
@@ -324,7 +325,7 @@ func TestRetryEncoding_WrongUser(t *testing.T) {
 	}
 }
 
-func TestUpdateEncryptedTags_Success(t *testing.T) {
+func TestUpdateVideoTags_Success(t *testing.T) {
 	svc, _, objects := newTestService()
 	ctx := context.Background()
 
@@ -332,24 +333,18 @@ func TestUpdateEncryptedTags_Success(t *testing.T) {
 	objects.objects[session.ObjectKey] = true
 	video, _ := svc.CompleteUpload(ctx, "user-1", session.ID)
 
-	tags := []byte("encrypted-tags")
-	enc := domain.EncryptionMetadata{
-		Algorithm:        domain.EncryptionAlgorithmXChaCha20Poly1305,
-		KeyVersion:       1,
-		Nonce:            []byte("nonce"),
-		EncryptedDataKey: []byte("data-key"),
-	}
+	tags := []string{"travel", "summer"}
 
-	updated, err := svc.UpdateEncryptedTags(ctx, "user-1", video.ID, tags, enc)
+	updated, err := svc.UpdateVideoTags(ctx, "user-1", video.ID, tags)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if string(updated.EncryptedTags) != "encrypted-tags" {
-		t.Fatalf("expected encrypted-tags, got %s", string(updated.EncryptedTags))
+	if len(updated.Tags) != 2 {
+		t.Fatalf("expected 2 tags, got %d", len(updated.Tags))
 	}
 }
 
-func TestUpdateEncryptedTags_WrongUser(t *testing.T) {
+func TestUpdateVideoTags_WrongUser(t *testing.T) {
 	svc, _, objects := newTestService()
 	ctx := context.Background()
 
@@ -357,7 +352,7 @@ func TestUpdateEncryptedTags_WrongUser(t *testing.T) {
 	objects.objects[session.ObjectKey] = true
 	video, _ := svc.CompleteUpload(ctx, "user-1", session.ID)
 
-	_, err := svc.UpdateEncryptedTags(ctx, "user-2", video.ID, []byte("tags"), domain.EncryptionMetadata{})
+	_, err := svc.UpdateVideoTags(ctx, "user-2", video.ID, []string{"tag"})
 	if !errors.Is(err, usecase.ErrNotFound) {
 		t.Fatalf("expected ErrNotFound, got %v", err)
 	}
@@ -399,7 +394,7 @@ func TestVideo_Success(t *testing.T) {
 
 func TestVideos_EmptyUserID(t *testing.T) {
 	svc, _, _ := newTestService()
-	_, err := svc.Videos(context.Background(), "", nil, domain.Pagination{})
+	_, err := svc.Videos(context.Background(), "", nil, nil, domain.Pagination{})
 	if !errors.Is(err, usecase.ErrUnauthorized) {
 		t.Fatalf("expected ErrUnauthorized, got %v", err)
 	}
@@ -416,7 +411,7 @@ func TestVideos_Pagination(t *testing.T) {
 		svc.CompleteUpload(ctx, "user-1", session.ID)
 	}
 
-	conn, err := svc.Videos(ctx, "user-1", nil, domain.Pagination{First: 2})
+	conn, err := svc.Videos(ctx, "user-1", nil, nil, domain.Pagination{First: 2})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

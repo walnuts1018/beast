@@ -16,11 +16,6 @@ INSERT INTO
         playback_enc_key_version,
         playback_enc_nonce,
         playback_enc_encrypted_data_key,
-        encrypted_tags,
-        tag_enc_algorithm,
-        tag_enc_key_version,
-        tag_enc_nonce,
-        tag_enc_encrypted_data_key,
         content_enc_algorithm,
         content_enc_key_version,
         content_enc_nonce,
@@ -45,11 +40,6 @@ VALUES
         @playback_enc_key_version,
         @playback_enc_nonce,
         @playback_enc_encrypted_data_key,
-        @encrypted_tags,
-        @tag_enc_algorithm,
-        @tag_enc_key_version,
-        @tag_enc_nonce,
-        @tag_enc_encrypted_data_key,
         @content_enc_algorithm,
         @content_enc_key_version,
         @content_enc_nonce,
@@ -75,11 +65,6 @@ SELECT
     playback_enc_key_version,
     playback_enc_nonce,
     playback_enc_encrypted_data_key,
-    encrypted_tags,
-    tag_enc_algorithm,
-    tag_enc_key_version,
-    tag_enc_nonce,
-    tag_enc_encrypted_data_key,
     content_enc_algorithm,
     content_enc_key_version,
     content_enc_nonce,
@@ -108,11 +93,6 @@ SELECT
     playback_enc_key_version,
     playback_enc_nonce,
     playback_enc_encrypted_data_key,
-    encrypted_tags,
-    tag_enc_algorithm,
-    tag_enc_key_version,
-    tag_enc_nonce,
-    tag_enc_encrypted_data_key,
     content_enc_algorithm,
     content_enc_key_version,
     content_enc_nonce,
@@ -140,6 +120,52 @@ ORDER BY
 LIMIT
     @limit_count;
 
+-- name: ListVideosByOwnerAndTag :many
+SELECT
+    v.id,
+    v.owner_user_id,
+    v.status,
+    v.uploaded_at,
+    v.ready_at,
+    v.failed_reason,
+    v.duration_millis,
+    v.width,
+    v.height,
+    v.playback_manifest_url,
+    v.playback_expires_at,
+    v.playback_enc_algorithm,
+    v.playback_enc_key_version,
+    v.playback_enc_nonce,
+    v.playback_enc_encrypted_data_key,
+    v.content_enc_algorithm,
+    v.content_enc_key_version,
+    v.content_enc_nonce,
+    v.content_enc_encrypted_data_key,
+    v.created_at,
+    v.updated_at
+FROM
+    videos v
+    INNER JOIN video_tags vt ON v.id = vt.video_id
+WHERE
+    v.owner_user_id = @owner_user_id
+    AND vt.tag = @tag
+    AND (
+        sqlc.narg('status') :: text IS NULL
+        OR v.status = sqlc.narg('status')
+    )
+    AND (
+        sqlc.narg('cursor_uploaded_at') :: timestamptz IS NULL
+        OR (v.uploaded_at, v.id) < (
+            sqlc.narg('cursor_uploaded_at'),
+            sqlc.narg('cursor_id')::text
+        )
+    )
+ORDER BY
+    v.uploaded_at DESC,
+    v.id DESC
+LIMIT
+    @limit_count;
+
 -- name: UpdateVideo :execrows
 UPDATE
     videos
@@ -158,11 +184,6 @@ SET
     playback_enc_key_version = @playback_enc_key_version,
     playback_enc_nonce = @playback_enc_nonce,
     playback_enc_encrypted_data_key = @playback_enc_encrypted_data_key,
-    encrypted_tags = @encrypted_tags,
-    tag_enc_algorithm = @tag_enc_algorithm,
-    tag_enc_key_version = @tag_enc_key_version,
-    tag_enc_nonce = @tag_enc_nonce,
-    tag_enc_encrypted_data_key = @tag_enc_encrypted_data_key,
     content_enc_algorithm = @content_enc_algorithm,
     content_enc_key_version = @content_enc_key_version,
     content_enc_nonce = @content_enc_nonce,

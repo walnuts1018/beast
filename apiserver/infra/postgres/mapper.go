@@ -80,15 +80,8 @@ func toDomainVideo(row sqlcgen.Video) domain.Video {
 		DurationMillis: fromInt32Ptr(row.DurationMillis),
 		Width:          fromInt32Ptr(row.Width),
 		Height:         fromInt32Ptr(row.Height),
-		EncryptedTags:  row.EncryptedTags,
-		TagEncryption: domain.EncryptionMetadata{
-			Algorithm:        domain.EncryptionAlgorithm(row.TagEncAlgorithm),
-			KeyVersion:       int(row.TagEncKeyVersion),
-			Nonce:            row.TagEncNonce,
-			EncryptedDataKey: row.TagEncEncryptedDataKey,
-		},
-		CreatedAt: fromPgTimestamptz(row.CreatedAt),
-		UpdatedAt: fromPgTimestamptz(row.UpdatedAt),
+		CreatedAt:      fromPgTimestamptz(row.CreatedAt),
+		UpdatedAt:      fromPgTimestamptz(row.UpdatedAt),
 	}
 
 	if row.PlaybackManifestUrl.Valid && row.PlaybackExpiresAt.Valid && row.PlaybackEncAlgorithm.Valid && row.PlaybackEncKeyVersion != nil {
@@ -123,22 +116,17 @@ func toDomainVideo(row sqlcgen.Video) domain.Video {
 //nolint:dupl
 func toCreateVideoParams(v domain.Video) sqlcgen.CreateVideoParams {
 	p := sqlcgen.CreateVideoParams{
-		ID:                     v.ID,
-		OwnerUserID:            v.OwnerUserID,
-		Status:                 string(v.Status),
-		UploadedAt:             toPgTimestamptz(v.UploadedAt),
-		ReadyAt:                toPgTimestamptzPtr(v.ReadyAt),
-		FailedReason:           toPgTextPtr(v.FailedReason),
-		DurationMillis:         toInt32Ptr(v.DurationMillis),
-		Width:                  toInt32Ptr(v.Width),
-		Height:                 toInt32Ptr(v.Height),
-		EncryptedTags:          v.EncryptedTags,
-		TagEncAlgorithm:        string(v.TagEncryption.Algorithm),
-		TagEncKeyVersion:       int32(v.TagEncryption.KeyVersion),
-		TagEncNonce:            v.TagEncryption.Nonce,
-		TagEncEncryptedDataKey: v.TagEncryption.EncryptedDataKey,
-		CreatedAt:              toPgTimestamptz(v.CreatedAt),
-		UpdatedAt:              toPgTimestamptz(v.UpdatedAt),
+		ID:             v.ID,
+		OwnerUserID:    v.OwnerUserID,
+		Status:         string(v.Status),
+		UploadedAt:     toPgTimestamptz(v.UploadedAt),
+		ReadyAt:        toPgTimestamptzPtr(v.ReadyAt),
+		FailedReason:   toPgTextPtr(v.FailedReason),
+		DurationMillis: toInt32Ptr(v.DurationMillis),
+		Width:          toInt32Ptr(v.Width),
+		Height:         toInt32Ptr(v.Height),
+		CreatedAt:      toPgTimestamptz(v.CreatedAt),
+		UpdatedAt:      toPgTimestamptz(v.UpdatedAt),
 	}
 
 	if v.Playback != nil {
@@ -165,22 +153,17 @@ func toCreateVideoParams(v domain.Video) sqlcgen.CreateVideoParams {
 //nolint:dupl
 func toUpdateVideoParams(v domain.Video) sqlcgen.UpdateVideoParams {
 	p := sqlcgen.UpdateVideoParams{
-		ID:                     v.ID,
-		OwnerUserID:            v.OwnerUserID,
-		Status:                 string(v.Status),
-		UploadedAt:             toPgTimestamptz(v.UploadedAt),
-		ReadyAt:                toPgTimestamptzPtr(v.ReadyAt),
-		FailedReason:           toPgTextPtr(v.FailedReason),
-		DurationMillis:         toInt32Ptr(v.DurationMillis),
-		Width:                  toInt32Ptr(v.Width),
-		Height:                 toInt32Ptr(v.Height),
-		EncryptedTags:          v.EncryptedTags,
-		TagEncAlgorithm:        string(v.TagEncryption.Algorithm),
-		TagEncKeyVersion:       int32(v.TagEncryption.KeyVersion),
-		TagEncNonce:            v.TagEncryption.Nonce,
-		TagEncEncryptedDataKey: v.TagEncryption.EncryptedDataKey,
-		CreatedAt:              toPgTimestamptz(v.CreatedAt),
-		UpdatedAt:              toPgTimestamptz(v.UpdatedAt),
+		ID:             v.ID,
+		OwnerUserID:    v.OwnerUserID,
+		Status:         string(v.Status),
+		UploadedAt:     toPgTimestamptz(v.UploadedAt),
+		ReadyAt:        toPgTimestamptzPtr(v.ReadyAt),
+		FailedReason:   toPgTextPtr(v.FailedReason),
+		DurationMillis: toInt32Ptr(v.DurationMillis),
+		Width:          toInt32Ptr(v.Width),
+		Height:         toInt32Ptr(v.Height),
+		CreatedAt:      toPgTimestamptz(v.CreatedAt),
+		UpdatedAt:      toPgTimestamptz(v.UpdatedAt),
 	}
 
 	if v.Playback != nil {

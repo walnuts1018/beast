@@ -29,11 +29,6 @@ INSERT INTO
         playback_enc_key_version,
         playback_enc_nonce,
         playback_enc_encrypted_data_key,
-        encrypted_tags,
-        tag_enc_algorithm,
-        tag_enc_key_version,
-        tag_enc_nonce,
-        tag_enc_encrypted_data_key,
         content_enc_algorithm,
         content_enc_key_version,
         content_enc_nonce,
@@ -63,12 +58,7 @@ VALUES
         $18,
         $19,
         $20,
-        $21,
-        $22,
-        $23,
-        $24,
-        $25,
-        $26
+        $21
     )
 `
 
@@ -88,11 +78,6 @@ type CreateVideoParams struct {
 	PlaybackEncKeyVersion       *int32
 	PlaybackEncNonce            []byte
 	PlaybackEncEncryptedDataKey []byte
-	EncryptedTags               []byte
-	TagEncAlgorithm             string
-	TagEncKeyVersion            int32
-	TagEncNonce                 []byte
-	TagEncEncryptedDataKey      []byte
 	ContentEncAlgorithm         pgtype.Text
 	ContentEncKeyVersion        *int32
 	ContentEncNonce             []byte
@@ -118,11 +103,6 @@ func (q *Queries) CreateVideo(ctx context.Context, arg CreateVideoParams) error 
 		arg.PlaybackEncKeyVersion,
 		arg.PlaybackEncNonce,
 		arg.PlaybackEncEncryptedDataKey,
-		arg.EncryptedTags,
-		arg.TagEncAlgorithm,
-		arg.TagEncKeyVersion,
-		arg.TagEncNonce,
-		arg.TagEncEncryptedDataKey,
 		arg.ContentEncAlgorithm,
 		arg.ContentEncKeyVersion,
 		arg.ContentEncNonce,
@@ -150,11 +130,6 @@ SELECT
     playback_enc_key_version,
     playback_enc_nonce,
     playback_enc_encrypted_data_key,
-    encrypted_tags,
-    tag_enc_algorithm,
-    tag_enc_key_version,
-    tag_enc_nonce,
-    tag_enc_encrypted_data_key,
     content_enc_algorithm,
     content_enc_key_version,
     content_enc_nonce,
@@ -186,11 +161,6 @@ func (q *Queries) GetVideoByID(ctx context.Context, id string) (Video, error) {
 		&i.PlaybackEncKeyVersion,
 		&i.PlaybackEncNonce,
 		&i.PlaybackEncEncryptedDataKey,
-		&i.EncryptedTags,
-		&i.TagEncAlgorithm,
-		&i.TagEncKeyVersion,
-		&i.TagEncNonce,
-		&i.TagEncEncryptedDataKey,
 		&i.ContentEncAlgorithm,
 		&i.ContentEncKeyVersion,
 		&i.ContentEncNonce,
@@ -218,11 +188,6 @@ SELECT
     playback_enc_key_version,
     playback_enc_nonce,
     playback_enc_encrypted_data_key,
-    encrypted_tags,
-    tag_enc_algorithm,
-    tag_enc_key_version,
-    tag_enc_nonce,
-    tag_enc_encrypted_data_key,
     content_enc_algorithm,
     content_enc_key_version,
     content_enc_nonce,
@@ -290,11 +255,111 @@ func (q *Queries) ListVideosByOwner(ctx context.Context, arg ListVideosByOwnerPa
 			&i.PlaybackEncKeyVersion,
 			&i.PlaybackEncNonce,
 			&i.PlaybackEncEncryptedDataKey,
-			&i.EncryptedTags,
-			&i.TagEncAlgorithm,
-			&i.TagEncKeyVersion,
-			&i.TagEncNonce,
-			&i.TagEncEncryptedDataKey,
+			&i.ContentEncAlgorithm,
+			&i.ContentEncKeyVersion,
+			&i.ContentEncNonce,
+			&i.ContentEncEncryptedDataKey,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listVideosByOwnerAndTag = `-- name: ListVideosByOwnerAndTag :many
+SELECT
+    v.id,
+    v.owner_user_id,
+    v.status,
+    v.uploaded_at,
+    v.ready_at,
+    v.failed_reason,
+    v.duration_millis,
+    v.width,
+    v.height,
+    v.playback_manifest_url,
+    v.playback_expires_at,
+    v.playback_enc_algorithm,
+    v.playback_enc_key_version,
+    v.playback_enc_nonce,
+    v.playback_enc_encrypted_data_key,
+    v.content_enc_algorithm,
+    v.content_enc_key_version,
+    v.content_enc_nonce,
+    v.content_enc_encrypted_data_key,
+    v.created_at,
+    v.updated_at
+FROM
+    videos v
+    INNER JOIN video_tags vt ON v.id = vt.video_id
+WHERE
+    v.owner_user_id = $1
+    AND vt.tag = $2
+    AND (
+        $3 :: text IS NULL
+        OR v.status = $3
+    )
+    AND (
+        $4 :: timestamptz IS NULL
+        OR (v.uploaded_at, v.id) < (
+            $4,
+            $5::text
+        )
+    )
+ORDER BY
+    v.uploaded_at DESC,
+    v.id DESC
+LIMIT
+    $6
+`
+
+type ListVideosByOwnerAndTagParams struct {
+	OwnerUserID      string
+	Tag              string
+	Status           pgtype.Text
+	CursorUploadedAt pgtype.Timestamptz
+	CursorID         pgtype.Text
+	LimitCount       int32
+}
+
+func (q *Queries) ListVideosByOwnerAndTag(ctx context.Context, arg ListVideosByOwnerAndTagParams) ([]Video, error) {
+	rows, err := q.db.Query(ctx, listVideosByOwnerAndTag,
+		arg.OwnerUserID,
+		arg.Tag,
+		arg.Status,
+		arg.CursorUploadedAt,
+		arg.CursorID,
+		arg.LimitCount,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Video{}
+	for rows.Next() {
+		var i Video
+		if err := rows.Scan(
+			&i.ID,
+			&i.OwnerUserID,
+			&i.Status,
+			&i.UploadedAt,
+			&i.ReadyAt,
+			&i.FailedReason,
+			&i.DurationMillis,
+			&i.Width,
+			&i.Height,
+			&i.PlaybackManifestUrl,
+			&i.PlaybackExpiresAt,
+			&i.PlaybackEncAlgorithm,
+			&i.PlaybackEncKeyVersion,
+			&i.PlaybackEncNonce,
+			&i.PlaybackEncEncryptedDataKey,
 			&i.ContentEncAlgorithm,
 			&i.ContentEncKeyVersion,
 			&i.ContentEncNonce,
@@ -352,19 +417,14 @@ SET
     playback_enc_key_version = $12,
     playback_enc_nonce = $13,
     playback_enc_encrypted_data_key = $14,
-    encrypted_tags = $15,
-    tag_enc_algorithm = $16,
-    tag_enc_key_version = $17,
-    tag_enc_nonce = $18,
-    tag_enc_encrypted_data_key = $19,
-    content_enc_algorithm = $20,
-    content_enc_key_version = $21,
-    content_enc_nonce = $22,
-    content_enc_encrypted_data_key = $23,
-    created_at = $24,
-    updated_at = $25
+    content_enc_algorithm = $15,
+    content_enc_key_version = $16,
+    content_enc_nonce = $17,
+    content_enc_encrypted_data_key = $18,
+    created_at = $19,
+    updated_at = $20
 WHERE
-    id = $26
+    id = $21
 `
 
 type UpdateVideoParams struct {
@@ -382,11 +442,6 @@ type UpdateVideoParams struct {
 	PlaybackEncKeyVersion       *int32
 	PlaybackEncNonce            []byte
 	PlaybackEncEncryptedDataKey []byte
-	EncryptedTags               []byte
-	TagEncAlgorithm             string
-	TagEncKeyVersion            int32
-	TagEncNonce                 []byte
-	TagEncEncryptedDataKey      []byte
 	ContentEncAlgorithm         pgtype.Text
 	ContentEncKeyVersion        *int32
 	ContentEncNonce             []byte
@@ -412,11 +467,6 @@ func (q *Queries) UpdateVideo(ctx context.Context, arg UpdateVideoParams) (int64
 		arg.PlaybackEncKeyVersion,
 		arg.PlaybackEncNonce,
 		arg.PlaybackEncEncryptedDataKey,
-		arg.EncryptedTags,
-		arg.TagEncAlgorithm,
-		arg.TagEncKeyVersion,
-		arg.TagEncNonce,
-		arg.TagEncEncryptedDataKey,
 		arg.ContentEncAlgorithm,
 		arg.ContentEncKeyVersion,
 		arg.ContentEncNonce,

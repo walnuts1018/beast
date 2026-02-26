@@ -24,6 +24,7 @@ var (
 
 type Service struct {
 	videos     domain.VideoRepository
+	tags       domain.VideoTagRepository
 	sharedKeys domain.SharedKeyRepository
 	deviceKeys domain.DeviceKeyRepository
 	uploads    domain.UploadSessionRepository
@@ -34,6 +35,7 @@ type Service struct {
 
 func NewService(
 	videos domain.VideoRepository,
+	tags domain.VideoTagRepository,
 	sharedKeys domain.SharedKeyRepository,
 	deviceKeys domain.DeviceKeyRepository,
 	uploads domain.UploadSessionRepository,
@@ -42,6 +44,7 @@ func NewService(
 ) *Service {
 	return &Service{
 		videos:     videos,
+		tags:       tags,
 		sharedKeys: sharedKeys,
 		deviceKeys: deviceKeys,
 		uploads:    uploads,
@@ -198,19 +201,12 @@ func (s *Service) CompleteUpload(ctx context.Context, userID string, uploadSessi
 
 	now := s.now()
 	video := domain.Video{
-		ID:            uuid.NewString(),
-		OwnerUserID:   userID,
-		Status:        domain.VideoStatusUploaded,
-		UploadedAt:    now,
-		EncryptedTags: []byte{},
-		TagEncryption: domain.EncryptionMetadata{
-			Algorithm:        domain.EncryptionAlgorithmXChaCha20Poly1305,
-			KeyVersion:       1,
-			Nonce:            []byte{},
-			EncryptedDataKey: []byte{},
-		},
-		CreatedAt: now,
-		UpdatedAt: now,
+		ID:          uuid.NewString(),
+		OwnerUserID: userID,
+		Status:      domain.VideoStatusUploaded,
+		UploadedAt:  now,
+		CreatedAt:   now,
+		UpdatedAt:   now,
 	}
 
 	if err := s.videos.Create(ctx, video); err != nil {
@@ -235,12 +231,11 @@ func (s *Service) CompleteUpload(ctx context.Context, userID string, uploadSessi
 	return &video, nil
 }
 
-func (s *Service) UpdateEncryptedTags(
+func (s *Service) UpdateVideoTags(
 	ctx context.Context,
 	userID string,
 	videoID string,
-	encryptedTags []byte,
-	tagEncryption domain.EncryptionMetadata,
+	newTags []string,
 ) (*domain.Video, error) {
 	if userID == "" {
 		return nil, ErrUnauthorized
@@ -254,14 +249,11 @@ func (s *Service) UpdateEncryptedTags(
 		return nil, ErrNotFound
 	}
 
-	video.EncryptedTags = encryptedTags
-	video.TagEncryption = tagEncryption
-	video.UpdatedAt = s.now()
-
-	if err := s.videos.Update(ctx, *video); err != nil {
+	if err := s.tags.SetTags(ctx, videoID, newTags); err != nil {
 		return nil, err
 	}
 
+	video.Tags = newTags
 	return video, nil
 }
 
@@ -318,10 +310,16 @@ func (s *Service) Video(ctx context.Context, userID string, videoID string) (*do
 		return nil, nil
 	}
 
+	tags, err := s.tags.GetTags(ctx, videoID)
+	if err != nil {
+		return nil, err
+	}
+	video.Tags = tags
+
 	return video, nil
 }
 
-func (s *Service) Videos(ctx context.Context, userID string, status *domain.VideoStatus, pagination domain.Pagination) (domain.VideoConnection, error) {
+func (s *Service) Videos(ctx context.Context, userID string, status *domain.VideoStatus, tag *string, pagination domain.Pagination) (domain.VideoConnection, error) {
 	if userID == "" {
 		return domain.VideoConnection{}, ErrUnauthorized
 	}
@@ -329,7 +327,33 @@ func (s *Service) Videos(ctx context.Context, userID string, status *domain.Vide
 		pagination.First = 20
 	}
 
-	return s.videos.ListByOwner(ctx, userID, status, pagination)
+	var conn domain.VideoConnection
+	var err error
+	if tag != nil {
+		conn, err = s.videos.ListByOwnerAndTag(ctx, userID, *tag, status, pagination)
+	} else {
+		conn, err = s.videos.ListByOwner(ctx, userID, status, pagination)
+	}
+	if err != nil {
+		return domain.VideoConnection{}, err
+	}
+
+	// バッチでタグを取得して各動画に設定する
+	if len(conn.Edges) > 0 {
+		videoIDs := make([]string, 0, len(conn.Edges))
+		for _, e := range conn.Edges {
+			videoIDs = append(videoIDs, e.Node.ID)
+		}
+		tagMap, err := s.tags.GetTagsBatch(ctx, videoIDs)
+		if err != nil {
+			return domain.VideoConnection{}, err
+		}
+		for i := range conn.Edges {
+			conn.Edges[i].Node.Tags = tagMap[conn.Edges[i].Node.ID]
+		}
+	}
+
+	return conn, nil
 }
 
 func (s *Service) EncodingProgress(ctx context.Context, userID string, videoID string) (*domain.VideoEncodingProgress, error) {

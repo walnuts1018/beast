@@ -40,13 +40,6 @@ type EncryptionMetadata struct {
 	EncryptedDataKey scalar.Base64       `json:"encryptedDataKey"`
 }
 
-type EncryptionMetadataInput struct {
-	Algorithm        EncryptionAlgorithm `json:"algorithm"`
-	KeyVersion       int                 `json:"keyVersion"`
-	Nonce            scalar.Base64       `json:"nonce"`
-	EncryptedDataKey scalar.Base64       `json:"encryptedDataKey"`
-}
-
 type Me struct {
 	UserID                  string                    `json:"userId"`
 	SharedKeyVersions       []*SharedKeyVersion       `json:"sharedKeyVersions"`
@@ -109,10 +102,9 @@ type SharedKeyVersion struct {
 type Subscription struct {
 }
 
-type UpdateEncryptedTagsInput struct {
-	VideoID       string                   `json:"videoId"`
-	EncryptedTags scalar.Base64            `json:"encryptedTags"`
-	TagEncryption *EncryptionMetadataInput `json:"tagEncryption"`
+type UpdateVideoTagsInput struct {
+	VideoID string   `json:"videoId"`
+	Tags    []string `json:"tags"`
 }
 
 type UploadSession struct {
@@ -133,8 +125,7 @@ type Video struct {
 	Width             *int                  `json:"width,omitempty"`
 	Height            *int                  `json:"height,omitempty"`
 	Playback          *PlaybackGrant        `json:"playback,omitempty"`
-	EncryptedTags     scalar.Base64         `json:"encryptedTags"`
-	TagEncryption     *EncryptionMetadata   `json:"tagEncryption"`
+	Tags              []string              `json:"tags"`
 	ContentEncryption *EncryptionMetadata   `json:"contentEncryption,omitempty"`
 }
 

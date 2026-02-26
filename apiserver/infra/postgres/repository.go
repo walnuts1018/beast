@@ -218,6 +218,132 @@ func (r *VideoRepository) Update(ctx context.Context, video domain.Video) error 
 	return nil
 }
 
+func (r *VideoRepository) ListByOwnerAndTag(
+	ctx context.Context,
+	ownerUserID string,
+	tag string,
+	status *domain.VideoStatus,
+	p domain.Pagination,
+) (domain.VideoConnection, error) {
+	limit := p.First
+	if limit <= 0 {
+		limit = 20
+	}
+
+	params := sqlcgen.ListVideosByOwnerAndTagParams{
+		OwnerUserID: ownerUserID,
+		Tag:         tag,
+		LimitCount:  int32(limit + 1),
+	}
+
+	if status != nil {
+		params.Status = toPgText(string(*status))
+	}
+
+	if p.After != nil {
+		cursorAt, err := r.store.queries.LoadVideoUploadedAt(ctx, sqlcgen.LoadVideoUploadedAtParams{
+			ID:          *p.After,
+			OwnerUserID: ownerUserID,
+		})
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return domain.VideoConnection{}, nil
+			}
+			return domain.VideoConnection{}, fmt.Errorf("load cursor: %w", err)
+		}
+		params.CursorUploadedAt = cursorAt
+		params.CursorID = toPgText(*p.After)
+	}
+
+	rows, err := r.store.queries.ListVideosByOwnerAndTag(ctx, params)
+	if err != nil {
+		return domain.VideoConnection{}, fmt.Errorf("list videos by tag: %w", err)
+	}
+
+	hasNext := len(rows) > limit
+	if hasNext {
+		rows = rows[:limit]
+	}
+
+	edges := make([]domain.VideoEdge, 0, len(rows))
+	for _, row := range rows {
+		video := toDomainVideo(row)
+		edges = append(edges, domain.VideoEdge{Cursor: video.ID, Node: video})
+	}
+
+	var next *string
+	if hasNext && len(edges) > 0 {
+		cursor := edges[len(edges)-1].Cursor
+		next = &cursor
+	}
+
+	return domain.VideoConnection{Edges: edges, HasNext: hasNext, NextCursor: next}, nil
+}
+
+// VideoTagRepository
+
+type VideoTagRepository struct{ store *Store }
+
+func NewVideoTagRepository(store *Store) *VideoTagRepository {
+	return &VideoTagRepository{store: store}
+}
+
+func (r *VideoTagRepository) SetTags(ctx context.Context, videoID string, tags []string) error {
+	tx, err := r.store.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	defer func() {
+		if err := tx.Rollback(ctx); err != nil && !errors.Is(err, pgx.ErrTxClosed) {
+			slog.ErrorContext(ctx, "rollback video tags tx", slog.Any("error", err))
+		}
+	}()
+
+	qtx := r.store.queries.WithTx(tx)
+
+	if err := qtx.DeleteVideoTags(ctx, videoID); err != nil {
+		return fmt.Errorf("delete video tags: %w", err)
+	}
+
+	now := synchro.Now[tz.UTC]()
+	for _, tag := range tags {
+		if err := qtx.InsertVideoTag(ctx, sqlcgen.InsertVideoTagParams{
+			VideoID:   videoID,
+			Tag:       tag,
+			CreatedAt: toPgTimestamptz(now),
+		}); err != nil {
+			return fmt.Errorf("insert video tag: %w", err)
+		}
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit: %w", err)
+	}
+
+	return nil
+}
+
+func (r *VideoTagRepository) GetTags(ctx context.Context, videoID string) ([]string, error) {
+	tags, err := r.store.queries.GetVideoTags(ctx, videoID)
+	if err != nil {
+		return nil, fmt.Errorf("get video tags: %w", err)
+	}
+	return tags, nil
+}
+
+func (r *VideoTagRepository) GetTagsBatch(ctx context.Context, videoIDs []string) (map[string][]string, error) {
+	rows, err := r.store.queries.GetVideoTagsBatch(ctx, videoIDs)
+	if err != nil {
+		return nil, fmt.Errorf("get video tags batch: %w", err)
+	}
+
+	result := make(map[string][]string, len(videoIDs))
+	for _, row := range rows {
+		result[row.VideoID] = append(result[row.VideoID], row.Tag)
+	}
+	return result, nil
+}
+
 // SharedKeyRepository
 
 type SharedKeyRepository struct{ store *Store }
