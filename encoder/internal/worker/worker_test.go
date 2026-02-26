@@ -8,7 +8,7 @@ import (
 func TestBuildInitialPlan_CopyBoth(t *testing.T) {
 	w := &Worker{}
 	meta := mediaMeta{VideoCodec: "h264", AudioCodec: "aac"}
-	plan := w.buildInitialPlan(meta)
+	plan := w.buildInitialPlan(meta, nil)
 	if !plan.copyVideo {
 		t.Fatalf("expected copyVideo=true")
 	}
@@ -20,7 +20,7 @@ func TestBuildInitialPlan_CopyBoth(t *testing.T) {
 func TestBuildInitialPlan_ReencodeWhenUnknownCodec(t *testing.T) {
 	w := &Worker{}
 	meta := mediaMeta{VideoCodec: "prores", AudioCodec: "pcm_s16le"}
-	plan := w.buildInitialPlan(meta)
+	plan := w.buildInitialPlan(meta, nil)
 	if plan.copyVideo {
 		t.Fatalf("expected copyVideo=false")
 	}
@@ -32,12 +32,29 @@ func TestBuildInitialPlan_ReencodeWhenUnknownCodec(t *testing.T) {
 func TestBuildInitialPlan_NoAudioStream(t *testing.T) {
 	w := &Worker{}
 	meta := mediaMeta{VideoCodec: "hevc", AudioCodec: ""}
-	plan := w.buildInitialPlan(meta)
+	plan := w.buildInitialPlan(meta, nil)
 	if !plan.copyVideo {
 		t.Fatalf("expected copyVideo=true")
 	}
 	if !plan.copyAudio {
 		t.Fatalf("expected copyAudio=true when no audio stream")
+	}
+}
+
+func TestBuildInitialPlan_ReencodePrefersNVENCOrQSV(t *testing.T) {
+	w := &Worker{}
+	meta := mediaMeta{VideoCodec: "prores", AudioCodec: "pcm_s16le"}
+	encoders := map[string]struct{}{
+		"h264_qsv": {},
+		"libx264":  {},
+	}
+
+	plan := w.buildInitialPlan(meta, encoders)
+	if plan.copyVideo {
+		t.Fatalf("expected copyVideo=false")
+	}
+	if plan.videoEncoder != "h264_qsv" {
+		t.Fatalf("expected qsv preferred, got: %s", plan.videoEncoder)
 	}
 }
 

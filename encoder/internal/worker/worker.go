@@ -249,7 +249,13 @@ func (w *Worker) encodeDash(ctx context.Context, job rabbitmq.EncodeJobMessage) 
 }
 
 func (w *Worker) runFFmpegDash(ctx context.Context, inputPath string, manifestPath string, meta mediaMeta) error {
-	initialPlan := w.buildInitialPlan(meta)
+	encoders, encoderErr := w.getAvailableEncoders(ctx)
+	if encoderErr != nil {
+		w.logger.WarnContext(ctx, "failed to probe ffmpeg encoders; fallback to software defaults", slog.Any("error", encoderErr))
+		encoders = nil
+	}
+
+	initialPlan := w.buildInitialPlan(meta, encoders)
 	initialArgs := w.buildFFmpegDashArgs(inputPath, manifestPath, initialPlan)
 	output, err := w.runner.Run(ctx, w.ffmpegPath, initialArgs...)
 	if err == nil {
@@ -260,9 +266,8 @@ func (w *Worker) runFFmpegDash(ctx context.Context, inputPath string, manifestPa
 		return fmt.Errorf("ffmpeg dash failed: %w: %s", err, strings.TrimSpace(output))
 	}
 
-	encoders, encoderErr := w.getAvailableEncoders(ctx)
 	if encoderErr != nil {
-		return fmt.Errorf("ffmpeg dash failed and fallback encoder probe failed: %w: %s", err, strings.TrimSpace(output))
+		return fmt.Errorf("ffmpeg dash failed: %w: %s", err, strings.TrimSpace(output))
 	}
 
 	fallbackPlan := w.buildFallbackPlan(encoders)
@@ -276,7 +281,7 @@ func (w *Worker) runFFmpegDash(ctx context.Context, inputPath string, manifestPa
 	return nil
 }
 
-func (w *Worker) buildInitialPlan(meta mediaMeta) ffmpegPlan {
+func (w *Worker) buildInitialPlan(meta mediaMeta, encoders map[string]struct{}) ffmpegPlan {
 	videoCodec := strings.ToLower(strings.TrimSpace(meta.VideoCodec))
 	audioCodec := strings.ToLower(strings.TrimSpace(meta.AudioCodec))
 	_, canCopyVideo := dashCopyVideoCodecs[videoCodec]
@@ -288,8 +293,8 @@ func (w *Worker) buildInitialPlan(meta mediaMeta) ffmpegPlan {
 	return ffmpegPlan{
 		copyVideo:    canCopyVideo,
 		copyAudio:    canCopyAudio,
-		videoEncoder: "libx264",
-		audioEncoder: "aac",
+		videoEncoder: chooseBestVideoEncoder(encoders),
+		audioEncoder: chooseBestAudioEncoder(encoders),
 	}
 }
 
