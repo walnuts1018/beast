@@ -15,5 +15,5 @@ packages:
 - name: tilt-dev/tilt@v0.35.2
 - name: tilt-dev/ctlptl@v0.8.43
 - name: kubernetes-sigs/kustomize@kustomize/v5.7.1
-- name: GoogleContainerTools/skaffold@v2.17.1
+- name: GoogleContainerTools/skaffold@v2.17.2
 - name: golang/go@go1.26.0
