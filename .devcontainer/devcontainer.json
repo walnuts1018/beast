@@ -20,7 +20,21 @@
       "settings": {
         "terminal.integrated.shell.linux": "/bin/zsh"
       },
-      "extensions": ["docker.docker"]
+      "extensions": [
+        "docker.docker",
+        "GraphQL.vscode-graphql",
+        "golang.go",
+        "ms-kubernetes-tools.vscode-kubernetes-tools",
+        "kennylong.kubernetes-yaml-formatter",
+        "remcohaszing.schemastore",
+        "LawrenceGrant.cql",
+        "github.vscode-github-actions",
+        "capaj.graphql-codegen-vscode",
+        "hashicorp.terraform",
+        "fwcd.kotlin",
+        "MermaidChart.vscode-mermaid-chart",
+        "adpyke.vscode-sql-formatter"
+      ]
     }
   }
 }
