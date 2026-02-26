@@ -24,9 +24,33 @@ type Store struct {
 }
 
 func NewStore(ctx context.Context, dsn string) (*Store, error) {
+	return NewStoreWithOptions(ctx, dsn, StoreOptions{})
+}
+
+type StoreOptions struct {
+	MaxOpenConns    int
+	MaxIdleConns    int
+	ConnMaxLifetime time.Duration
+	ConnMaxIdleTime time.Duration
+}
+
+func NewStoreWithOptions(ctx context.Context, dsn string, options StoreOptions) (*Store, error) {
 	db, err := sql.Open("pgx", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("open postgres: %w", err)
+	}
+
+	if options.MaxOpenConns > 0 {
+		db.SetMaxOpenConns(options.MaxOpenConns)
+	}
+	if options.MaxIdleConns >= 0 {
+		db.SetMaxIdleConns(options.MaxIdleConns)
+	}
+	if options.ConnMaxLifetime > 0 {
+		db.SetConnMaxLifetime(options.ConnMaxLifetime)
+	}
+	if options.ConnMaxIdleTime > 0 {
+		db.SetConnMaxIdleTime(options.ConnMaxIdleTime)
 	}
 
 	if err := db.PingContext(ctx); err != nil {
@@ -49,6 +73,10 @@ func NewStore(ctx context.Context, dsn string) (*Store, error) {
 
 func (s *Store) Close() error {
 	return s.db.Close()
+}
+
+func (s *Store) Ping(ctx context.Context) error {
+	return s.db.PingContext(ctx)
 }
 
 func (s *Store) migrate(ctx context.Context) error {

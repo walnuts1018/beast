@@ -29,7 +29,7 @@ import (
 )
 
 func main() {
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, os.Interrupt, os.Kill)
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer stop()
 
 	cfg, err := config.Load()
@@ -41,7 +41,12 @@ func main() {
 	logger := logger.CreateLogger(cfg.LogLevel, cfg.LogType)
 	slog.SetDefault(logger)
 
-	store, err := postgres.NewStore(ctx, cfg.DB.DSN())
+	store, err := postgres.NewStoreWithOptions(ctx, cfg.DB.DSN(), postgres.StoreOptions{
+		MaxOpenConns:    cfg.DB.MaxOpenConns,
+		MaxIdleConns:    cfg.DB.MaxIdleConns,
+		ConnMaxLifetime: cfg.DB.ConnMaxLifetime,
+		ConnMaxIdleTime: cfg.DB.ConnMaxIdleTime,
+	})
 	if err != nil {
 		slog.ErrorContext(ctx, "postgres initialization error", slog.Any("error", err))
 		os.Exit(1)
@@ -92,6 +97,19 @@ func main() {
 		return c.NoContent(http.StatusOK)
 	})
 	e.GET("/readyz", func(c *echo.Context) error {
+		healthCtx, cancel := context.WithTimeout(c.Request().Context(), 3*time.Second)
+		defer cancel()
+
+		if err := store.Ping(healthCtx); err != nil {
+			slog.WarnContext(healthCtx, "postgres not ready", slog.Any("error", err))
+			return c.NoContent(http.StatusServiceUnavailable)
+		}
+
+		if err := objectStore.HealthCheck(healthCtx); err != nil {
+			slog.WarnContext(healthCtx, "object storage not ready", slog.Any("error", err))
+			return c.NoContent(http.StatusServiceUnavailable)
+		}
+
 		return c.NoContent(http.StatusOK)
 	})
 	e.GET("/playground", echo.WrapHandler(playground.Handler("GraphQL playground", "/query")))
@@ -112,6 +130,9 @@ func main() {
 		Addr:              fmt.Sprintf(":%d", cfg.Server.Port),
 		Handler:           e,
 		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       60 * time.Second,
 	}
 
 	go func() {

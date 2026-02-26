@@ -129,6 +129,15 @@ func (s *S3Storage) Exists(ctx context.Context, objectKey string) (bool, error) 
 	return false, fmt.Errorf("head object: %w", err)
 }
 
+func (s *S3Storage) HealthCheck(ctx context.Context) error {
+	_, err := s.client.HeadBucket(ctx, &s3.HeadBucketInput{Bucket: aws.String(s.bucket)})
+	if err != nil {
+		return fmt.Errorf("head bucket %s: %w", s.bucket, err)
+	}
+
+	return nil
+}
+
 func (s *S3Storage) ensureBucket(ctx context.Context) error {
 	_, err := s.client.HeadBucket(ctx, &s3.HeadBucketInput{Bucket: aws.String(s.bucket)})
 	if err == nil {
