@@ -1,0 +1,48 @@
+name: Check
+
+on:
+  pull_request:
+  push:
+
+jobs:
+  golangci-lint:
+    name: golangci-lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apiserver
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: apiserver/go.mod
+      - name: golangci-lint
+        run: go tool golangci-lint run
+
+  go-generate-diff:
+    name: go generate 差分確認
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: apiserver/go.mod
+      - name: go generate
+        working-directory: apiserver
+        run: go generate ./...
+      - name: 差分確認
+        run: git --no-pager diff --exit-code
+
+  go-test:
+    name: go test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apiserver
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: apiserver/go.mod
+      - name: go test
+        run: go test ./...
