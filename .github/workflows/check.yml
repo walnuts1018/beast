@@ -11,16 +11,15 @@ jobs:
   golangci-lint:
     name: golangci-lint
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: apiserver
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-go@v6
         with:
           go-version-file: apiserver/go.mod
       - name: golangci-lint
-        run: go tool golangci-lint run
+        uses: golangci/golangci-lint-action@v8
+        with:
+          working-directory: apiserver
 
   go-generate-diff:
     name: go generate 差分確認
