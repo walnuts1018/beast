@@ -18,7 +18,7 @@ resolver:
 models:
   DateTime:
     model:
-      - time.Time
+      - github.com/walnuts1018/beast/apiserver/graph/scalar.DateTime
   Base64:
     model:
       - github.com/walnuts1018/beast/apiserver/graph/scalar.Base64

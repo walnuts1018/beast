@@ -9,10 +9,11 @@ import (
 	"fmt"
 	"strconv"
 	"sync/atomic"
-	"time"
 
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/99designs/gqlgen/graphql/introspection"
+	"github.com/Code-Hex/synchro"
+	"github.com/Code-Hex/synchro/tz"
 	gqlparser "github.com/vektah/gqlparser/v2"
 	"github.com/vektah/gqlparser/v2/ast"
 	"github.com/walnuts1018/beast/apiserver/graph/model"
@@ -1194,7 +1195,7 @@ func (ec *executionContext) _DeviceWrappedSharedKey_createdAt(ctx context.Contex
 			return obj.CreatedAt, nil
 		},
 		nil,
-		ec.marshalNDateTime2timeᚐTime,
+		ec.marshalNDateTime2githubᚗcomᚋCodeᚑHexᚋsynchroᚐTime,
 		true,
 		true,
 	)
@@ -1979,7 +1980,7 @@ func (ec *executionContext) _PlaybackGrant_expiresAt(ctx context.Context, field 
 			return obj.ExpiresAt, nil
 		},
 		nil,
-		ec.marshalNDateTime2timeᚐTime,
+		ec.marshalNDateTime2githubᚗcomᚋCodeᚑHexᚋsynchroᚐTime,
 		true,
 		true,
 	)
@@ -2448,7 +2449,7 @@ func (ec *executionContext) _SharedKeyVersion_createdAt(ctx context.Context, fie
 			return obj.CreatedAt, nil
 		},
 		nil,
-		ec.marshalNDateTime2timeᚐTime,
+		ec.marshalNDateTime2githubᚗcomᚋCodeᚑHexᚋsynchroᚐTime,
 		true,
 		true,
 	)
@@ -2477,7 +2478,7 @@ func (ec *executionContext) _SharedKeyVersion_revokedAt(ctx context.Context, fie
 			return obj.RevokedAt, nil
 		},
 		nil,
-		ec.marshalODateTime2ᚖtimeᚐTime,
+		ec.marshalODateTime2ᚖgithubᚗcomᚋCodeᚑHexᚋsynchroᚐTime,
 		true,
 		false,
 	)
@@ -2646,7 +2647,7 @@ func (ec *executionContext) _UploadSession_expiresAt(ctx context.Context, field 
 			return obj.ExpiresAt, nil
 		},
 		nil,
-		ec.marshalNDateTime2timeᚐTime,
+		ec.marshalNDateTime2githubᚗcomᚋCodeᚑHexᚋsynchroᚐTime,
 		true,
 		true,
 	)
@@ -2762,7 +2763,7 @@ func (ec *executionContext) _Video_uploadedAt(ctx context.Context, field graphql
 			return obj.UploadedAt, nil
 		},
 		nil,
-		ec.marshalNDateTime2timeᚐTime,
+		ec.marshalNDateTime2githubᚗcomᚋCodeᚑHexᚋsynchroᚐTime,
 		true,
 		true,
 	)
@@ -2791,7 +2792,7 @@ func (ec *executionContext) _Video_readyAt(ctx context.Context, field graphql.Co
 			return obj.ReadyAt, nil
 		},
 		nil,
-		ec.marshalODateTime2ᚖtimeᚐTime,
+		ec.marshalODateTime2ᚖgithubᚗcomᚋCodeᚑHexᚋsynchroᚐTime,
 		true,
 		false,
 	)
@@ -3325,7 +3326,7 @@ func (ec *executionContext) _VideoEncodingProgress_updatedAt(ctx context.Context
 			return obj.UpdatedAt, nil
 		},
 		nil,
-		ec.marshalNDateTime2timeᚐTime,
+		ec.marshalNDateTime2githubᚗcomᚋCodeᚑHexᚋsynchroᚐTime,
 		true,
 		true,
 	)
@@ -6349,12 +6350,12 @@ func (ec *executionContext) unmarshalNCreateUploadSessionInput2githubᚗcomᚋwa
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) unmarshalNDateTime2timeᚐTime(ctx context.Context, v any) (time.Time, error) {
+func (ec *executionContext) unmarshalNDateTime2githubᚗcomᚋCodeᚑHexᚋsynchroᚐTime(ctx context.Context, v any) (synchro.Time[tz.UTC], error) {
 	res, err := ec.unmarshalInputDateTime(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNDateTime2timeᚐTime(ctx context.Context, sel ast.SelectionSet, v time.Time) graphql.Marshaler {
+func (ec *executionContext) marshalNDateTime2githubᚗcomᚋCodeᚑHexᚋsynchroᚐTime(ctx context.Context, sel ast.SelectionSet, v synchro.Time[tz.UTC]) graphql.Marshaler {
 	return ec._DateTime(ctx, sel, &v)
 }
 
@@ -6845,7 +6846,7 @@ func (ec *executionContext) marshalOBoolean2ᚖbool(ctx context.Context, sel ast
 	return res
 }
 
-func (ec *executionContext) unmarshalODateTime2ᚖtimeᚐTime(ctx context.Context, v any) (*time.Time, error) {
+func (ec *executionContext) unmarshalODateTime2ᚖgithubᚗcomᚋCodeᚑHexᚋsynchroᚐTime(ctx context.Context, v any) (*synchro.Time[tz.UTC], error) {
 	if v == nil {
 		return nil, nil
 	}
@@ -6853,7 +6854,7 @@ func (ec *executionContext) unmarshalODateTime2ᚖtimeᚐTime(ctx context.Contex
 	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalODateTime2ᚖtimeᚐTime(ctx context.Context, sel ast.SelectionSet, v *time.Time) graphql.Marshaler {
+func (ec *executionContext) marshalODateTime2ᚖgithubᚗcomᚋCodeᚑHexᚋsynchroᚐTime(ctx context.Context, sel ast.SelectionSet, v *synchro.Time[tz.UTC]) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}

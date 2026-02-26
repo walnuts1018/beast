@@ -7,8 +7,9 @@ import (
 	"fmt"
 	"io"
 	"strconv"
-	"time"
 
+	"github.com/Code-Hex/synchro"
+	"github.com/Code-Hex/synchro/tz"
 	"github.com/walnuts1018/beast/apiserver/graph/scalar"
 )
 
@@ -24,10 +25,10 @@ type CreateUploadSessionInput struct {
 
 // Device Keyで暗号化されたShared Key秘密鍵の配布情報。
 type DeviceWrappedSharedKey struct {
-	DeviceID                  string        `json:"deviceId"`
-	SharedKeyVersion          int           `json:"sharedKeyVersion"`
-	EncryptedSharedPrivateKey scalar.Base64 `json:"encryptedSharedPrivateKey"`
-	CreatedAt                 time.Time     `json:"createdAt"`
+	DeviceID                  string               `json:"deviceId"`
+	SharedKeyVersion          int                  `json:"sharedKeyVersion"`
+	EncryptedSharedPrivateKey scalar.Base64        `json:"encryptedSharedPrivateKey"`
+	CreatedAt                 synchro.Time[tz.UTC] `json:"createdAt"`
 }
 
 // 暗号化データに付与するEnvelope Encryptionメタデータ。
@@ -67,10 +68,10 @@ type PaginationInput struct {
 // 再生時にクライアントが復号に必要な情報を取得するためのトークン。
 // 復号処理は常にクライアントで実行される。
 type PlaybackGrant struct {
-	VideoID     string              `json:"videoId"`
-	ManifestURL string              `json:"manifestUrl"`
-	ExpiresAt   time.Time           `json:"expiresAt"`
-	Encryption  *EncryptionMetadata `json:"encryption"`
+	VideoID     string               `json:"videoId"`
+	ManifestURL string               `json:"manifestUrl"`
+	ExpiresAt   synchro.Time[tz.UTC] `json:"expiresAt"`
+	Encryption  *EncryptionMetadata  `json:"encryption"`
 }
 
 type Query struct {
@@ -100,8 +101,8 @@ type SharedKeyVersion struct {
 	Version      int                    `json:"version"`
 	PublicKeyPem string                 `json:"publicKeyPem"`
 	Status       SharedKeyVersionStatus `json:"status"`
-	CreatedAt    time.Time              `json:"createdAt"`
-	RevokedAt    *time.Time             `json:"revokedAt,omitempty"`
+	CreatedAt    synchro.Time[tz.UTC]   `json:"createdAt"`
+	RevokedAt    *synchro.Time[tz.UTC]  `json:"revokedAt,omitempty"`
 }
 
 type Subscription struct {
@@ -114,26 +115,26 @@ type UpdateEncryptedTagsInput struct {
 }
 
 type UploadSession struct {
-	ID        string    `json:"id"`
-	ObjectKey string    `json:"objectKey"`
-	UploadURL string    `json:"uploadUrl"`
-	ExpiresAt time.Time `json:"expiresAt"`
+	ID        string               `json:"id"`
+	ObjectKey string               `json:"objectKey"`
+	UploadURL string               `json:"uploadUrl"`
+	ExpiresAt synchro.Time[tz.UTC] `json:"expiresAt"`
 }
 
 type Video struct {
-	ID                string              `json:"id"`
-	OwnerUserID       string              `json:"ownerUserId"`
-	Status            VideoStatus         `json:"status"`
-	UploadedAt        time.Time           `json:"uploadedAt"`
-	ReadyAt           *time.Time          `json:"readyAt,omitempty"`
-	FailedReason      *string             `json:"failedReason,omitempty"`
-	DurationMillis    *int                `json:"durationMillis,omitempty"`
-	Width             *int                `json:"width,omitempty"`
-	Height            *int                `json:"height,omitempty"`
-	Playback          *PlaybackGrant      `json:"playback,omitempty"`
-	EncryptedTags     scalar.Base64       `json:"encryptedTags"`
-	TagEncryption     *EncryptionMetadata `json:"tagEncryption"`
-	ContentEncryption *EncryptionMetadata `json:"contentEncryption,omitempty"`
+	ID                string                `json:"id"`
+	OwnerUserID       string                `json:"ownerUserId"`
+	Status            VideoStatus           `json:"status"`
+	UploadedAt        synchro.Time[tz.UTC]  `json:"uploadedAt"`
+	ReadyAt           *synchro.Time[tz.UTC] `json:"readyAt,omitempty"`
+	FailedReason      *string               `json:"failedReason,omitempty"`
+	DurationMillis    *int                  `json:"durationMillis,omitempty"`
+	Width             *int                  `json:"width,omitempty"`
+	Height            *int                  `json:"height,omitempty"`
+	Playback          *PlaybackGrant        `json:"playback,omitempty"`
+	EncryptedTags     scalar.Base64         `json:"encryptedTags"`
+	TagEncryption     *EncryptionMetadata   `json:"tagEncryption"`
+	ContentEncryption *EncryptionMetadata   `json:"contentEncryption,omitempty"`
 }
 
 type VideoConnection struct {
@@ -147,11 +148,11 @@ type VideoEdge struct {
 }
 
 type VideoEncodingProgress struct {
-	VideoID   string      `json:"videoId"`
-	Status    VideoStatus `json:"status"`
-	Percent   float64     `json:"percent"`
-	UpdatedAt time.Time   `json:"updatedAt"`
-	Message   *string     `json:"message,omitempty"`
+	VideoID   string               `json:"videoId"`
+	Status    VideoStatus          `json:"status"`
+	Percent   float64              `json:"percent"`
+	UpdatedAt synchro.Time[tz.UTC] `json:"updatedAt"`
+	Message   *string              `json:"message,omitempty"`
 }
 
 type EncryptionAlgorithm string

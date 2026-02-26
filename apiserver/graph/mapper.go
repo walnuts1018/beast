@@ -1,6 +1,10 @@
 package graph
 
 import (
+	"time"
+
+	"github.com/Code-Hex/synchro"
+	"github.com/Code-Hex/synchro/tz"
 	"github.com/walnuts1018/beast/apiserver/domain"
 	"github.com/walnuts1018/beast/apiserver/graph/model"
 	"github.com/walnuts1018/beast/apiserver/graph/scalar"
@@ -41,8 +45,8 @@ func toModelSharedKeyVersion(item domain.SharedKeyVersion) *model.SharedKeyVersi
 		Version:      item.Version,
 		PublicKeyPem: item.PublicKeyPEM,
 		Status:       model.SharedKeyVersionStatus(item.Status),
-		CreatedAt:    item.CreatedAt,
-		RevokedAt:    item.RevokedAt,
+		CreatedAt:    toModelDateTime(item.CreatedAt),
+		RevokedAt:    toModelDateTimePtr(item.RevokedAt),
 	}
 }
 
@@ -51,7 +55,7 @@ func toModelDeviceWrappedSharedKey(item domain.DeviceWrappedSharedKey) *model.De
 		DeviceID:                  item.DeviceID,
 		SharedKeyVersion:          item.SharedKeyVersion,
 		EncryptedSharedPrivateKey: scalar.Base64(item.EncryptedSharedPrivateKey),
-		CreatedAt:                 item.CreatedAt,
+		CreatedAt:                 toModelDateTime(item.CreatedAt),
 	}
 }
 
@@ -60,7 +64,7 @@ func toModelUploadSession(item domain.UploadSession) *model.UploadSession {
 		ID:        item.ID,
 		ObjectKey: item.ObjectKey,
 		UploadURL: item.UploadURL,
-		ExpiresAt: item.ExpiresAt,
+		ExpiresAt: toModelDateTime(item.ExpiresAt),
 	}
 }
 
@@ -69,7 +73,7 @@ func toModelProgress(item domain.VideoEncodingProgress) *model.VideoEncodingProg
 		VideoID:   item.VideoID,
 		Status:    toModelVideoStatus(item.Status),
 		Percent:   item.Percent,
-		UpdatedAt: item.UpdatedAt,
+		UpdatedAt: toModelDateTime(item.UpdatedAt),
 		Message:   item.Message,
 	}
 }
@@ -82,7 +86,7 @@ func toModelPlaybackGrant(item *domain.PlaybackGrant) *model.PlaybackGrant {
 	return &model.PlaybackGrant{
 		VideoID:     item.VideoID,
 		ManifestURL: item.ManifestURL,
-		ExpiresAt:   item.ExpiresAt,
+		ExpiresAt:   toModelDateTime(item.ExpiresAt),
 		Encryption:  toModelEncryptionMetadata(item.Encryption),
 	}
 }
@@ -92,8 +96,8 @@ func toModelVideo(item domain.Video) *model.Video {
 		ID:                item.ID,
 		OwnerUserID:       item.OwnerUserID,
 		Status:            toModelVideoStatus(item.Status),
-		UploadedAt:        item.UploadedAt,
-		ReadyAt:           item.ReadyAt,
+		UploadedAt:        toModelDateTime(item.UploadedAt),
+		ReadyAt:           toModelDateTimePtr(item.ReadyAt),
 		FailedReason:      item.FailedReason,
 		DurationMillis:    item.DurationMillis,
 		Width:             item.Width,
@@ -144,4 +148,17 @@ func toModelVideoConnection(conn domain.VideoConnection) *model.VideoConnection 
 			EndCursor:   conn.NextCursor,
 		},
 	}
+}
+
+func toModelDateTime(value time.Time) scalar.DateTime {
+	return synchro.In[tz.UTC](value)
+}
+
+func toModelDateTimePtr(value *time.Time) *scalar.DateTime {
+	if value == nil {
+		return nil
+	}
+
+	converted := synchro.In[tz.UTC](*value)
+	return &converted
 }
