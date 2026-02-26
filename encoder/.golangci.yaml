@@ -1,0 +1,17 @@
+version: "2"
+run:
+  tests: false
+  allow-parallel-runners: true
+linters:
+  default: none
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unparam
+    - unused
+formatters:
+  enable:
+    - gofmt
+    - goimports

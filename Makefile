@@ -5,6 +5,7 @@ generate:
 .PHONY: lint
 lint:
 	cd apiserver && go tool golangci-lint run
+	cd encoder && go tool golangci-lint run
 
 .PHONY: setup
 setup:

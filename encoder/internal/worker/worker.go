@@ -194,7 +194,9 @@ func (w *Worker) encodeDash(ctx context.Context, job rabbitmq.EncodeJobMessage) 
 	if err != nil {
 		return fmt.Errorf("create temp dir: %w", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() {
+		_ = os.RemoveAll(tmpDir)
+	}()
 
 	inputPath := filepath.Join(tmpDir, "input")
 	outputDir := filepath.Join(tmpDir, "dash")
@@ -530,7 +532,9 @@ func (w *Worker) uploadDashDirectory(ctx context.Context, dir string, prefix str
 		if err != nil {
 			return fmt.Errorf("open dash artifact: %w", err)
 		}
-		defer f.Close()
+		defer func() {
+			_ = f.Close()
+		}()
 
 		contentType := contentTypeByPath(path)
 		_, err = w.s3Client.PutObject(ctx, &s3.PutObjectInput{
@@ -568,13 +572,17 @@ func (w *Worker) downloadSource(ctx context.Context, objectKey string, outputPat
 	if err != nil {
 		return fmt.Errorf("download source object: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	f, err := os.Create(outputPath)
 	if err != nil {
 		return fmt.Errorf("create source file: %w", err)
 	}
-	defer f.Close()
+	defer func() {
+		_ = f.Close()
+	}()
 
 	if _, err := io.Copy(f, resp.Body); err != nil {
 		return fmt.Errorf("write source file: %w", err)
