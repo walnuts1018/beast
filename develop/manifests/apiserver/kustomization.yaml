@@ -11,3 +11,13 @@ secretGenerator:
   - client-secret=beast_client_secret
   name: apiserver-oidc
   type: Opaque
+- behavior: create
+  envs:
+  - secrets/db.env
+  name: apiserver-db
+  type: Opaque
+- behavior: create
+  envs:
+  - secrets/s3.env
+  name: apiserver-s3
+  type: Opaque

@@ -1,0 +1,2 @@
+# ローカル開発用のシークレットファイル（.env.example は追跡対象）
+develop/manifests/**/secrets/*.env
