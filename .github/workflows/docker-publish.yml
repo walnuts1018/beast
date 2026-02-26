@@ -91,12 +91,12 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set Image Tag
-        run: echo "ImageTag=0.0.${{ github.run_number }}" >> "$GITHUB_ENV"
+        run: echo "IMAGE_TAG=0.0.${{ github.run_number }}" >> "$GITHUB_ENV"
 
       - name: Create manifest list and push
         working-directory: /tmp/digests
         run: |
           docker buildx imagetools create \
             -t ${{ env.IMAGE_NAME }}:latest \
-            -t ${{ env.IMAGE_NAME }}:${{ env.ImageTag }} \
+            -t ${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }} \
             $(printf '${{ env.IMAGE_NAME }}@sha256:%s ' *)
