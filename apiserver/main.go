@@ -3,7 +3,8 @@ package main
 import (
 	"context"
 	"errors"
-	"log"
+	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -19,21 +20,59 @@ import (
 	"github.com/vektah/gqlparser/v2/ast"
 
 	"github.com/walnuts1018/beast/apiserver/auth"
+	"github.com/walnuts1018/beast/apiserver/config"
 	"github.com/walnuts1018/beast/apiserver/graph"
-	"github.com/walnuts1018/beast/apiserver/infra/memory"
+	"github.com/walnuts1018/beast/apiserver/infra/objectstorage"
+	"github.com/walnuts1018/beast/apiserver/infra/postgres"
+	"github.com/walnuts1018/beast/apiserver/logger"
 	"github.com/walnuts1018/beast/apiserver/usecase"
 )
 
 func main() {
-	// TODO: PostgreSQL/sqlc実装へ切り替えるまでの暫定としてメモリ実装を利用する。
-	// ローカル開発速度を優先しつつ、usecase/domainの依存方向を固定するため。
-	store := memory.NewStore()
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, os.Interrupt, os.Kill)
+	defer stop()
+
+	cfg, err := config.Load()
+	if err != nil {
+		slog.ErrorContext(ctx, "Failed to load config", slog.Any("error", err))
+		os.Exit(1)
+	}
+
+	logger := logger.CreateLogger(cfg.LogLevel, cfg.LogType)
+	slog.SetDefault(logger)
+
+	store, err := postgres.NewStore(ctx, cfg.DB.DSN())
+	if err != nil {
+		slog.ErrorContext(ctx, "postgres initialization error", slog.Any("error", err))
+		os.Exit(1)
+	}
+	defer func() {
+		if closeErr := store.Close(); closeErr != nil {
+			slog.ErrorContext(ctx, "postgres close error", slog.Any("error", closeErr))
+		}
+	}()
+
+	objectStore, err := objectstorage.NewS3Storage(ctx, objectstorage.Config{
+		Region:          cfg.S3.Region,
+		Endpoint:        cfg.S3.Endpoint,
+		Bucket:          cfg.S3.Bucket,
+		AccessKeyID:     cfg.S3.AccessKeyID,
+		SecretAccessKey: cfg.S3.SecretAccessKey,
+		UsePathStyle:    cfg.S3.UsePathStyle,
+		UploadTTL:       cfg.S3.UploadURLTTL,
+	})
+	if err != nil {
+		slog.ErrorContext(ctx, "object storage initialization error", slog.Any("error", err))
+		os.Exit(1)
+	}
+
 	service := usecase.NewService(
-		memory.NewVideoRepository(store),
-		memory.NewSharedKeyRepository(store),
-		memory.NewDeviceKeyRepository(store),
-		memory.NewUploadSessionRepository(store),
-		memory.NewEncodingProgressRepository(store),
+		postgres.NewVideoRepository(store),
+		postgres.NewSharedKeyRepository(store),
+		postgres.NewDeviceKeyRepository(store),
+		postgres.NewUploadSessionRepository(store),
+		postgres.NewEncodingProgressRepository(store),
+		objectStore,
 	)
 
 	resolvers := &graph.Resolver{Service: service}
@@ -59,9 +98,9 @@ func main() {
 
 	introspector := auth.NewCachedIntrospector(
 		auth.NewHTTPIntrospector(
-			os.Getenv("OIDC_INTROSPECTION_URL"),
-			os.Getenv("OIDC_CLIENT_ID"),
-			os.Getenv("OIDC_CLIENT_SECRET"),
+			cfg.OIDC.IntrospectionURL,
+			cfg.OIDC.ClientID,
+			cfg.OIDC.ClientSecret,
 		),
 		30*time.Second,
 	)
@@ -69,30 +108,26 @@ func main() {
 	secured := e.Group("", auth.Middleware(introspector))
 	secured.Any("/query", echo.WrapHandler(gqlHandler))
 
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
-	}
-
 	server := &http.Server{
-		Addr:              ":" + port,
+		Addr:              fmt.Sprintf(":%d", cfg.Server.Port),
 		Handler:           e,
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
 	go func() {
 		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Printf("server start error: %v", err)
+			slog.ErrorContext(ctx, "server start error", slog.Any("error", err))
 		}
 	}()
 
-	stop := make(chan os.Signal, 1)
-	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
-	<-stop
+	<-ctx.Done()
+	stop()
+	slog.InfoContext(ctx, "shutting down server")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	if err := server.Shutdown(ctx); err != nil {
-		log.Printf("graceful shutdown error: %v", err)
+		slog.ErrorContext(ctx, "graceful shutdown error", slog.Any("error", err))
+		os.Exit(1)
 	}
 }

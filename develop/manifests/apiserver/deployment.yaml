@@ -18,6 +18,33 @@ spec:
       - name: apiserver
         image: ghcr.io/walnuts1018/beast/apiserver:latest
         imagePullPolicy: IfNotPresent
+        env:
+        - name: POSTGRES_HOST
+          value: postgresql-rw.postgres.svc.cluster.local
+        - name: POSTGRES_PORT
+          value: "5432"
+        - name: POSTGRES_USER
+          value: beast
+        - name: POSTGRES_PASSWORD
+          value: password
+        - name: POSTGRES_DB
+          value: beast
+        - name: POSTGRES_SSLMODE
+          value: disable
+        - name: S3_REGION
+          value: us-east-1
+        - name: S3_ENDPOINT
+          value: http://seaweedfs-s3.seaweedfs.svc.cluster.local:8333
+        - name: S3_BUCKET
+          value: beast-upload-temp
+        - name: S3_ACCESS_KEY_ID
+          value: seaweedfs
+        - name: S3_SECRET_ACCESS_KEY
+          value: seaweedfs
+        - name: S3_USE_PATH_STYLE
+          value: "true"
+        - name: UPLOAD_URL_TTL
+          value: 15m
         livenessProbe:
           httpGet:
             path: /livez

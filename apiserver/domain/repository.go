@@ -1,6 +1,9 @@
 package domain
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 type VideoRepository interface {
 	Create(ctx context.Context, video Video) error
@@ -31,4 +34,9 @@ type EncodingProgressRepository interface {
 	Set(ctx context.Context, progress VideoEncodingProgress) error
 	Get(ctx context.Context, videoID string) (*VideoEncodingProgress, error)
 	Subscribe(ctx context.Context, videoID string) (<-chan VideoEncodingProgress, func(), error)
+}
+
+type ObjectStorage interface {
+	CreateUploadURL(ctx context.Context, objectKey string, expiresIn time.Duration) (string, error)
+	Exists(ctx context.Context, objectKey string) (bool, error)
 }

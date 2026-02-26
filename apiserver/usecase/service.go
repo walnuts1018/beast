@@ -11,20 +11,21 @@ import (
 )
 
 var (
-	ErrUnauthorized      = errors.New("unauthorized")
-	ErrNotFound          = errors.New("not found")
-	ErrInvalidInput      = errors.New("invalid input")
-	ErrUploadSessionGone = errors.New("upload session expired or missing")
+	ErrUnauthorized        = errors.New("unauthorized")
+	ErrNotFound            = errors.New("not found")
+	ErrInvalidInput        = errors.New("invalid input")
+	ErrUploadSessionGone   = errors.New("upload session expired or missing")
+	ErrUploadObjectMissing = errors.New("uploaded object is missing")
 )
 
 type Service struct {
-	videos      domain.VideoRepository
-	sharedKeys  domain.SharedKeyRepository
-	deviceKeys  domain.DeviceKeyRepository
-	uploads     domain.UploadSessionRepository
-	progress    domain.EncodingProgressRepository
-	now         func() time.Time
-	uploadURLFn func(objectKey string) string
+	videos     domain.VideoRepository
+	sharedKeys domain.SharedKeyRepository
+	deviceKeys domain.DeviceKeyRepository
+	uploads    domain.UploadSessionRepository
+	progress   domain.EncodingProgressRepository
+	objects    domain.ObjectStorage
+	now        func() time.Time
 }
 
 func NewService(
@@ -33,6 +34,7 @@ func NewService(
 	deviceKeys domain.DeviceKeyRepository,
 	uploads domain.UploadSessionRepository,
 	progress domain.EncodingProgressRepository,
+	objects domain.ObjectStorage,
 ) *Service {
 	return &Service{
 		videos:     videos,
@@ -40,10 +42,8 @@ func NewService(
 		deviceKeys: deviceKeys,
 		uploads:    uploads,
 		progress:   progress,
+		objects:    objects,
 		now:        time.Now,
-		uploadURLFn: func(objectKey string) string {
-			return fmt.Sprintf("https://upload.local/%s", objectKey)
-		},
 	}
 }
 
@@ -141,10 +141,15 @@ func (s *Service) CreateUploadSession(ctx context.Context, userID string) (*doma
 		ID:        id,
 		OwnerUser: userID,
 		ObjectKey: objectKey,
-		UploadURL: s.uploadURLFn(objectKey),
 		ExpiresAt: now.Add(15 * time.Minute),
 		CreatedAt: now,
 	}
+
+	uploadURL, err := s.objects.CreateUploadURL(ctx, objectKey, 15*time.Minute)
+	if err != nil {
+		return nil, fmt.Errorf("create upload url: %w", err)
+	}
+	session.UploadURL = uploadURL
 
 	if err := s.uploads.Create(ctx, session); err != nil {
 		return nil, err
@@ -164,6 +169,14 @@ func (s *Service) CompleteUpload(ctx context.Context, userID string, uploadSessi
 	}
 	if session == nil || session.OwnerUser != userID || session.ExpiresAt.Before(s.now().UTC()) {
 		return nil, ErrUploadSessionGone
+	}
+
+	exists, err := s.objects.Exists(ctx, session.ObjectKey)
+	if err != nil {
+		return nil, fmt.Errorf("check uploaded object: %w", err)
+	}
+	if !exists {
+		return nil, ErrUploadObjectMissing
 	}
 
 	now := s.now().UTC()
