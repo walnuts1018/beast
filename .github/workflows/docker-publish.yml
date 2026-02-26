@@ -10,6 +10,9 @@ permissions:
   contents: read
   packages: write
 
+env:
+  IMAGE_NAME: ghcr.io/${{ github.repository }}/apiserver
+
 jobs:
   build:
     name: Build Docker Image
@@ -31,7 +34,7 @@ jobs:
         uses: docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1 # v3.5.0
         with:
           registry: ghcr.io
-          username: walnuts1018
+          username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Docker Buildx
@@ -47,7 +50,7 @@ jobs:
           context: .
           file: ./Dockerfile.apiserver
           platforms: ${{ matrix.platform }}
-          outputs: type=image,name=ghcr.io/walnuts1018/beast/apiserver,push-by-digest=true,name-canonical=true,push=true
+          outputs: type=image,name=${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
           cache-from: type=gha,scope=${{ matrix.key }}
           cache-to: type=gha,mode=max,scope=${{ matrix.key }}
 
@@ -84,7 +87,7 @@ jobs:
         uses: docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1 # v3.5.0
         with:
           registry: ghcr.io
-          username: walnuts1018
+          username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set Image Tag
@@ -94,6 +97,6 @@ jobs:
         working-directory: /tmp/digests
         run: |
           docker buildx imagetools create \
-            -t ghcr.io/walnuts1018/beast/apiserver:latest \
-            -t ghcr.io/walnuts1018/beast/apiserver:${{ env.ImageTag }} \
-            $(printf 'ghcr.io/walnuts1018/beast/apiserver@sha256:%s ' *)
+            -t ${{ env.IMAGE_NAME }}:latest \
+            -t ${{ env.IMAGE_NAME }}:${{ env.ImageTag }} \
+            $(printf '${{ env.IMAGE_NAME }}@sha256:%s ' *)
