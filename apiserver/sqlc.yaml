@@ -1,0 +1,39 @@
+version: "2"
+sql:
+  - engine: "postgresql"
+    queries: "infra/postgres/query"
+    schema: "infra/postgres/schema"
+    gen:
+      go:
+        package: "sqlcgen"
+        out: "infra/postgres/sqlcgen"
+        sql_package: "pgx/v5"
+        emit_interface: true
+        emit_empty_slices: true
+        overrides:
+          - db_type: "pg_catalog.timestamptz"
+            go_type:
+              import: "time"
+              type: "Time"
+            nullable: false
+          - db_type: "pg_catalog.timestamptz"
+            go_type:
+              import: "time"
+              type: "Time"
+              pointer: true
+            nullable: true
+          - db_type: "pg_catalog.text"
+            go_type:
+              type: "string"
+              pointer: true
+            nullable: true
+          - db_type: "pg_catalog.int4"
+            go_type:
+              type: "int32"
+              pointer: true
+            nullable: true
+          - db_type: "pg_catalog.float8"
+            go_type:
+              type: "float64"
+              pointer: true
+            nullable: true
