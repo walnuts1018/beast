@@ -2,12 +2,12 @@
 FROM golang:1.26.0-trixie AS builder
 
 WORKDIR /build
-COPY ./encoder/go.mod ./go.mod
+COPY go.mod go.sum ./
 RUN --mount=type=cache,target=/go/pkg/mod/ \
     --mount=type=cache,target=/root/.cache/go-build,sharing=locked \
     go mod download -x
 
-COPY ./encoder ./
+COPY . ./
 RUN --mount=type=cache,target=/go/pkg/mod/ \
     --mount=type=cache,target=/root/.cache/go-build,sharing=locked \
     GOOS=linux go build -trimpath -o encoder ./main.go && chmod +x ./encoder

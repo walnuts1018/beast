@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -40,6 +41,7 @@ type Worker struct {
 	ffmpegPath         string
 	ffprobePath        string
 	dashSegmentSeconds int
+	jobTimeout         time.Duration
 	logger             *slog.Logger
 	runner             commandRunner
 
@@ -108,6 +110,7 @@ func New(
 	ffmpegPath string,
 	ffprobePath string,
 	dashSegmentSeconds int,
+	jobTimeout time.Duration,
 	logger *slog.Logger,
 ) *Worker {
 	if workDir == "" {
@@ -122,6 +125,9 @@ func New(
 	if dashSegmentSeconds <= 0 {
 		dashSegmentSeconds = 4
 	}
+	if jobTimeout <= 0 {
+		jobTimeout = 6 * time.Hour
+	}
 	if logger == nil {
 		logger = slog.Default()
 	}
@@ -134,6 +140,7 @@ func New(
 		ffmpegPath:         ffmpegPath,
 		ffprobePath:        ffprobePath,
 		dashSegmentSeconds: dashSegmentSeconds,
+		jobTimeout:         jobTimeout,
 		logger:             logger,
 		runner:             execCommandRunner{},
 	}
@@ -167,10 +174,6 @@ func (w *Worker) Run(ctx context.Context) error {
 				continue
 			}
 
-			// コンテキストがキャンセルされても処理中のジョブは完了させたいため、
-			// エンコード処理には独立したコンテキストを使用する。
-			// ただし無限に待たないよう、キャンセル検知後にログを出力して
-			// 失敗イベントを送信してからジョブをNackする。
 			if ctx.Err() != nil {
 				// シャットダウン時はジョブを再キューイングするだけにする。
 				// 失敗イベントは送信しない（再キューされたジョブが再処理時にFAILEDになることを防ぐ）。
@@ -179,7 +182,12 @@ func (w *Worker) Run(ctx context.Context) error {
 				return nil
 			}
 
-			if err := w.encodeDash(ctx, job); err != nil {
+			// エンコード処理はキャンセルされない独立したコンテキストで実行する。
+			// これにより、シャットダウンシグナルを受けても処理中のジョブは完了する。
+			// ただし無限にブロックしないよう、タイムアウトを設定する。
+			jobCtx, jobCancel := context.WithTimeout(context.WithoutCancel(ctx), w.jobTimeout)
+			if err := w.encodeDash(jobCtx, job); err != nil {
+				jobCancel()
 				reason := err.Error()
 				// エンコード失敗はジョブを永続的な失敗として扱い、Ackする。
 				// これは無限リトライループを回避するための設計判断である。
@@ -197,6 +205,7 @@ func (w *Worker) Run(ctx context.Context) error {
 			if err := delivery.Ack(false); err != nil {
 				w.logger.ErrorContext(ctx, "failed to ack encode job", slog.Any("error", err), slog.String("videoID", job.VideoID))
 			}
+			jobCancel()
 		}
 	}
 }

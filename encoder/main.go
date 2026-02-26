@@ -61,6 +61,7 @@ func main() {
 		cfg.FFmpegPath,
 		cfg.FFprobePath,
 		cfg.DashSegmentSeconds,
+		cfg.JobTimeout,
 		appLogger,
 	)
 

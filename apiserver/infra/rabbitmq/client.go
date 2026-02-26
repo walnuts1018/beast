@@ -90,6 +90,11 @@ func (c *Client) PublishEncodeVideo(ctx context.Context, job domain.EncodeVideoJ
 }
 
 func (c *Client) StartEventConsumer(ctx context.Context, handler func(context.Context, domain.EncodingEvent) error) error {
+	// イベント処理が遅い場合の未ACKメッセージの蓄積を防ぐためprefetchを設定
+	if err := c.ch.Qos(10, 0, false); err != nil {
+		return fmt.Errorf("set qos for encode events: %w", err)
+	}
+
 	deliveries, err := c.ch.Consume(c.cfg.EncodeEventQueue, c.cfg.ConsumerTag, false, false, false, false, nil)
 	if err != nil {
 		return fmt.Errorf("consume encode event queue: %w", err)

@@ -84,6 +84,12 @@ func (c *Client) Close() {
 }
 
 func (c *Client) ConsumeJobs(ctx context.Context) (<-chan amqp.Delivery, error) {
+	// ワーカーはジョブを逐次処理するため、prefetch=1に制限して
+	// 未ACKメッセージの大量バッファリングによるメモリ増加を防ぐ
+	if err := c.ch.Qos(1, 0, false); err != nil {
+		return nil, fmt.Errorf("set qos for encode jobs: %w", err)
+	}
+
 	msgs, err := c.ch.Consume(c.encodeJobQueue, c.consumerTag, false, false, false, false, nil)
 	if err != nil {
 		return nil, fmt.Errorf("consume encode jobs: %w", err)
