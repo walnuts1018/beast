@@ -12,8 +12,6 @@ registries:
 packages:
 - name: kubernetes/kubectl@v1.35.1
 - name: kubernetes-sigs/kind@v0.30.0
-- name: tilt-dev/tilt@v0.35.2
-- name: tilt-dev/ctlptl@v0.8.43
 - name: kubernetes-sigs/kustomize@kustomize/v5.7.1
 - name: GoogleContainerTools/skaffold@v2.17.1
 - name: golang/go@go1.26.0
