@@ -39,7 +39,7 @@ func New(cfg config.RabbitMQConfig) (*Client, error) {
 
 	ch, err := conn.Channel()
 	if err != nil {
-		conn.Close()
+		_ = conn.Close()
 		return nil, fmt.Errorf("open rabbitmq channel: %w", err)
 	}
 

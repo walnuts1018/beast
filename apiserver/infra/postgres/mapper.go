@@ -117,8 +117,6 @@ func toDomainVideo(row sqlcgen.Video) domain.Video {
 
 // toCreateVideoParamsとtoUpdateVideoParamsはsqlcが生成する別々の型に対する変換のため、
 // 構造が同一でも共通化できない。
-//
-//nolint:dupl
 func toCreateVideoParams(v domain.Video) sqlcgen.CreateVideoParams {
 	p := sqlcgen.CreateVideoParams{
 		ID:               v.ID,
@@ -159,8 +157,6 @@ func toCreateVideoParams(v domain.Video) sqlcgen.CreateVideoParams {
 
 	return p
 }
-
-//nolint:dupl
 func toUpdateVideoParams(v domain.Video) sqlcgen.UpdateVideoParams {
 	p := sqlcgen.UpdateVideoParams{
 		ID:               v.ID,
