@@ -1,0 +1,9 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: beast
+spec:
+  cluster:
+    name: postgresql
+  name: beast
+  owner: beast

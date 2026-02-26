@@ -1,0 +1,9 @@
+installCRDs: true
+config:
+  featureGates:
+    ExperimentalGatewayAPISupport: true
+resources: {}
+webhook:
+  resources: {}
+cainjector:
+  resources: {}

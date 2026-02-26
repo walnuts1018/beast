@@ -1,0 +1,37 @@
+# syntax=docker/dockerfile:1.20
+FROM golang:1.26.0-trixie AS builder
+
+ENV ROOT=/build
+ARG BUILD_TAGS=""
+RUN mkdir ${ROOT}
+WORKDIR ${ROOT}
+
+RUN --mount=type=cache,target=/go/pkg/mod/ \
+    --mount=type=cache,target=/root/.cache/go-build,sharing=locked \
+    --mount=type=bind,source=./apiserver/go.sum,target=go.sum \
+    --mount=type=bind,source=./apiserver/go.mod,target=go.mod \
+    go mod download -x
+
+COPY ./apiserver ./
+RUN --mount=type=cache,target=/go/pkg/mod/ \
+    --mount=type=cache,target=/root/.cache/go-build,sharing=locked \
+    sh -c '\
+    if [ -n "$BUILD_TAGS" ]; then \
+    GOOS=linux go build -o apiserver -tags "$BUILD_TAGS" $ROOT/cmd/server/main.go; \
+    else \
+    GOOS=linux go build -o apiserver $ROOT/cmd/server/main.go; \
+    fi' && \
+    chmod +x ./apiserver
+
+FROM debian:13.3-slim
+WORKDIR /app
+
+RUN rm -f /etc/apt/apt.conf.d/docker-clean; echo 'Binary::apt::APT::Keep-Downloaded-Packages "true";' > /etc/apt/apt.conf.d/keep-cache
+RUN --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    apt-get -y update && apt-get upgrade -y && apt-get install -y ca-certificates
+
+COPY --from=builder /build/apiserver ./
+EXPOSE 8080
+
+CMD ["./apiserver"]

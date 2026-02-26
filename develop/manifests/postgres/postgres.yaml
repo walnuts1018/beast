@@ -1,0 +1,30 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: postgresql
+spec:
+  bootstrap:
+    initdb:
+      database: app
+      owner: app
+  enableSuperuserAccess: true
+  imageCatalogRef:
+    apiGroup: postgresql.cnpg.io
+    kind: ClusterImageCatalog
+    major: 18
+    name: standard
+  instances: 1
+  managed:
+    roles:
+    - ensure: present
+      inRoles:
+      - pg_monitor
+      - pg_signal_backend
+      login: true
+      name: beast
+      passwordSecret:
+        name: beast-db-password
+      superuser: false
+  storage:
+    size: 10Gi
+    storageClass: standard

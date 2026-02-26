@@ -1,0 +1,31 @@
+image:
+  tag: "4.07"
+
+master:
+  data:
+    type: "persistentVolumeClaim"
+    size: "16Gi"
+  logs:
+    type: "emptyDir"
+
+volume:
+  enabled: true
+ 
+  dataDirs:
+    - name: data
+      type: "persistentVolumeClaim"
+      size: "16Gi"
+      maxVolumes: 0
+
+filer:
+  data:
+    type: "persistentVolumeClaim"
+    size: "16Gi"
+  logs:
+    type: "emptyDir"
+
+  ingress:
+    enabled: false
+
+  s3:
+    enabled: true

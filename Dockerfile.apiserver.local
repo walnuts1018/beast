@@ -1,0 +1,14 @@
+# syntax=docker/dockerfile:1.20
+FROM golang:1.26.0-trixie
+ENV ROOT=/app
+WORKDIR ${ROOT}
+
+RUN --mount=type=bind,source=./apiserver/go.sum,target=go.sum \
+    --mount=type=bind,source=./apiserver/go.mod,target=go.mod \
+    go mod download -x
+
+COPY ./apiserver .
+
+EXPOSE 8080
+CMD ["go", "tool", "air", "-c", ".air.toml"]
+

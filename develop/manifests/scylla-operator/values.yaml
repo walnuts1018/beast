@@ -1,0 +1,5 @@
+replicas: 1
+resources: {}
+webhookServerReplicas: 1
+webhookServerResources:
+  requests: {}
