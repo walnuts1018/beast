@@ -1,0 +1,26 @@
+{
+  "name": "beast",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
+  "remoteEnv": {
+    "PATH": "/home/vscode/.local/share/aquaproj-aqua/bin:${containerEnv:PATH}"
+  },
+  "postStartCommand": "git config --global --unset url.git@github.com:.pushInsteadOf && git config --global --unset url.git@github.com:.insteadOf && aqua i -l",
+  "updateRemoteUserUID": true,
+  "features": {
+    "ghcr.io/devcontainers/features/git:1": {},
+    "ghcr.io/devcontainers/features/git-lfs:1": {},
+    "ghcr.io/devcontainers/features/github-cli:1": {},
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {},
+    "ghcr.io/aquaproj/devcontainer-features/aqua-installer:0.1.6": {
+      "aqua_version": "v2.55.1"
+    }
+  },
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "terminal.integrated.shell.linux": "/bin/zsh"
+      },
+      "extensions": ["docker.docker"]
+    }
+  }
+}
