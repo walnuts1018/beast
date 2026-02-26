@@ -31,6 +31,8 @@ import (
 	"github.com/walnuts1018/beast/apiserver/usecase"
 )
 
+//go:generate go tool sqlc generate
+
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer stop()

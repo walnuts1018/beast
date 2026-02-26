@@ -19,8 +19,6 @@ import (
 	"github.com/walnuts1018/beast/apiserver/infra/postgres/sqlcgen"
 )
 
-//go:generate go tool sqlc generate
-
 //go:embed migrations/*.sql
 var migrationsFS embed.FS
 
