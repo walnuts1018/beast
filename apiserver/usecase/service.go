@@ -335,6 +335,19 @@ func (s *Service) ApplyEncodingEvent(ctx context.Context, event domain.EncodingE
 		if event.Percent == nil {
 			return ErrInvalidInput
 		}
+
+		// 初回のprogressイベントで動画ステータスをENCODINGに遷移させる。
+		// これにより、RetryEncoding後やCompleteUpload後にエンコーダが
+		// 実際にジョブをピックアップした時点で正しいステータスに更新される。
+		if video.Status != domain.VideoStatusEncoding {
+			video.Status = domain.VideoStatusEncoding
+			video.FailedReason = nil
+			video.UpdatedAt = s.now()
+			if err := s.videos.Update(ctx, *video); err != nil {
+				return err
+			}
+		}
+
 		message := event.Message
 		return s.progress.Set(ctx, domain.VideoEncodingProgress{
 			VideoID:   video.ID,

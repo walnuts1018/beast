@@ -167,10 +167,6 @@ func (w *Worker) Run(ctx context.Context) error {
 				continue
 			}
 
-			// コンテキストがキャンセルされても処理中のジョブは完了させたいため、
-			// エンコード処理には独立したコンテキストを使用する。
-			// ただし無限に待たないよう、キャンセル検知後にログを出力して
-			// 失敗イベントを送信してからジョブをNackする。
 			if ctx.Err() != nil {
 				// シャットダウン時はジョブを再キューイングするだけにする。
 				// 失敗イベントは送信しない（再キューされたジョブが再処理時にFAILEDになることを防ぐ）。
@@ -179,7 +175,10 @@ func (w *Worker) Run(ctx context.Context) error {
 				return nil
 			}
 
-			if err := w.encodeDash(ctx, job); err != nil {
+			// エンコード処理はキャンセルされない独立したコンテキストで実行する。
+			// これにより、シャットダウンシグナルを受けても処理中のジョブは完了する。
+			jobCtx := context.WithoutCancel(ctx)
+			if err := w.encodeDash(jobCtx, job); err != nil {
 				reason := err.Error()
 				// エンコード失敗はジョブを永続的な失敗として扱い、Ackする。
 				// これは無限リトライループを回避するための設計判断である。
