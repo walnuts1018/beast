@@ -41,10 +41,7 @@ type introspectionResponse struct {
 
 func (i *HTTPIntrospector) Introspect(ctx context.Context, token string) (Principal, error) {
 	if i.endpoint == "" {
-		if token == "dev-token" {
-			return Principal{Subject: "dev-user", ExpiresAt: time.Now().Add(1 * time.Minute)}, nil
-		}
-		return Principal{}, ErrUnauthorized
+		return Principal{}, errors.New("introspection endpoint is empty")
 	}
 
 	form := url.Values{}

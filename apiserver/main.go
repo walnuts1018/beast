@@ -11,13 +11,16 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/99designs/gqlgen/graphql"
 	"github.com/99designs/gqlgen/graphql/handler"
 	"github.com/99designs/gqlgen/graphql/handler/extension"
 	"github.com/99designs/gqlgen/graphql/handler/lru"
 	"github.com/99designs/gqlgen/graphql/handler/transport"
 	"github.com/99designs/gqlgen/graphql/playground"
 	"github.com/labstack/echo/v5"
+	"github.com/labstack/echo/v5/middleware"
 	"github.com/vektah/gqlparser/v2/ast"
+	"github.com/vektah/gqlparser/v2/gqlerror"
 
 	"github.com/walnuts1018/beast/apiserver/auth"
 	"github.com/walnuts1018/beast/apiserver/config"
@@ -84,6 +87,27 @@ func main() {
 	gqlHandler := handler.New(graph.NewExecutableSchema(graph.Config{Resolvers: resolvers}))
 	gqlHandler.SetQueryCache(lru.New[*ast.QueryDocument](1000))
 	gqlHandler.Use(extension.Introspection{})
+	gqlHandler.SetRecoverFunc(func(ctx context.Context, panicErr any) error {
+		slog.ErrorContext(ctx, "graphql panic recovered", slog.Any("panic", panicErr))
+		return gqlerror.Errorf("internal server error")
+	})
+	gqlHandler.SetErrorPresenter(func(ctx context.Context, err error) *gqlerror.Error {
+		presented := graphql.DefaultErrorPresenter(ctx, err)
+
+		switch {
+		case errors.Is(err, auth.ErrUnauthorized), errors.Is(err, usecase.ErrUnauthorized):
+			presented.Message = "unauthorized"
+			presented.Extensions = map[string]any{"code": "UNAUTHORIZED"}
+		case errors.Is(err, usecase.ErrNotFound):
+			presented.Message = "not found"
+			presented.Extensions = map[string]any{"code": "NOT_FOUND"}
+		case errors.Is(err, usecase.ErrInvalidInput):
+			presented.Message = "invalid input"
+			presented.Extensions = map[string]any{"code": "INVALID_INPUT"}
+		}
+
+		return presented
+	})
 	gqlHandler.AddTransport(transport.Options{})
 	gqlHandler.AddTransport(transport.GET{})
 	gqlHandler.AddTransport(transport.POST{})
@@ -92,6 +116,9 @@ func main() {
 	})
 
 	e := echo.New()
+	e.Use(middleware.RequestID())
+	e.Use(middleware.Recover())
+	e.Use(middleware.CORS())
 
 	e.GET("/livez", func(c *echo.Context) error {
 		return c.NoContent(http.StatusOK)
@@ -114,14 +141,7 @@ func main() {
 	})
 	e.GET("/playground", echo.WrapHandler(playground.Handler("GraphQL playground", "/query")))
 
-	introspector := auth.NewCachedIntrospector(
-		auth.NewHTTPIntrospector(
-			cfg.OIDC.IntrospectionURL,
-			cfg.OIDC.ClientID,
-			cfg.OIDC.ClientSecret,
-		),
-		30*time.Second,
-	)
+	introspector := newIntrospector(cfg)
 
 	secured := e.Group("", auth.Middleware(introspector))
 	secured.Any("/query", echo.WrapHandler(gqlHandler))
@@ -136,6 +156,8 @@ func main() {
 	}
 
 	go func() {
+		slog.InfoContext(ctx, "starting api server", slog.Int("port", cfg.Server.Port), slog.String("auth_mode", string(cfg.Auth.Mode)))
+
 		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			slog.ErrorContext(ctx, "server start error", slog.Any("error", err))
 		}
@@ -150,5 +172,25 @@ func main() {
 	if err := server.Shutdown(ctx); err != nil {
 		slog.ErrorContext(ctx, "graceful shutdown error", slog.Any("error", err))
 		os.Exit(1)
+	}
+
+	slog.InfoContext(ctx, "server stopped")
+}
+
+func newIntrospector(cfg *config.Config) auth.Introspector {
+	switch cfg.Auth.Mode {
+	case config.AuthModeStatic:
+		return auth.NewStaticTokenIntrospector(cfg.Auth.DevStaticToken, cfg.Auth.DevStaticSubject)
+	case config.AuthModeIntrospection:
+		fallthrough
+	default:
+		return auth.NewCachedIntrospector(
+			auth.NewHTTPIntrospector(
+				cfg.OIDC.IntrospectionURL,
+				cfg.OIDC.ClientID,
+				cfg.OIDC.ClientSecret,
+			),
+			cfg.Auth.IntrospectionCacheTTL,
+		)
 	}
 }

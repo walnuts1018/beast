@@ -1,0 +1,71 @@
+version: "2"
+run:
+  tests: false
+  allow-parallel-runners: true
+linters:
+  default: none
+  enable:
+    - asasalint
+    - containedctx
+    - contextcheck
+    - copyloopvar
+    - dupl
+    - durationcheck
+    - errcheck
+    - exhaustruct
+    - ginkgolinter
+    - gocheckcompilerdirectives
+    - goconst
+    - gocyclo
+    - govet
+    - ineffassign
+    - intrange
+    - loggercheck
+    - makezero
+    - mirror
+    - misspell
+    - nakedret
+    - nilerr
+    - noctx
+    - nolintlint
+    - prealloc
+    - predeclared
+    - reassign
+    - revive
+    - rowserrcheck
+    - sloglint
+    - sqlclosecheck
+    - staticcheck
+    - testableexamples
+    - thelper
+    - unconvert
+    - unparam
+    - unused
+    - usestdlibvars
+    - usetesting
+  settings:
+    exhaustruct:
+      include: []
+    revive:
+      rules:
+        - name: comment-spacings
+  exclusions:
+    generated: strict
+    paths:
+      - .+_gen.go
+      - graph/generated.go
+      - third_party$
+      - builtin$
+      - examples$
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  exclusions:
+    generated: strict
+    paths:
+      - .+_gen.go
+      - graph/generated.go
+      - third_party$
+      - builtin$
+      - examples$

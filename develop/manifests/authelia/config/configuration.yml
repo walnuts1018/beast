@@ -1,0 +1,147 @@
+# From: https://github.com/authelia/authelia/blob/03e68ba412d86fb53b61f637c1384cf85d5e5bb1/config.template.yml
+
+server:
+  address: 'tcp://:9091/'
+
+log:
+  level: 'debug'
+
+telemetry:
+  metrics:
+    enabled: false
+
+identity_validation:
+  reset_password:
+    jwt_secret: 'authelia_sandbox_secret'
+
+authentication_backend:
+  password_reset:
+    disable: false
+  file:
+    path: '/config/users_database.yaml'
+    watch: true
+    search:
+      email: false
+      case_insensitive: false
+    password:
+      algorithm: 'argon2'
+      argon2:
+        variant: 'argon2id'
+        iterations: 3
+        memory: 65536
+        parallelism: 4
+        key_length: 32
+        salt_length: 16
+
+access_control:
+  default_policy: 'one_factor'
+
+session:
+  secret: 'authelia_sandbox_secret'
+  cookies:
+    - name: 'authelia_sandbox_session'
+      domain: 'local.walnuts.dev'
+      authelia_url: 'https://auth.local.walnuts.dev'
+  name: 'authelia_sandbox_session'
+  same_site: 'lax'
+  inactivity: '5m'
+  expiration: '1h'
+  remember_me: '1M'
+
+storage:
+  encryption_key: 'authelia_sandbox_encryption_key'
+  local:
+    path: '/data/db.sqlite3'
+
+notifier:
+  disable_startup_check: false
+  filesystem:
+    filename: '/data/notification.txt'
+
+identity_providers:
+  oidc:
+    hmac_secret: 'this_is_a_secret_abc123abc123abc'
+    jwks:
+      - key_id: 'authelia_sandbox'
+        algorithm: 'RS256'
+        use: 'sig'
+        key: |
+          -----BEGIN PRIVATE KEY-----
+          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
+          aooVnQgwuLosuFvmbZ9Utj5xnK/zslk=
+          -----END PRIVATE KEY-----
+
+    clients:
+      - client_id: 'beast-apiserver'
+        client_name: 'Beast API Server'
+        client_secret: '$pbkdf2-sha512$310000$tOX1bvEeZYrlJMWDI2xlpQ$7Zc0v3QAFSbowP1LwrOjmWP0lor96KVEe3VtA34kp.QzEhBammAubU.bdbkQ5yRQHtIhf8qWq95SUJQUY1Y.ug' # 平文: beast_client_secret
+        public: false
+        redirect_uris:
+          - 'https://app.local.walnuts.dev/auth/callback'
+        scopes:
+          - 'openid'
+          - 'profile'
+          - 'email'
+          - 'offline_access'
+        grant_types:
+          - 'authorization_code'
+          - 'password'
+          - 'refresh_token'
+        response_types:
+          - 'code'
+        authorization_policy: 'one_factor'
+        require_pkce: false
+
+    lifespans:
+      access_token: '24 hour'
+      authorize_code: '10 minute'
+      id_token: '1 hour'
+      refresh_token: '1 month'

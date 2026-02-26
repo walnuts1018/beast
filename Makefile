@@ -4,7 +4,7 @@ setup:
 
 .PHONY: dev 
 dev:
-	skaffold dev --cleanup=false
+	skaffold dev -m apps --cleanup=false
 
 .PHONY: destroy
 destroy:

@@ -17,9 +17,9 @@ RUN --mount=type=cache,target=/go/pkg/mod/ \
     --mount=type=cache,target=/root/.cache/go-build,sharing=locked \
     sh -c '\
     if [ -n "$BUILD_TAGS" ]; then \
-    GOOS=linux go build -o apiserver -tags "$BUILD_TAGS" $ROOT/cmd/server/main.go; \
+    GOOS=linux go build -trimpath -o apiserver -tags "$BUILD_TAGS" $ROOT/main.go; \
     else \
-    GOOS=linux go build -o apiserver $ROOT/cmd/server/main.go; \
+    GOOS=linux go build -trimpath -o apiserver $ROOT/main.go; \
     fi' && \
     chmod +x ./apiserver
 

@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"log/slog"
 	"reflect"
 
@@ -13,6 +14,7 @@ type Config struct {
 	Server   ServerConfig
 	LogLevel slog.Level `env:"LOG_LEVEL" envDefault:"info"`
 	LogType  LogType    `env:"LOG_TYPE" envDefault:"json"`
+	Auth     AuthConfig
 	OIDC     OIDCConfig
 	DB       DBConfig
 	S3       S3Config
@@ -34,7 +36,34 @@ func Load() (*Config, error) {
 		return nil, err
 	}
 
+	if err := validateAuthRelatedConfig(cfg); err != nil {
+		return nil, err
+	}
+
 	return cfg, nil
+}
+
+func validateAuthRelatedConfig(cfg *Config) error {
+	switch cfg.Auth.Mode {
+	case AuthModeIntrospection:
+		if cfg.OIDC.IntrospectionURL == "" {
+			return fmt.Errorf("OIDC_INTROSPECTION_URL is required when AUTH_MODE=introspection")
+		}
+		if cfg.OIDC.ClientID == "" {
+			return fmt.Errorf("OIDC_CLIENT_ID is required when AUTH_MODE=introspection")
+		}
+		if cfg.OIDC.ClientSecret == "" {
+			return fmt.Errorf("OIDC_CLIENT_SECRET is required when AUTH_MODE=introspection")
+		}
+	case AuthModeStatic:
+		if cfg.Auth.DevStaticToken == "" {
+			return fmt.Errorf("AUTH_DEV_STATIC_TOKEN is required when AUTH_MODE=static")
+		}
+	default:
+		return fmt.Errorf("unsupported AUTH_MODE: %s", cfg.Auth.Mode)
+	}
+
+	return nil
 }
 
 func returnAny[T any](f func(v string) (t T, err error)) env.ParserFunc {

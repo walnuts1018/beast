@@ -1,0 +1,98 @@
+server:
+  address: 'tcp://:9091/'
+
+log:
+  level: 'info'
+
+identity_validation:
+  reset_password:
+    jwt_secret: 'authelia_sandbox_secret'
+
+authentication_backend:
+  file:
+    path: '/config/users_database.yaml'
+    watch: true
+    password:
+      algorithm: 'argon2'
+
+access_control:
+  default_policy: 'one_factor'
+
+session:
+  secret: 'authelia_sandbox_secret'
+  cookies:
+    - name: 'authelia_session'
+      domain: 'local.walnuts.dev'
+      authelia_url: 'https://auth.local.walnuts.dev'
+  same_site: 'lax'
+  inactivity: '5m'
+  expiration: '1h'
+  remember_me: '1M'
+
+storage:
+  encryption_key: 'authelia_sandbox_encryption_key'
+  local:
+    path: '/data/db.sqlite3'
+
+notifier:
+  disable_startup_check: true
+  filesystem:
+    filename: '/data/notification.txt'
+
+identity_providers:
+  oidc:
+    hmac_secret: 'this_is_a_secret_abc123abc123abc'
+    jwks:
+      - key_id: 'beast-local'
+        algorithm: 'RS256'
+        use: 'sig'
+        key: |
+          -----BEGIN PRIVATE KEY-----
+          MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDAS8v+d1lRIsw8
+          hRxM9zS7YNjMokD76x8mS8T3wCyNtvj7otkGLxKJmHSaWBy8tP2drxvTCjHSMfSE
+          p2B3n8TqNdShQnId0Eq2N4vwQvlHVv8a2KOxwuL5m1X4sI9ORf1MrQ4Iq86NkPW7
+          uQ1O6IixN1JxW1ElnL7qI2Z7+2L6xS6zAbfVUyVbM6suHtc2fM4qytHpcVnKaQ9S
+          k6SSEfWXHGGFTQviRld2r5uKr1U/z3Vf+5YHVvnUpLb6Vyc2gRrN+FmEg3EAj7t+
+          F6M87ePQMQCLW4QOHjNbWJZR8f+L9VLQmKf3v9qfTjgwY4cP7W1J4g9G4GiEoTwN
+          CLQJx5r5AgMBAAECggEAQdc4wxaG2SE7nqN7mcQvE3P96VxNQjvrfwfM9xLzv0sK
+          B2XW8W6xUykM4h8fR2rjQX7iN6I4nY9+W7VPoMdxUp3uL8Qo2jTQ4RhVb8mYB+Ny
+          h3KJ6os4j3yQ62GB7W9p5qA10Yui/lyfRrR5wQ8m+vKywV2WvXKRGPI0TQ+e2j1Y
+          6w0Yatw7qG1kFv8cP6vHy8jJH2Vf6dmx7jCk6i0+zBntkAOqcm9+8Knx/PwW2f1u
+          7N9mZ9Q3wQY0CwFQW9d+3xH8HFLpI6E4h56nO6S2Hf3B2TgD8wM7qY98qY9z7R8d
+          6qvVxRY6gLJ9tE8wqwdTt3m9N8x7W9mO2XQ5rR7q8QKBgQD9w7y4XK3r7YFxbQ4f
+          8i2R2zt2Qh8v4y07E8i3m5y9u0zFvW+Qyd4nYh9Se+36DU6Z1lW6B9Jv3wzXjR9I
+          i0f6h3n0gL3Mx9jri6nDqJgvi4jP2u6UeVw4P2hG1v0uY8n+8iQ7n2KXz1eL+htO
+          7r9c4f7s8l8r0nR8k3NQ9P3sTwKBgQDC0XcHh9fY0G2yJzX6k2v5oR8nN4b0sV+U
+          ZD3/yz5s8x6kq7h1wL8M1YH9sv4m5YVZ6p4r2w3P2f7j3i7TQ2a4+E5u7mFf8h9r
+          Q6aY9kK3s8N2d5j7kQ6h2bXv8Q8r8Wc3S2T8i9d2m3g7n4j2p1q8w9t0r3y6z7x8
+          4v9w0x1y2z3a4b5c6d7e8f9gQKBgQCCvH4u8lHq8v2M5j7a2W3p5Y9k2n4x7b1l
+          3q5w7e9r1t3y5u7i9o1p3a5s7d9f1g3h5j7k9l1z3x5c7v9b1n3m5q7w9e1r3t5y
+          7u9i1o3p5a7s9d1f3g5h7j9k1l3z5x7c9v1b3n5m7q9w1e3r5t7y9u1i3o5p7a9s
+          dQKBgDzS8rX6zN9bQ3m7v2c5a8d1f4g7h0j3k6l9z2x5c8v1b4n7m0q3w6e9r2t5
+          y8u1i4o7p0a3s6d9f2g5h8j1k4l7z0x3c6v9b2n5m8q1w4e7r0t3y6u9i2o5p8a1
+          s4d7f0g3h6j9k2l5z8x1c4v7b0n3m6q9w2e5r8t1y4u7i0o3p6a9s2d5f8g1QKBg
+          C2x7v4b1n8m5q2w9e6r3t0y7u4i1o8p5a2s9d6f3g0h7j4k1l8z5x2c9v6b3n0m7
+          q4w1e8r5t2y9u6i3o0p7a4s1d8f5g2h9j6k3l0z7x4c1v8b5n2m9q6w3e0r7t4y1
+          u8i5o2p9a6s3d0f7g4h1j8k5l2z9x6c3v0b7n4m1q8w5e2r9t6y3u0i7o4p1a8s5
+          -----END PRIVATE KEY-----
+
+    clients:
+      - client_id: 'beast-apiserver'
+        client_name: 'Beast API Server'
+        client_secret: '$pbkdf2-sha512$310000$tOX1bvEeZYrlJMWDI2xlpQ$7Zc0v3QAFSbowP1LwrOjmWP0lor96KVEe3VtA34kp.QzEhBammAubU.bdbkQ5yRQHtIhf8qWq95SUJQUY1Y.ug' # 平文: beast_client_secret
+        public: false
+        redirect_uris:
+          - 'https://app.local.walnuts.dev/auth/callback'
+        scopes:
+          - 'openid'
+          - 'profile'
+          - 'email'
+          - 'offline_access'
+        grant_types:
+          - 'authorization_code'
+          - 'password'
+          - 'refresh_token'
+        response_types:
+          - 'code'
+        authorization_policy: 'one_factor'
+        require_pkce: false

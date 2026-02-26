@@ -1,0 +1,11 @@
+users:
+  test1:
+    disabled: false
+    displayname: test1
+    password: $argon2id$v=19$m=65536,t=3,p=4$Vbot4ml3Lbo5jDsQAlTcww$B3BiFZTmuG8D7g50I1u7JGncQb2PYVLAdV/X7+TTPc4 # 平文: test1
+    email: test1@local.walnuts.dev
+  test2:
+    disabled: false
+    displayname: test2
+    password: $argon2id$v=19$m=65536,t=3,p=4$XQrtLqIzGxR8KiZHgvmZwg$FfTgNEPgWweH7ndwqtZl4AmrTAiaeI7NGI77bxkElQQ # 平文: test1
+    email: test2@local.walnuts.dev
