@@ -105,6 +105,13 @@ func (c *Client) StartEventConsumer(ctx context.Context, handler func(context.Co
 					return
 				}
 
+				// メッセージ受信後にコンテキストのキャンセルを確認する。
+				// キャンセル済みの場合、メッセージを再キューイングして処理を中断する。
+				if ctx.Err() != nil {
+					_ = delivery.Nack(false, true)
+					return
+				}
+
 				var msg EncodeEventMessage
 				if err := json.Unmarshal(delivery.Body, &msg); err != nil {
 					slog.ErrorContext(ctx, "failed to decode encoder event", slog.Any("error", err))

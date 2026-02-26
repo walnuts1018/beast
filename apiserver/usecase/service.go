@@ -298,23 +298,13 @@ func (s *Service) RetryEncoding(ctx context.Context, userID string, videoID stri
 		return nil, fmt.Errorf("%w: retry encoding requires FAILED status, got %s", ErrInvalidStateChange, video.Status)
 	}
 
-	video.Status = domain.VideoStatusUploaded
+	// リトライジョブを投入するが、ステータスはFAILEDのまま維持する。
+	// エンコーダがジョブをピックアップし、progressイベントを送信した時点でENCODINGに遷移する。
+	// これにより、クライアントがポーリング中に一時的な不整合状態を観測することを防ぐ。
 	video.FailedReason = nil
 	video.UpdatedAt = s.now()
 
 	if err := s.videos.Update(ctx, *video); err != nil {
-		return nil, err
-	}
-
-	progress := domain.VideoEncodingProgress{
-		VideoID:   video.ID,
-		Status:    domain.VideoStatusUploaded,
-		Percent:   0,
-		UpdatedAt: s.now(),
-		OwnerUser: userID,
-	}
-
-	if err := s.progress.Set(ctx, progress); err != nil {
 		return nil, err
 	}
 
