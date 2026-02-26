@@ -54,6 +54,7 @@ linters:
     paths:
       - .+_gen.go
       - graph/generated.go
+      - infra/postgres/sqlcgen
       - third_party$
       - builtin$
       - examples$
@@ -66,6 +67,7 @@ formatters:
     paths:
       - .+_gen.go
       - graph/generated.go
+      - infra/postgres/sqlcgen
       - third_party$
       - builtin$
       - examples$
