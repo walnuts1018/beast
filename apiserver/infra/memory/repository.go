@@ -215,7 +215,18 @@ func (r *DeviceKeyRepository) RegisterWrappedSharedKey(
 	_ = ctx
 	r.store.mu.Lock()
 	defer r.store.mu.Unlock()
-	r.store.deviceKeys[userID] = append(r.store.deviceKeys[userID], data)
+
+	// PostgreSQLのON CONFLICTと同じくupsert動作にする
+	existing := r.store.deviceKeys[userID]
+	for i, item := range existing {
+		if item.DeviceID == data.DeviceID {
+			existing[i] = data
+			r.store.deviceKeys[userID] = existing
+			return data, nil
+		}
+	}
+
+	r.store.deviceKeys[userID] = append(existing, data)
 	return data, nil
 }
 

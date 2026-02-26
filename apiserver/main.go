@@ -104,6 +104,20 @@ func main() {
 		case errors.Is(err, usecase.ErrInvalidInput):
 			presented.Message = "invalid input"
 			presented.Extensions = map[string]any{"code": "INVALID_INPUT"}
+		case errors.Is(err, usecase.ErrUploadSessionGone):
+			presented.Message = "upload session expired or not found"
+			presented.Extensions = map[string]any{"code": "UPLOAD_SESSION_GONE"}
+		case errors.Is(err, usecase.ErrUploadObjectMissing):
+			presented.Message = "uploaded object not found in storage"
+			presented.Extensions = map[string]any{"code": "UPLOAD_OBJECT_MISSING"}
+		case errors.Is(err, usecase.ErrInvalidStateChange):
+			presented.Message = err.Error()
+			presented.Extensions = map[string]any{"code": "INVALID_STATE_CHANGE"}
+		case errors.Is(err, usecase.ErrAlreadyRevoked):
+			presented.Message = "key version already revoked"
+			presented.Extensions = map[string]any{"code": "ALREADY_REVOKED"}
+		default:
+			slog.ErrorContext(ctx, "unhandled graphql error", slog.Any("error", err))
 		}
 
 		return presented
