@@ -133,7 +133,7 @@ identity_providers:
           - 'offline_access'
         grant_types:
           - 'authorization_code'
-          - 'password'
+          - 'client_credentials'
           - 'refresh_token'
         response_types:
           - 'code'

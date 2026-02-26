@@ -100,6 +100,8 @@ requires:
   - namespaces
   - dependencies
 build:
+  local:
+    useBuildkit: true
   artifacts:
   - image: ghcr.io/walnuts1018/beast/apiserver
     context: .
