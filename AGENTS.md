@@ -81,6 +81,7 @@
 - HTTP Serverには、echo/v5を用います。
 - GraphQL Serverには、99designs/gqlgen v0.17を用います。
 - 認可は、OAuth 2.1を用います。IdPに対してToken Introspectionを行なってください。
+- mockgenとgolangci-lintをgo tool越しに利用してください。
 
 #### アーキテクチャ
 
