@@ -45,6 +45,7 @@ func newTestService() (*usecase.Service, *memory.Store, *stubObjectStorage) {
 		memory.NewEncodingProgressRepository(store),
 		objects,
 		memory.NewPlaybackHistoryRepository(store),
+		15*time.Minute,
 	)
 	return svc, store, objects
 }

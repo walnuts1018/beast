@@ -24,15 +24,16 @@ var (
 )
 
 type Service struct {
-	videos     domain.VideoRepository
-	tags       domain.VideoTagRepository
-	sharedKeys domain.SharedKeyRepository
-	deviceKeys domain.DeviceKeyRepository
-	uploads    domain.UploadSessionRepository
-	progress   domain.EncodingProgressRepository
-	objects    domain.ObjectStorage
-	playbacks  domain.PlaybackHistoryRepository
-	now        func() synchro.Time[tz.UTC]
+	videos        domain.VideoRepository
+	tags          domain.VideoTagRepository
+	sharedKeys    domain.SharedKeyRepository
+	deviceKeys    domain.DeviceKeyRepository
+	uploads       domain.UploadSessionRepository
+	progress      domain.EncodingProgressRepository
+	objects       domain.ObjectStorage
+	playbacks     domain.PlaybackHistoryRepository
+	uploadURLTTL  time.Duration
+	now           func() synchro.Time[tz.UTC]
 }
 
 func NewService(
@@ -44,17 +45,22 @@ func NewService(
 	progress domain.EncodingProgressRepository,
 	objects domain.ObjectStorage,
 	playbacks domain.PlaybackHistoryRepository,
+	uploadURLTTL time.Duration,
 ) *Service {
+	if uploadURLTTL <= 0 {
+		uploadURLTTL = 15 * time.Minute
+	}
 	return &Service{
-		videos:     videos,
-		tags:       tags,
-		sharedKeys: sharedKeys,
-		deviceKeys: deviceKeys,
-		uploads:    uploads,
-		progress:   progress,
-		objects:    objects,
-		playbacks:  playbacks,
-		now:        synchro.Now[tz.UTC],
+		videos:       videos,
+		tags:         tags,
+		sharedKeys:   sharedKeys,
+		deviceKeys:   deviceKeys,
+		uploads:      uploads,
+		progress:     progress,
+		objects:      objects,
+		playbacks:    playbacks,
+		uploadURLTTL: uploadURLTTL,
+		now:          synchro.Now[tz.UTC],
 	}
 }
 
@@ -165,11 +171,11 @@ func (s *Service) CreateUploadSession(ctx context.Context, userID string) (*doma
 		ID:        id,
 		OwnerUser: userID,
 		ObjectKey: objectKey,
-		ExpiresAt: now.Add(15 * time.Minute),
+		ExpiresAt: now.Add(s.uploadURLTTL),
 		CreatedAt: now,
 	}
 
-	uploadURL, err := s.objects.CreateUploadURL(ctx, objectKey, 15*time.Minute)
+	uploadURL, err := s.objects.CreateUploadURL(ctx, objectKey, s.uploadURLTTL)
 	if err != nil {
 		return nil, fmt.Errorf("create upload url: %w", err)
 	}
