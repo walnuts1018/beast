@@ -41,6 +41,7 @@ type SharedKeyVersion struct {
 
 type DeviceWrappedSharedKey struct {
 	DeviceID                  string
+	DevicePublicKeyPEM        string
 	SharedKeyVersion          int
 	EncryptedSharedPrivateKey []byte
 	CreatedAt                 time.Time

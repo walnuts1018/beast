@@ -50,6 +50,7 @@ Device Keyで暗号化されたShared Key秘密鍵の配布情報。
 """
 type DeviceWrappedSharedKey {
   deviceId: ID!
+  devicePublicKeyPem: String!
   sharedKeyVersion: Int!
   encryptedSharedPrivateKey: Base64!
   createdAt: DateTime!
