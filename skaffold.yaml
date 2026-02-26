@@ -67,6 +67,7 @@ requires:
 manifests:
   kustomize:
     paths:
+    - develop/manifests/authelia
     - develop/manifests/postgres
     - develop/manifests/rabbitmq
 deploy:
@@ -103,7 +104,7 @@ build:
   - image: ghcr.io/walnuts1018/beast/apiserver
     context: .
     docker:
-      dockerfile: Dockerfile.apiserver.local
+      dockerfile: Dockerfile.apiserver
 manifests:
   kustomize:
     paths:

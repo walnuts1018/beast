@@ -4,3 +4,10 @@ namespace: beast
 resources:
 - deployment.yaml
 - service.yaml
+secretGenerator:
+- behavior: create
+  literals:
+  - client-id=beast-apiserver
+  - client-secret=beast_client_secret
+  name: apiserver-oidc
+  type: Opaque

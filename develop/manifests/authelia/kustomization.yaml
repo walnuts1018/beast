@@ -1,0 +1,11 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: authelia
+resources:
+- deployment.yaml
+- service.yaml
+secretGenerator:
+- name: authelia-config
+  files:
+  - configuration.yml=./config/configuration.yml
+  - users_database.yaml=./config/users_database.yaml
