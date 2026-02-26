@@ -9,11 +9,11 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"sync"
 	"time"
 
 	"github.com/Code-Hex/synchro"
 	"github.com/Code-Hex/synchro/tz"
+	lru "github.com/hashicorp/golang-lru/v2"
 )
 
 type Introspector interface {
@@ -92,29 +92,32 @@ type cachedPrincipal struct {
 	until     synchro.Time[tz.UTC]
 }
 
+// introspectionCacheSize はキャッシュエントリの最大数です。
+// 超過した場合は最も最近使われていないエントリが自動的に削除されます。
+const introspectionCacheSize = 1024
+
 type CachedIntrospector struct {
 	base   Introspector
 	maxTTL time.Duration
-
-	mu    sync.RWMutex
-	cache map[string]cachedPrincipal
+	cache  *lru.Cache[string, cachedPrincipal]
 }
 
 func NewCachedIntrospector(base Introspector, maxTTL time.Duration) *CachedIntrospector {
+	cache, err := lru.New[string, cachedPrincipal](introspectionCacheSize)
+	if err != nil {
+		panic(err)
+	}
 	return &CachedIntrospector{
 		base:   base,
 		maxTTL: maxTTL,
-		cache:  make(map[string]cachedPrincipal),
+		cache:  cache,
 	}
 }
 
 func (i *CachedIntrospector) Introspect(ctx context.Context, token string) (Principal, error) {
 	now := synchro.Now[tz.UTC]()
 
-	i.mu.RLock()
-	entry, ok := i.cache[token]
-	i.mu.RUnlock()
-	if ok && now.Before(entry.until) && now.Before(entry.principal.ExpiresAt) {
+	if entry, ok := i.cache.Get(token); ok && now.Before(entry.until) && now.Before(entry.principal.ExpiresAt) {
 		return entry.principal, nil
 	}
 
@@ -131,9 +134,7 @@ func (i *CachedIntrospector) Introspect(ctx context.Context, token string) (Prin
 		ttl = i.maxTTL
 	}
 
-	i.mu.Lock()
-	i.cache[token] = cachedPrincipal{principal: principal, until: now.Add(ttl)}
-	i.mu.Unlock()
+	i.cache.Add(token, cachedPrincipal{principal: principal, until: now.Add(ttl)})
 
 	return principal, nil
 }
