@@ -53,6 +53,7 @@ func (r *mutationResolver) RegisterDeviceKey(ctx context.Context, input model.Re
 		ctx,
 		userID,
 		input.DeviceID,
+		input.DevicePublicKeyPem,
 		input.SharedKeyVersion,
 		[]byte(input.EncryptedSharedPrivateKey),
 	)

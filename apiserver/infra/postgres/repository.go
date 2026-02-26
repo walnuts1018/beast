@@ -93,6 +93,7 @@ func (s *Store) migrate(ctx context.Context) error {
 		`CREATE TABLE IF NOT EXISTS device_wrapped_shared_keys (
 			user_id TEXT NOT NULL,
 			device_id TEXT NOT NULL,
+			device_public_key_pem TEXT NOT NULL,
 			shared_key_version INTEGER NOT NULL,
 			encrypted_shared_private_key BYTEA NOT NULL,
 			created_at TIMESTAMPTZ NOT NULL,
@@ -144,6 +145,8 @@ func (s *Store) migrate(ctx context.Context) error {
 			updated_at TIMESTAMPTZ NOT NULL,
 			message TEXT
 		)`,
+		// 既存テーブルへのdevice_public_key_pemカラム追加（IF NOT EXISTS）
+		`ALTER TABLE device_wrapped_shared_keys ADD COLUMN IF NOT EXISTS device_public_key_pem TEXT NOT NULL DEFAULT ''`,
 	}
 
 	for _, query := range queries {
@@ -564,10 +567,11 @@ func (r *DeviceKeyRepository) RegisterWrappedSharedKey(
 	data domain.DeviceWrappedSharedKey,
 ) (domain.DeviceWrappedSharedKey, error) {
 	const query = `INSERT INTO device_wrapped_shared_keys (
-		user_id, device_id, shared_key_version, encrypted_shared_private_key, created_at
-	) VALUES ($1, $2, $3, $4, $5)
+		user_id, device_id, device_public_key_pem, shared_key_version, encrypted_shared_private_key, created_at
+	) VALUES ($1, $2, $3, $4, $5, $6)
 	ON CONFLICT (user_id, device_id)
 	DO UPDATE SET
+		device_public_key_pem = EXCLUDED.device_public_key_pem,
 		shared_key_version = EXCLUDED.shared_key_version,
 		encrypted_shared_private_key = EXCLUDED.encrypted_shared_private_key,
 		created_at = EXCLUDED.created_at`
@@ -575,6 +579,7 @@ func (r *DeviceKeyRepository) RegisterWrappedSharedKey(
 	_, err := r.store.db.ExecContext(ctx, query,
 		userID,
 		data.DeviceID,
+		data.DevicePublicKeyPEM,
 		data.SharedKeyVersion,
 		data.EncryptedSharedPrivateKey,
 		data.CreatedAt,
@@ -587,7 +592,7 @@ func (r *DeviceKeyRepository) RegisterWrappedSharedKey(
 }
 
 func (r *DeviceKeyRepository) ListWrappedSharedKeys(ctx context.Context, userID string) ([]domain.DeviceWrappedSharedKey, error) {
-	const query = `SELECT device_id, shared_key_version, encrypted_shared_private_key, created_at
+	const query = `SELECT device_id, device_public_key_pem, shared_key_version, encrypted_shared_private_key, created_at
 	FROM device_wrapped_shared_keys
 	WHERE user_id = $1
 	ORDER BY created_at DESC`
@@ -603,6 +608,7 @@ func (r *DeviceKeyRepository) ListWrappedSharedKeys(ctx context.Context, userID 
 		var item domain.DeviceWrappedSharedKey
 		if scanErr := rows.Scan(
 			&item.DeviceID,
+			&item.DevicePublicKeyPEM,
 			&item.SharedKeyVersion,
 			&item.EncryptedSharedPrivateKey,
 			&item.CreatedAt,

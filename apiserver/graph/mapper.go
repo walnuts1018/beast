@@ -53,6 +53,7 @@ func toModelSharedKeyVersion(item domain.SharedKeyVersion) *model.SharedKeyVersi
 func toModelDeviceWrappedSharedKey(item domain.DeviceWrappedSharedKey) *model.DeviceWrappedSharedKey {
 	return &model.DeviceWrappedSharedKey{
 		DeviceID:                  item.DeviceID,
+		DevicePublicKeyPem:        item.DevicePublicKeyPEM,
 		SharedKeyVersion:          item.SharedKeyVersion,
 		EncryptedSharedPrivateKey: scalar.Base64(item.EncryptedSharedPrivateKey),
 		CreatedAt:                 toModelDateTime(item.CreatedAt),

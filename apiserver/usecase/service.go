@@ -115,13 +115,14 @@ func (s *Service) RegisterDeviceKey(
 	ctx context.Context,
 	userID string,
 	deviceID string,
+	devicePublicKeyPEM string,
 	sharedKeyVersion int,
 	encryptedSharedPrivateKey []byte,
 ) (*domain.DeviceWrappedSharedKey, error) {
 	if userID == "" {
 		return nil, ErrUnauthorized
 	}
-	if deviceID == "" || sharedKeyVersion <= 0 || len(encryptedSharedPrivateKey) == 0 {
+	if deviceID == "" || devicePublicKeyPEM == "" || sharedKeyVersion <= 0 || len(encryptedSharedPrivateKey) == 0 {
 		return nil, ErrInvalidInput
 	}
 
@@ -131,6 +132,7 @@ func (s *Service) RegisterDeviceKey(
 
 	registered, err := s.deviceKeys.RegisterWrappedSharedKey(ctx, userID, domain.DeviceWrappedSharedKey{
 		DeviceID:                  deviceID,
+		DevicePublicKeyPEM:        devicePublicKeyPEM,
 		SharedKeyVersion:          sharedKeyVersion,
 		EncryptedSharedPrivateKey: encryptedSharedPrivateKey,
 		CreatedAt:                 s.now().UTC(),
