@@ -15,5 +15,5 @@ packages:
 - name: kubernetes-sigs/kind@v0.31.0
 - name: kubernetes-sigs/kustomize@kustomize/v5.8.1
 - name: GoogleContainerTools/skaffold@v2.17.3
-- name: golang/go@go1.26.0
+- name: golang/go@go1.26.1
 - name: derailed/k9s@v0.50.18
