@@ -11,7 +11,7 @@
     "ghcr.io/devcontainers/features/git-lfs:1": {},
     "ghcr.io/devcontainers/features/github-cli:1": {},
     "ghcr.io/devcontainers/features/docker-in-docker:2": {},
-    "ghcr.io/aquaproj/devcontainer-features/aqua-installer:0.1.6": {
+    "ghcr.io/aquaproj/devcontainer-features/aqua-installer:0.1.7": {
       "aqua_version": "v2.56.7"
     }
   },
