@@ -27,7 +27,7 @@ require (
 	github.com/labstack/echo/v5 v5.0.4
 	github.com/lmittmann/tint v1.1.3
 	github.com/rabbitmq/amqp091-go v1.10.0
-	github.com/vektah/gqlparser/v2 v2.5.33
+	github.com/vektah/gqlparser/v2 v2.5.34
 	github.com/veqryn/slog-context v0.9.0
 )
 
