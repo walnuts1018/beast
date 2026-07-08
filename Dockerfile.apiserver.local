@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.21
-FROM golang:1.26.4-trixie
+FROM golang:1.26.5-trixie
 ENV ROOT=/app
 WORKDIR ${ROOT}
 
