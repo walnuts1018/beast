@@ -12,7 +12,7 @@ RUN --mount=type=cache,target=/go/pkg/mod/ \
     --mount=type=cache,target=/root/.cache/go-build,sharing=locked \
     GOOS=linux go build -trimpath -o encoder ./main.go && chmod +x ./encoder
 
-FROM debian:13.3-slim
+FROM debian:13.6-slim
 WORKDIR /app
 
 RUN rm -f /etc/apt/apt.conf.d/docker-clean; echo 'Binary::apt::APT::Keep-Downloaded-Packages "true";' > /etc/apt/apt.conf.d/keep-cache
