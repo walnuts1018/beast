@@ -22,7 +22,7 @@ jobs:
             go_mod: encoder/go.mod
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v7
         with:
           go-version-file: ${{ matrix.module.go_mod }}
       - name: golangci-lint
@@ -35,7 +35,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v7
         with:
           go-version-file: apiserver/go.mod
       - name: go generate
@@ -58,7 +58,7 @@ jobs:
             go_mod: encoder/go.mod
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v7
         with:
           go-version-file: ${{ matrix.module.go_mod }}
       - name: go test
