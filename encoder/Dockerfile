@@ -1,4 +1,4 @@
-# syntax=docker/dockerfile:1.21
+# syntax=docker/dockerfile:1.26
 FROM golang:1.26.6-trixie AS builder
 
 WORKDIR /build
