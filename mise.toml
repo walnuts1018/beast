@@ -1,6 +1,7 @@
 [tools]
 go = "1.27.1"
 node = "25.9.0"
+golangci-lint = "2.13.2"
 kustomize = "5.8.1"
 kubectl = "1.37.0"
 skaffold = "2.17.1"
@@ -19,6 +20,11 @@ run = "go test ./... -v"
 description = "バックエンドのvetを実行"
 dir = "backend"
 run = "go vet ./..."
+
+[tasks.backend-lint]
+description = "バックエンドの静的解析を実行"
+dir = "backend"
+run = "golangci-lint run"
 
 [tasks.encoder-test]
 description = "エンコーダーのテストを実行"
