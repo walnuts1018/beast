@@ -36,7 +36,7 @@ android {
         buildConfig = true
     }
     buildTypes.getByName("debug").buildConfigField("String", "API_BASE_URL", "\"http://10.0.2.2:8080/graphql/query\"")
-    buildTypes.getByName("release").buildConfigField("String", "API_BASE_URL", "\"https://api.walnuts.dev/graphql/query\"")
+    buildTypes.getByName("release").buildConfigField("String", "API_BASE_URL", "\"https://beast.walnuts.dev/graphql/query\"")
     packaging { resources.excludes += "/META-INF/{AL2.0,LGPL2.1}" }
 }
 
