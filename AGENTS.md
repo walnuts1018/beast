@@ -18,6 +18,7 @@
     - If a wait times out and the agent is still running, do not immediately enter a repeated wait loop unless there is no other productive work available.
     - Collect and integrate completed subagent results in batches where possible.
 - 積極的に既存のライブラリを活用して。車輪の再発明は避けて。本当に必要な時だけ最小限の自前実装して。
+- 対応デバイスはほぼ最新のものだけをカバーすればいいです。古いデバイスやブラウザの対応は不要です。具体的にはWindows 11、macOS 26、Android 16、iOS 26で、最新のChrome、Safari、Edge、Firefoxが動作することを想定してください。古いOSやブラウザの対応は不要です。
 
 ## 作成するサービスの概要
 
