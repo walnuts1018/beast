@@ -34,6 +34,7 @@ func (s *Server) Register(e *echo.Echo, auth Authenticator, playgroundEnabled bo
 	e.GET("/livez", func(c *echo.Context) error { return c.JSON(http.StatusOK, map[string]string{"status": "ok"}) })
 	e.GET("/readyz", func(c *echo.Context) error { return c.JSON(http.StatusOK, map[string]string{"status": "ok"}) })
 	e.GET("/api/auth/login", auth.Login)
+	e.GET("/api/auth/mobile/login", auth.NativeLogin)
 	e.GET("/api/auth/callback", auth.Callback)
 	e.GET("/api/auth/session", auth.Session)
 	e.POST("/api/auth/logout", auth.Logout)

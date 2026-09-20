@@ -135,6 +135,72 @@ func TestCallbackRejectsStateMismatch(t *testing.T) {
 	}
 }
 
+func TestNativeCallbackReturnsTokenInFragment(t *testing.T) {
+	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/token":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"access_token":"native-token","token_type":"Bearer","expires_in":3600}`))
+		case "/introspect":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"active":true,"sub":"user-123"}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer provider.Close()
+
+	auth := Authenticator{
+		ClientID:          "client-id",
+		ClientSecret:      "client-secret",
+		AuthorizationURL:  provider.URL + "/authorize",
+		TokenURL:          provider.URL + "/token",
+		Introspection:     provider.URL + "/introspect",
+		RedirectURL:       "https://beast.example.test/api/auth/callback",
+		NativeRedirectURL: "dev.walnuts.beast://oauth2redirect",
+		SecureCookies:     true,
+		HTTPClient:        provider.Client(),
+	}
+	e := echo.New()
+	loginRecorder := httptest.NewRecorder()
+	if err := auth.NativeLogin(e.NewContext(httptest.NewRequest(http.MethodGet, "/api/auth/mobile/login?state=native-state-123456", nil), loginRecorder)); err != nil {
+		t.Fatal(err)
+	}
+	stateCookie := responseCookie(t, loginRecorder, auth.loginStateCookieName())
+	nativeCookie := responseCookie(t, loginRecorder, auth.nativeStateCookieName())
+	state, _, ok := strings.Cut(stateCookie.Value, ".")
+	if !ok {
+		t.Fatalf("invalid state cookie: %q", stateCookie.Value)
+	}
+	callbackRequest := httptest.NewRequest(http.MethodGet, "/api/auth/callback?code=authorization-code&state="+url.QueryEscape(state), nil)
+	callbackRequest.AddCookie(stateCookie)
+	callbackRequest.AddCookie(nativeCookie)
+	callbackRecorder := httptest.NewRecorder()
+	if err := auth.Callback(e.NewContext(callbackRequest, callbackRecorder)); err != nil {
+		t.Fatal(err)
+	}
+	location := callbackRecorder.Header().Get("Location")
+	if callbackRecorder.Code != http.StatusFound || !strings.HasPrefix(location, "dev.walnuts.beast://oauth2redirect#") {
+		t.Fatalf("unexpected native callback: status=%d location=%q", callbackRecorder.Code, location)
+	}
+	handoff, err := url.Parse(location)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fragment, err := url.ParseQuery(handoff.Fragment)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fragment.Get("access_token") != "native-token" || fragment.Get("state") != "native-state-123456" || fragment.Get("expires_in") != "3600" {
+		t.Fatalf("unexpected native handoff fragment: %v", fragment)
+	}
+	for _, cookie := range callbackRecorder.Result().Cookies() {
+		if cookie.Name == auth.sessionCookieName() && cookie.Value != "" {
+			t.Fatal("native callback must not create a browser session cookie")
+		}
+	}
+}
+
 func TestLogoutClearsSessionCookie(t *testing.T) {
 	auth := Authenticator{SecureCookies: true}
 	e := echo.New()

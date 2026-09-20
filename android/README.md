@@ -10,7 +10,7 @@ KotlinとJetpack Composeによるスマートフォン向けクライアント�
 - `data/repository`: GraphQL実装と、debugビルドだけで使うローカルプレビュー実装
 - `media`: OAuth 2.1 Bearer認証付きHLSをMedia3へストリーミングするRange対応DataSource
 
-`debug`ビルドはAPI未起動でも操作確認できる`PreviewVideoRepository`を使います。releaseビルドは`BuildConfig.API_BASE_URL`のGraphQL APIと、`beast_session`のアクセストークンを使います。動画はサーバー側で保存時に暗号化され、再生時に認証済みのHLSとして配信されるため、複数端末で同じOIDCアカウントを利用できます。OIDCログイン画面と安全なToken Storeは別機能として接続する前提です。
+`debug`ビルドはAPI未起動でも操作確認できる`PreviewVideoRepository`を使います。releaseビルドはブラウザで`/api/auth/mobile/login`を開くPKCEログインを使い、コールバックで受け取ったアクセストークンをAndroid Keystoreで暗号化して保存します。動画はサーバー側で保存時に暗号化され、再生時に認証済みのHLSとしてRange配信されるため、複数端末で同じOIDCアカウントを利用できます。
 
 ## 静的確認
 

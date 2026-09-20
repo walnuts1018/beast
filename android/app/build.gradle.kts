@@ -37,6 +37,8 @@ android {
     }
     buildTypes.getByName("debug").buildConfigField("String", "API_BASE_URL", "\"http://10.0.2.2:8080/graphql/query\"")
     buildTypes.getByName("release").buildConfigField("String", "API_BASE_URL", "\"https://beast.walnuts.dev/graphql/query\"")
+    buildTypes.getByName("debug").buildConfigField("String", "WEB_BASE_URL", "\"http://10.0.2.2:8080\"")
+    buildTypes.getByName("release").buildConfigField("String", "WEB_BASE_URL", "\"https://beast.walnuts.dev\"")
     packaging { resources.excludes += "/META-INF/{AL2.0,LGPL2.1}" }
 }
 

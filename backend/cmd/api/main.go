@@ -137,6 +137,7 @@ func main() {
 		AuthorizationURL:    envOr("OIDC_AUTHORIZATION_URL", "https://auth.walnuts.dev/oauth/v2/authorize"),
 		TokenURL:            envOr("OIDC_TOKEN_URL", "https://auth.walnuts.dev/oauth/v2/token"),
 		RedirectURL:         envOr("OIDC_REDIRECT_URL", "https://beast.walnuts.dev/api/auth/callback"),
+		NativeRedirectURL:   envOr("OIDC_NATIVE_REDIRECT_URL", "dev.walnuts.beast://oauth2redirect"),
 		FrontendURL:         envOr("OIDC_FRONTEND_URL", "/"),
 		SessionCookieMaxAge: 8 * 60 * 60,
 		SecureCookies:       environment == "production" || os.Getenv("AUTH_COOKIE_SECURE") == "true",

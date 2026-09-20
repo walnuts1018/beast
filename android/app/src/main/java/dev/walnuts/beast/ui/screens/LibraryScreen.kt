@@ -57,7 +57,7 @@ import dev.walnuts.beast.ui.components.FeaturedVideoCard
 import dev.walnuts.beast.ui.components.VideoCard
 
 @Composable
-fun LibraryScreen(viewModel: MainViewModel, paddingValues: PaddingValues) {
+fun LibraryScreen(viewModel: MainViewModel, paddingValues: PaddingValues, onLogout: () -> Unit = {}) {
     val state by viewModel.uiState.collectAsState()
     val filtered = viewModel.filteredVideos()
     Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
@@ -65,7 +65,7 @@ fun LibraryScreen(viewModel: MainViewModel, paddingValues: PaddingValues) {
             PlayerScreen(state.playingVideo!!, viewModel.authenticatedDataSourceFactory, viewModel::closePlayer, viewModel::rate, viewModel::recordPlayback)
         } else {
             LazyColumn(contentPadding = PaddingValues(top = paddingValues.calculateTopPadding() + 24.dp, bottom = paddingValues.calculateBottomPadding() + 24.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
-                item { LibraryHeader(state.searchQuery, viewModel::setSearchQuery) }
+                item { LibraryHeader(state.searchQuery, viewModel::setSearchQuery, onLogout) }
                 item { LibraryTabs(state.tab, viewModel::setTab) }
                 item { TagFilters(state.videos.flatMap { it.tags }.distinct(), state.selectedTag, viewModel::setTag) }
                 if (state.isLoading) {
@@ -92,15 +92,18 @@ fun LibraryScreen(viewModel: MainViewModel, paddingValues: PaddingValues) {
 }
 
 @Composable
-private fun LibraryHeader(query: String, onQueryChanged: (String) -> Unit) {
+private fun LibraryHeader(query: String, onQueryChanged: (String) -> Unit, onLogout: () -> Unit) {
     Column(Modifier.padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
             Column {
                 Text("こんばんは、ユウ", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-                Text("今夜は何を見よう？", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.SemiBold)
+            Text("今夜は何を見よう？", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.SemiBold)
             }
-            Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceVariant) {
-                Icon(Icons.Outlined.Lock, "暗号化済み", Modifier.padding(11.dp).size(18.dp), tint = MaterialTheme.colorScheme.primary)
+            Column(horizontalAlignment = Alignment.End) {
+                Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceVariant) {
+                    Icon(Icons.Outlined.Lock, "暗号化済み", Modifier.padding(11.dp).size(18.dp), tint = MaterialTheme.colorScheme.primary)
+                }
+                TextButton(onClick = onLogout) { Text("ログアウト") }
             }
         }
         OutlinedTextField(value = query, onValueChange = onQueryChanged, modifier = Modifier.fillMaxWidth(), singleLine = true, leadingIcon = { Icon(Icons.Outlined.Search, null) }, trailingIcon = { if (query.isNotEmpty()) IconButton(onClick = { onQueryChanged("") }) { Icon(Icons.Outlined.Close, "検索をクリア") } }, placeholder = { Text("タグから探す") }, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search), shape = MaterialTheme.shapes.large)

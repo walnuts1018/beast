@@ -7,7 +7,7 @@
 - `backend`: Go 1.27、Echo v5、gqlgen、Bob、pgxによるGraphQL APIです。
 - `encoder`: RabbitMQのジョブを受け取り、ffmpegでHLS(fMP4)へ変換するワーカーです。H.264、HEVC、AV1とAACの入力はストリームコピーし、それ以外だけH.264/AACへ再エンコードします。
 - `frontend`: 最新のChrome、Safari、Edge、Firefoxを対象にしたモバイル優先Web UIです。hls.jsで認証済みHLSを再生します。
-- `android`: Kotlin、Jetpack Compose、Media3によるスマートフォンUIです。
+- `android`: Kotlin、Jetpack Compose、Media3によるスマートフォンUIです。OIDCログインはサーバー側PKCEブローカーを経由し、アクセストークンはAndroid Keystoreで暗号化して保持します。
 - `k8s`: kindで使うローカルoverlayと、本番相当のレンダリングを確認するproduction overlayです。本番のデプロイマニフェストはinfraリポジトリで管理します。
 
 動画本体はサーバー側でランダムなAES-256-GCM Data Keyを使って固定長チャンク暗号化し、Data Keyをサーバーの鍵でラップして保存します。APIは認証済みリクエストに対して必要なHLSマニフェストやセグメントの範囲だけを復号して返すため、端末鍵の登録やクライアント側復号を必要とせず、複数デバイスで再生できます。タグはサーバー側で暗号化して保存し、GraphQLでは認証済み所有者にだけ平文で返します。

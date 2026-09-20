@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -28,6 +29,7 @@ type Authenticator struct {
 	AuthorizationURL     string
 	TokenURL             string
 	RedirectURL          string
+	NativeRedirectURL    string
 	FrontendURL          string
 	SessionCookieName    string
 	LoginStateCookieName string
@@ -36,6 +38,8 @@ type Authenticator struct {
 	Scopes               []string
 	HTTPClient           *http.Client
 }
+
+const defaultNativeRedirectURL = "dev.walnuts.beast://oauth2redirect"
 
 func (a Authenticator) Middleware(next echo.HandlerFunc) echo.HandlerFunc {
 	return func(c *echo.Context) error {
@@ -87,6 +91,18 @@ func (a Authenticator) Subject(ctx context.Context, request *http.Request) (stri
 }
 
 func (a Authenticator) Login(c *echo.Context) error {
+	return a.beginLogin(c, "")
+}
+
+func (a Authenticator) NativeLogin(c *echo.Context) error {
+	nativeState := c.QueryParam("state")
+	if !validNativeState(nativeState) {
+		return echo.NewHTTPError(http.StatusBadRequest, "native login state is invalid")
+	}
+	return a.beginLogin(c, nativeState)
+}
+
+func (a Authenticator) beginLogin(c *echo.Context, nativeState string) error {
 	if a.AuthorizationURL == "" || a.ClientID == "" || a.RedirectURL == "" {
 		return echo.NewHTTPError(http.StatusServiceUnavailable, "OIDC login is not configured")
 	}
@@ -100,6 +116,11 @@ func (a Authenticator) Login(c *echo.Context) error {
 	}
 	stateCookieValue := state + "." + verifier
 	c.SetCookie(a.newCookie(a.loginStateCookieName(), stateCookieValue, 600))
+	if nativeState != "" {
+		c.SetCookie(a.newCookie(a.nativeStateCookieName(), nativeState, 600))
+	} else {
+		c.SetCookie(a.newCookie(a.nativeStateCookieName(), "", -1))
+	}
 
 	authorizationURL, err := url.Parse(a.AuthorizationURL)
 	if err != nil || authorizationURL.Scheme == "" || authorizationURL.Host == "" {
@@ -123,6 +144,14 @@ func (a Authenticator) Callback(c *echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "login state is missing")
 	}
 	c.SetCookie(a.newCookie(a.loginStateCookieName(), "", -1))
+	nativeState := ""
+	if nativeCookie, cookieErr := c.Cookie(a.nativeStateCookieName()); cookieErr == nil && nativeCookie.Value != "" {
+		if !validNativeState(nativeCookie.Value) {
+			return echo.NewHTTPError(http.StatusBadRequest, "native login state is invalid")
+		}
+		nativeState = nativeCookie.Value
+		c.SetCookie(a.newCookie(a.nativeStateCookieName(), "", -1))
+	}
 	state, verifier, ok := strings.Cut(cookie.Value, ".")
 	returnedState := c.QueryParam("state")
 	code := c.QueryParam("code")
@@ -141,6 +170,16 @@ func (a Authenticator) Callback(c *echo.Context) error {
 	}
 	if _, err := a.introspect(c.Request().Context(), token.AccessToken); err != nil {
 		return echo.NewHTTPError(http.StatusUnauthorized, "access token is invalid").Wrap(err)
+	}
+	if nativeState != "" {
+		handoffURL, err := a.nativeHandoffURL(nativeState, token)
+		if err != nil {
+			return echo.NewHTTPError(http.StatusServiceUnavailable, "native login redirect is invalid").Wrap(err)
+		}
+		c.Response().Header().Set("Cache-Control", "no-store")
+		c.Response().Header().Set("Pragma", "no-cache")
+		c.Response().Header().Set("Referrer-Policy", "no-referrer")
+		return c.Redirect(http.StatusFound, handoffURL)
 	}
 	maxAge := a.sessionCookieMaxAge()
 	if token.ExpiresIn > 0 && token.ExpiresIn < maxAge {
@@ -211,6 +250,34 @@ func (a Authenticator) sessionToken(request *http.Request) (string, error) {
 	return cookie.Value, nil
 }
 
+func (a Authenticator) nativeStateCookieName() string {
+	if a.LoginStateCookieName != "" {
+		return a.LoginStateCookieName + "_native"
+	}
+	return "beast_oidc_native_state"
+}
+
+func (a Authenticator) nativeRedirectURL() string {
+	if a.NativeRedirectURL != "" {
+		return a.NativeRedirectURL
+	}
+	return defaultNativeRedirectURL
+}
+
+func (a Authenticator) nativeHandoffURL(state string, token tokenResponse) (string, error) {
+	handoff, err := url.Parse(a.nativeRedirectURL())
+	if err != nil || handoff.Scheme == "" {
+		return "", errors.New("native redirect URL is invalid")
+	}
+	handoff.Fragment = url.Values{
+		"access_token": {token.AccessToken},
+		"token_type":   {"Bearer"},
+		"expires_in":   {strconv.Itoa(token.ExpiresIn)},
+		"state":        {state},
+	}.Encode()
+	return handoff.String(), nil
+}
+
 func (a Authenticator) newCookie(name, value string, maxAge int) *http.Cookie {
 	return &http.Cookie{Name: name, Value: value, Path: "/", MaxAge: maxAge, HttpOnly: true, Secure: a.SecureCookies, SameSite: http.SameSiteLaxMode}
 }
@@ -268,6 +335,13 @@ func randomToken(size int) (string, error) {
 		return "", err
 	}
 	return base64.RawURLEncoding.EncodeToString(value), nil
+}
+
+func validNativeState(value string) bool {
+	if len(value) < 16 || len(value) > 256 || strings.ContainsAny(value, "\r\n%?&#/\\") {
+		return false
+	}
+	return true
 }
 
 func (a Authenticator) introspect(ctx context.Context, token string) (string, error) {
