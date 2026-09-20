@@ -26,7 +26,14 @@ func (r *mutationResolver) CreateVideo(ctx context.Context, input model.CreateVi
 	if input.Encryption == nil || input.SharedKeyID != input.Encryption.SharedKeyID {
 		return nil, errors.New("shared key IDs must match")
 	}
-	video, err := domain.NewVideo(ownerID, input.EncryptedTags, uuid.New().String(), domain.EncryptionMetadata{
+	object, err := r.Media.Open(ctx, input.ObjectKey)
+	if err != nil {
+		return nil, errors.New("encrypted media object is not available")
+	}
+	if err := object.Close(); err != nil {
+		return nil, errors.New("close encrypted media object")
+	}
+	video, err := domain.NewVideo(ownerID, input.EncryptedTags, input.ObjectKey, domain.EncryptionMetadata{
 		Algorithm: input.Encryption.Algorithm, ChunkSize: input.Encryption.ChunkSize, KeyVersion: input.Encryption.KeyVersion,
 		Nonce: input.Encryption.Nonce, EncryptedDataKey: input.Encryption.EncryptedDataKey,
 		SharedKeyID: input.Encryption.SharedKeyID,

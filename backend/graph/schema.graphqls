@@ -43,6 +43,7 @@ type DeviceKey {
 }
 
 input CreateVideoInput {
+  objectKey: String!
   encryptedTags: String!
   sharedKeyID: ID!
   encryption: EncryptionInput!

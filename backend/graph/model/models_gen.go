@@ -11,6 +11,7 @@ import (
 )
 
 type CreateVideoInput struct {
+	ObjectKey     string           `json:"objectKey"`
 	EncryptedTags string           `json:"encryptedTags"`
 	SharedKeyID   string           `json:"sharedKeyID"`
 	Encryption    *EncryptionInput `json:"encryption"`

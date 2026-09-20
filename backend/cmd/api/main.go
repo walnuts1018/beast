@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -22,6 +23,30 @@ func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	slog.SetDefault(logger)
 	environment := envOr("APP_ENV", "development")
+	authMode := strings.ToLower(os.Getenv("AUTH_MODE"))
+	if authMode == "" {
+		if environment == "production" {
+			authMode = "introspection"
+		} else {
+			authMode = "development"
+		}
+	}
+	if authMode != "development" && authMode != "static" && authMode != "introspection" {
+		logger.Error("AUTH_MODE must be static, development, or introspection")
+		os.Exit(1)
+	}
+	if environment == "production" && authMode != "introspection" {
+		logger.Error("production requires AUTH_MODE=introspection")
+		os.Exit(1)
+	}
+	if authMode == "introspection" && (os.Getenv("OIDC_INTROSPECTION_URL") == "" || os.Getenv("OIDC_CLIENT_ID") == "" || os.Getenv("OIDC_CLIENT_SECRET") == "") {
+		logger.Error("introspection authentication requires OIDC_INTROSPECTION_URL, OIDC_CLIENT_ID, and OIDC_CLIENT_SECRET")
+		os.Exit(1)
+	}
+	if authMode == "static" && os.Getenv("AUTH_DEV_STATIC_TOKEN") == "" {
+		logger.Error("static authentication requires AUTH_DEV_STATIC_TOKEN")
+		os.Exit(1)
+	}
 	if environment == "production" && os.Getenv("DATABASE_URL") == "" {
 		logger.Error("DATABASE_URL is required in production")
 		os.Exit(1)
@@ -54,7 +79,7 @@ func main() {
 	var mediaStore media.ObjectStore
 	var err error
 	if environment == "production" || os.Getenv("OBJECT_STORAGE") == "s3" {
-		mediaStore, err = media.NewS3Store(context.Background(), os.Getenv("S3_ENDPOINT"), envOr("S3_REGION", "us-east-1"), os.Getenv("S3_BUCKET"), os.Getenv("S3_ACCESS_KEY"), os.Getenv("S3_SECRET_KEY"))
+		mediaStore, err = media.NewS3Store(context.Background(), os.Getenv("S3_ENDPOINT"), envOr("S3_REGION", "us-east-1"), os.Getenv("S3_BUCKET"), firstNonEmptyEnv("S3_ACCESS_KEY_ID", "AWS_ACCESS_KEY_ID", "S3_ACCESS_KEY"), firstNonEmptyEnv("S3_SECRET_ACCESS_KEY", "AWS_SECRET_ACCESS_KEY", "S3_SECRET_KEY"))
 		if err == nil {
 			err = mediaStore.(*media.S3Store).Check(context.Background())
 		}
@@ -66,7 +91,9 @@ func main() {
 		os.Exit(1)
 	}
 	auth := httpapi.Authenticator{
+		Mode:          authMode,
 		Environment:   environment,
+		StaticToken:   os.Getenv("AUTH_DEV_STATIC_TOKEN"),
 		Introspection: os.Getenv("OIDC_INTROSPECTION_URL"),
 		ClientID:      os.Getenv("OIDC_CLIENT_ID"),
 		ClientSecret:  os.Getenv("OIDC_CLIENT_SECRET"),
@@ -75,7 +102,7 @@ func main() {
 	e := echo.New()
 	e.Use(middleware.RequestLogger())
 	e.Use(middleware.Recover())
-	(&httpapi.Server{Videos: videoStore, Media: mediaStore}).Register(e, auth)
+	(&httpapi.Server{Videos: videoStore, Media: mediaStore}).Register(e, auth, environment != "production")
 
 	serverErrors := make(chan error, 1)
 	httpServer := &http.Server{Addr: envOr("HTTP_ADDR", ":8080"), Handler: e}
@@ -104,4 +131,13 @@ func envOr(name, fallback string) string {
 		return value
 	}
 	return fallback
+}
+
+func firstNonEmptyEnv(names ...string) string {
+	for _, name := range names {
+		if value := os.Getenv(name); value != "" {
+			return value
+		}
+	}
+	return ""
 }

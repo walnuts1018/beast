@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -14,7 +15,9 @@ import (
 )
 
 type Authenticator struct {
+	Mode          string
 	Environment   string
+	StaticToken   string
 	Introspection string
 	ClientID      string
 	ClientSecret  string
@@ -34,10 +37,28 @@ func (a Authenticator) Middleware(next echo.HandlerFunc) echo.HandlerFunc {
 
 func (a Authenticator) Subject(ctx context.Context, request *http.Request) (string, error) {
 	authorization := request.Header.Get("Authorization")
-	if token, ok := strings.CutPrefix(authorization, "Bearer "); ok && token != "" {
+	if a.Mode == "introspection" {
+		token, ok := strings.CutPrefix(authorization, "Bearer ")
+		if !ok || token == "" {
+			return "", errors.New("bearer token is required")
+		}
 		return a.introspect(ctx, token)
 	}
-	if a.Environment != "production" {
+	if a.Mode == "static" {
+		token, ok := strings.CutPrefix(authorization, "Bearer ")
+		if !ok || token == "" || a.StaticToken == "" || subtle.ConstantTimeCompare([]byte(token), []byte(a.StaticToken)) != 1 {
+			return "", errors.New("static bearer token is invalid")
+		}
+		subject := request.Header.Get("X-User-ID")
+		if subject == "" {
+			subject = "static-development-user"
+		}
+		if strings.ContainsAny(subject, "\r\n") {
+			return "", errors.New("subject is invalid")
+		}
+		return subject, nil
+	}
+	if a.Mode == "development" && a.Environment != "production" {
 		if subject := request.Header.Get("X-User-ID"); subject != "" && !strings.ContainsAny(subject, "\r\n") {
 			return subject, nil
 		}

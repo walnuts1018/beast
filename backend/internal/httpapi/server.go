@@ -20,11 +20,13 @@ type Server struct {
 	Media  media.ObjectStore
 }
 
-func (s *Server) Register(e *echo.Echo, auth Authenticator) {
+func (s *Server) Register(e *echo.Echo, auth Authenticator, playgroundEnabled bool) {
 	e.GET("/healthz", func(c *echo.Context) error { return c.JSON(http.StatusOK, map[string]string{"status": "ok"}) })
 	e.GET("/livez", func(c *echo.Context) error { return c.JSON(http.StatusOK, map[string]string{"status": "ok"}) })
 	e.GET("/readyz", func(c *echo.Context) error { return c.JSON(http.StatusOK, map[string]string{"status": "ok"}) })
-	e.GET("/graphql", echo.WrapHandler(playground.Handler("GraphQL Playground", "/graphql/query")))
+	if playgroundEnabled {
+		e.GET("/graphql", echo.WrapHandler(playground.Handler("GraphQL Playground", "/graphql/query")))
+	}
 	graphqlHandler := handler.NewDefaultServer(graph.NewExecutableSchema(graph.Config{Resolvers: graph.NewResolver(s.Videos, s.Media)}))
 	e.Any("/graphql/query", func(c *echo.Context) error {
 		return auth.Middleware(func(c *echo.Context) error {

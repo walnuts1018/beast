@@ -2927,13 +2927,20 @@ func (ec *executionContext) unmarshalInputCreateVideoInput(ctx context.Context, 
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"encryptedTags", "sharedKeyID", "encryption"}
+	fieldsInOrder := [...]string{"objectKey", "encryptedTags", "sharedKeyID", "encryption"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
 			continue
 		}
 		switch k {
+		case "objectKey":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("objectKey"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ObjectKey = data
 		case "encryptedTags":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("encryptedTags"))
 			data, err := ec.unmarshalNString2string(ctx, v)
