@@ -13,6 +13,7 @@ import (
 	"github.com/stephenafamo/bob/dialect/psql/sm"
 	pgxdriver "github.com/stephenafamo/bob/drivers/pgx"
 	"github.com/stephenafamo/bob/types"
+	"github.com/walnuts1018/beast/backend/internal/crypto"
 	"github.com/walnuts1018/beast/backend/internal/db/generated/models"
 	"github.com/walnuts1018/beast/backend/internal/domain"
 )
@@ -122,6 +123,9 @@ func (s *Postgres) ListDeviceKeys(ctx context.Context, ownerID string) ([]Device
 }
 
 func (s *Postgres) CreateVideo(ctx context.Context, video domain.Video) (domain.Video, error) {
+	if _, err := s.SharedKey(ctx, video.OwnerID, video.Encryption.SharedKeyID); err != nil {
+		return domain.Video{}, err
+	}
 	videoID, err := uuid.Parse(video.ID)
 	if err != nil {
 		return domain.Video{}, err
@@ -143,7 +147,7 @@ func (s *Postgres) CreateVideo(ctx context.Context, video domain.Video) (domain.
 		return domain.Video{}, fmt.Errorf("decode encrypted data key: %w", err)
 	}
 	status := string(video.Status)
-	chunkSize := int32(video.Encryption.ChunkSize)
+	chunkSize := normalizedChunkSize(video.Encryption.ChunkSize)
 	sourceObjectKey := video.SourceObjectKey
 	if sourceObjectKey == "" {
 		sourceObjectKey = video.ObjectKey
@@ -172,7 +176,7 @@ func (s *Postgres) UpdateVideo(ctx context.Context, video domain.Video) (domain.
 	sourceObjectKey := video.SourceObjectKey
 	progress := video.Progress
 	errorMessage := video.ErrorMessage
-	chunkSize := int32(video.Encryption.ChunkSize)
+	chunkSize := normalizedChunkSize(video.Encryption.ChunkSize)
 	algorithm := video.Encryption.Algorithm
 	keyVersion := video.Encryption.KeyVersion
 	sharedKeyID, err := uuid.Parse(video.Encryption.SharedKeyID)
@@ -324,4 +328,11 @@ func marshalArtifacts(artifacts map[string]domain.DashArtifact) ([]byte, error) 
 		return nil, fmt.Errorf("marshal DASH artifacts: %w", err)
 	}
 	return data, nil
+}
+
+func normalizedChunkSize(chunkSize int) int32 {
+	if chunkSize <= 0 {
+		return crypto.ChunkSize
+	}
+	return int32(chunkSize)
 }

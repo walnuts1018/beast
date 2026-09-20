@@ -134,9 +134,9 @@ func (r *queryResolver) Recommendations(ctx context.Context, kind model.Recommen
 		include := false
 		switch kind {
 		case model.RecommendationKindFavorites:
-			include = video.Rating != nil && *video.Rating == 5
+			include = video.Rating != nil && *video.Rating >= 4
 		case model.RecommendationKindRecentlyUnplayedFavorites:
-			include = video.Rating != nil && *video.Rating == 5 && (video.LastPlayedAt == nil || time.Since(*video.LastPlayedAt) > 30*24*time.Hour)
+			include = video.Rating != nil && *video.Rating >= 4 && (video.LastPlayedAt == nil || time.Since(*video.LastPlayedAt) > 14*24*time.Hour)
 		case model.RecommendationKindUnwatched:
 			include = video.PlayCount == 0
 		}

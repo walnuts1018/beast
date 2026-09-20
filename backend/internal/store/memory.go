@@ -97,7 +97,7 @@ func (m *Memory) CreateVideo(_ context.Context, video domain.Video) (domain.Vide
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	sharedKey, ok := m.sharedKeys[video.Encryption.SharedKeyID]
-	if !ok || sharedKey.OwnerID != video.OwnerID {
+	if !ok || sharedKey.OwnerID != video.OwnerID || sharedKey.Status != "active" {
 		return domain.Video{}, errors.New("shared key is not registered")
 	}
 	m.videos[video.ID] = video
