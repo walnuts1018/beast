@@ -272,8 +272,6 @@ func videoFromDB(row *models.Video, mediaKeys ...[]byte) domain.Video {
 	video := domain.Video{ID: row.ID.String(), OwnerID: row.OwnerID, Status: domain.VideoStatus(row.Status), ObjectKey: row.ObjectKey, SourceObjectKey: row.SourceObjectKey, TagsCiphertext: base64.RawStdEncoding.EncodeToString(row.TagsCiphertext), TagsNonce: base64.RawStdEncoding.EncodeToString(row.TagsNonce), PlayCount: row.PlayCount, Rating: rating, LastPlayedAt: lastPlayedAt, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, Progress: row.Progress, ErrorMessage: row.ErrorMessage, HLSArtifacts: artifacts, Encryption: domain.EncryptionMetadata{Algorithm: row.EncryptionAlgorithm, ChunkSize: int(row.ChunkSize), EncryptedDataKey: base64.RawStdEncoding.EncodeToString(row.EncryptedDataKey)}}
 	if manifest, ok := artifacts["manifest.m3u8"]; ok {
 		video.Encryption = manifest.Encryption
-	} else if manifest, ok := artifacts["manifest.mpd"]; ok {
-		video.Encryption = manifest.Encryption
 	}
 	if len(mediaKeys) > 0 && len(mediaKeys[0]) == 32 {
 		if plaintext, err := crypto.DecryptTags(row.TagsCiphertext, row.TagsNonce, mediaKeys[0]); err == nil {
