@@ -8,7 +8,7 @@
 - `encoder`: RabbitMQのジョブを受け取り、ffmpegでMPEG-DASHへ変換するワーカーです。まずストリームコピーを試し、失敗した場合だけ軽量なH.264/AACへ再エンコードします。
 - `frontend`: Chrome向けのモバイル優先Web UIです。GraphQL APIへBearer tokenを付けて接続します。
 - `android`: Kotlin、Jetpack Compose、Media3によるスマートフォンUIです。
-- `k8s`: kindで使うローカルoverlayと、kurumiの既存サービスを使うproduction overlayです。
+- `k8s`: kindで使うローカルoverlayと、本番相当のレンダリングを確認するproduction overlayです。本番のデプロイマニフェストはinfraリポジトリで管理します。
 
 動画本体はランダムなAES-256-GCM Data Keyでチャンク暗号化し、Data KeyをShared KeyのRSA公開鍵でRSA-OAEP-SHA256暗号化します。Shared Key秘密鍵とDevice Key秘密鍵はクライアントだけが保持し、APIやオブジェクトストレージには保存しません。タグも暗号化済みの値だけをAPIへ渡します。
 
@@ -49,12 +49,12 @@ GraphQLスキーマの生成も同じ`go generate ./...`で行われます。`sq
 
 ## デプロイ
 
-production overlayはアプリケーションだけを配置し、PostgreSQL、RabbitMQ、SeaweedFS、External Secrets Operator、Envoy Gatewayをkurumiの既存リソースへ接続します。Secretのfield契約、DNS、Argo CDアプリケーション登録は`k8s/overlays/production/README.md`と`infra`リポジトリ側で管理します。
+production overlayはアプリケーションだけを配置し、PostgreSQL、RabbitMQ、SeaweedFS、External Secrets Operator、Envoy Gatewayをkurumiの既存リソースへ接続する本番相当のレンダリング用です。Secretのfield契約は`k8s/overlays/production/README.md`で確認できます。
 
 ```sh
 skaffold run --profile production
 ```
 
-通常の本番反映は`infra`リポジトリへArgo CD Applicationをコミットし、Argo CDの同期結果、各PodのReady状態、`/livez`、`/readyz`、GraphQL認証を確認します。イメージはレジストリへpushした不変タグを指定してください。
+通常の本番反映は`infra/k8s/apps/beast`へJsonnetマニフェストをコミットしてArgo CDへ同期させます。infraのApplicationSetが`app.json5`を検出してApplicationを生成し、Applicationのsourceは常にinfraリポジトリの`k8s/apps/beast`です。Argo CDがこのリポジトリのmanifestや`k8s/overlays/production`を参照することはありません。同期後は各PodのReady状態、`/livez`、`/readyz`、GraphQL認証を確認します。イメージはレジストリへpushした不変タグを指定してください。
 
 Androidの実機コンパイルにはAndroid SDKが必要です。SDKがある環境では`mise exec gradle@8.10.2 -- gradle -p android :app:compileDebugKotlin`を実行します。

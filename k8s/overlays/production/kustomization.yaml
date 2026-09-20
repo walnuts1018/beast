@@ -20,8 +20,8 @@ patches:
   - path: recreate-strategy.yaml
 images:
   - name: ghcr.io/walnuts1018/beast/backend
-    newTag: 835237b-amd64
+    newTag: 9c48bd2-amd64
   - name: ghcr.io/walnuts1018/beast/encoder
-    newTag: 835237b-amd64
+    newTag: 9c48bd2-amd64
   - name: ghcr.io/walnuts1018/beast/frontend
-    newTag: 835237b-amd64
+    newTag: 9c48bd2-amd64

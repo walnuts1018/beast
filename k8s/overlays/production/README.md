@@ -1,6 +1,6 @@
-# 本番overlay
+# 本番相当overlay
 
-このoverlayはアプリケーションだけを配置し、PostgreSQL、RabbitMQ、SeaweedFSはkurumiの既存サービスを利用します。Secretの値はリポジトリに保存せず、既存のExternal Secrets Operatorの`onepassword`から`beast-runtime`へ同期します。
+このoverlayは本番相当のレンダリングと接続先確認に使います。PostgreSQL、RabbitMQ、SeaweedFSはkurumiの既存サービスを利用します。Secretの値はリポジトリに保存せず、既存のExternal Secrets Operatorの`onepassword`から`beast-runtime`へ同期します。本番のデプロイ元はinfraリポジトリの`k8s/apps/beast`です。
 
 適用前に、kurumiのOnePassword vault `kurumi`にitem `beast`を作成し、次のfieldを用意してください。`onepassword` ClusterSecretStoreはinfraリポジトリで既にReadyであることを実測済みです。
 
@@ -13,4 +13,4 @@
 
 実測した接続先は`postgresql-default-rw.databases.svc.cluster.local`、`default.rabbitmq.svc.cluster.local`、`seaweedfs-default-filer.seaweedfs.svc.cluster.local:8333`です。`beast.walnuts.dev`はHTTPRouteによりEnvoy Gatewayへ公開し、既存のwildcard証明書を利用します。DNS反映は既存のExternalDNS構成に依存します。
 
-`beast` namespaceは本overlayが作成します。kurumiのOnePassword vault `kurumi`には`beast` itemを事前に作成してください。`beast-cluster-secret-store`や`s3.walnuts.dev`は参照していません。
+`beast` namespaceは本overlayでも作成されます。kurumiのOnePassword vault `kurumi`には`beast` itemを事前に作成してください。`beast-cluster-secret-store`や`s3.walnuts.dev`は参照していません。本番ではinfra側の同等のJsonnetリソースがnamespaceを作成します。Argo CDがこのリポジトリをsourceとして参照することはありません。
