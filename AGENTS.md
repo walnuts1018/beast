@@ -1,9 +1,22 @@
 ## 前提
 
 - チャットに対する回答、コード内のコメント、コミットメッセージは必ず日本語で行ってください。
-- 変更はこまめにコミットしてください。一つのコミットは同じ内容に関する変更でまとめるようにしてください。
-- コミット時には、`--signoff`オプションを使用して、コミットメッセージの末尾に署名を追加してください。
-- コミットメッセージは、変更内容を簡潔に説明するものにしてください。
+  - ただし、ログなどは英語で書いてください。
+- まだ未リリースのため、変更を最小にすることよりも、実装の美しさや使いやすさを優先してください。
+- ブランチを切らずmainブランチへ直接コミットしてOKです。コミットも適当な粒度でどんどん行ってください。機能単位でPRを作りたい場合は、機能ごとにブランチを切って開発し、完成したらghコマンドでプルリクエストを作成してください。
+- ツールをインストールする際は必ずmise経由でインストールしてください。定期的に実行するコマンドはmiseのtaskとして定義してください。
+- テスト用のドメインが必要な場合は、`hoge.test.walnuts.dev`や`hoge.sample.walnuts.dev`を利用してください。
+- 並列に複数のCoding Agentが作業することがあります。他のエージェントの作業を上書きしないように、他のエージェントが作業している箇所を編集しないようにしてください。
+- コメントを書くとき、英字と日本語の間にスペース入れないでください。また、文の途中で改行しないでください。VSCodeの設定で折り返し設定を入れているので、1行が長くなるからという理由だけで改行するのは避けてください。
+- 開発速度を優先して、mainブランチに直接コミットしてOK
+- sub-agentを積極的に活用してください。ただし、毎回親と同じモデルを使うのではなく、基本的にはgpt-5.6-luna (high, extra high, max)やSonnet 5 low などを活用し、なるべく低コストで済むようにしてください。重たいモデルで複数のSubAgentを使うのはなるべく避けてください。mainのagentはなるべくトークンを節約して作業しないようにして、lunaの実装とかレビューとかをオーケストレーション（管理）することに徹してください。適切に実装を指示したり、並列化したり、間違った実装をしてきた時にsubagentに修正させたりすることが重要です。main agentのモデルは非常にコストが高いことを意識してください。
+  - When using subagents:
+    - Do not repeatedly poll or wait for subagents.
+    - While subagents are running, continue any useful non-overlapping work.
+    - Call wait_agent only when the main task is genuinely blocked on a subagent result.
+    - Prefer the longest practical wait timeout rather than frequent short polling.
+    - If a wait times out and the agent is still running, do not immediately enter a repeated wait loop unless there is no other productive work available.
+    - Collect and integrate completed subagent results in batches where possible.
 
 ## 作成するサービスの概要
 
@@ -18,6 +31,7 @@
 - データベースやオブジェクトストレージが漏洩した場合のリスクを考慮し、動画とタグは暗号化して保存します。
 - 段階的に実装していくよりは、最初から完璧な実装・アーキテクチャを目指してください。今は過剰だから仮で実装するとか読みやすい簡略化した実装をするとか、一旦実装しないとかはそういうことは避けて、最初からパフォーマンスやセキュリティ、ユーザー体験を極限まで追求した実装を目指してください。最初から完璧な実装を目指すことで、後からのリファクタリングや設計変更の必要がなくなり、結果的に開発効率が上がります。
 - 開発するときは~/ghq/github.com/walnuts1018/piccaを参考にするといいでしょう。UIとかを真似て欲しいというわけではなくて、GraphQLの設計とかライブラリの選定とか、CIとかローカル開発とかアーキテクチャとかそういう方針などなどで参考にするという意味です。
+- 本番k8sクラスタをいじりたい時は~/ghq/github.com/walnuts1018/infraにコミットして。argocdで自動デプロイされます。
 
 ## 技術的な要件
 
