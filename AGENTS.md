@@ -34,32 +34,17 @@
 - 進捗通知は、初期実装ではポーリングでも構いません。将来的にはGraphQL Subscriptionへの置き換えを想定して、進捗モデルを分離して実装してください。
 - サーバーは復号鍵（Shared Key秘密鍵）を保持しません。復号は常にクライアント側で実行してください。
 
-### API Server実装ルール
-
-- レイヤー依存は `resolver -> usecase -> domain` と `infra -> domain` の一方向のみ許可してください。
-- `domain` には外部I/O依存を持ち込まないでください。
-- なるべく型を活用してモデリングしてください。
-  - Domain Modeling Made Functional: Tackle Software Complexity with Domain-Driven Design and F#のような、型を活用したドメイン駆動設計のアプローチを参考にしてください。
-- `usecase` にはフレームワーク依存（echo/gqlgenの型）を直接持ち込まないでください。
-- 認可では、IdPのToken Introspection結果を短時間キャッシュしてよいですが、有効期限を超えて再利用しないでください。
-- Graceful Shutdownを適切に実装してください。
-
-### ローカル開発構成の整合性ルール
-
-- `skaffold.yaml` で参照するDockerfile・マニフェスト・ソースディレクトリは、必ずリポジトリ内に実在するものだけを参照してください。
-- `Makefile` と `skaffold.yaml` は、初回セットアップ手順でそのまま実行可能であることを維持してください。
-
 ## 技術的な要件
 
 ### Platform
 
 - オンプレミスのKubernetesクラスター上で動作させます。
-- ローカル開発では、kindを利用します。
+- ローカル開発でも本番のk8sクラスタを活用しつつ、namespaceを分離します。
 
 ### データベース
 
 - PostgreSQLを使用します。
-- Redisも利用することができます。Redisは永続化されないことを前提とし、キャッシュや一時的なデータの保存に利用します。
+- Valkeyも利用することができます。Valkeyは永続化されないことを前提とし、キャッシュや一時的なデータの保存に利用します。
 - 必要に応じて、ScyllaDBも利用することができます。無理に利用する必要はありません。パフォーマンス的なメリットが大きいと判断した場合はぜひ利用してください。
 
 ### オブジェクトストレージ
@@ -80,17 +65,12 @@
 ### API Server
 
 - GraphQL Serverを実装します。
-- 実装には、Go 1.26を使用します。
+- 実装には、Go 1.27を使用します。
 - DBアクセスには、sqlc v1.30.0を用います。
 - HTTP Serverには、echo/v5を用います。
-- GraphQL Serverには、99designs/gqlgen v0.17を用います。
+- GraphQL Serverには、99designs/gqlgenを用います。
 - 認可は、OAuth 2.1を用います。IdPに対してToken Introspectionを行なってください。
 - mockgenとgolangci-lintをgo tool越しに利用してください。
-
-#### アーキテクチャ
-
-- Clean Architectureを採用します。
-- domain層、usecase層、infra層、GraphQLのResolverの層に分割してください。
 
 ### 動画のエンコード
 
@@ -105,19 +85,8 @@
     - 広く公開するサーバーではないので、不正な動画がアップロードされるリスクは低いと考えられます。セキュリティやDDoS対策のための強制エンコードは必要ありません。
   - 複数の画質を生成する必要はありません。
 
-### クライアント
-
-- 一旦Androidアプリのみを実装します。
-
-#### Android
-
-- Androidアプリは、Kotlin / Jetpack Composeで実装します。
-- デザインは、Material 3 / Material 3 Expressiveに従ったものとしてください。
-- ViewModelを用いてメンテナンスしやすいコードを書くようにしてください。
-
 ## ローカル開発
 
-- kindを利用してローカルにKubernetesクラスターを構築し、その上で開発を行います。
 - Skaffoldを利用して、ローカル開発の効率化を図ります。
 - Skaffoldのdevモードを利用して、コードの変更をリアルタイムで反映させるようにしてください。
 
