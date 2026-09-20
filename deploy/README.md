@@ -7,7 +7,7 @@ kind create cluster --config k8s/kind.yaml
 mise exec -- skaffold dev
 ```
 
-ブラウザから確認する場合は、別の端末で`kubectl -n beast port-forward service/beast-frontend 8080:8080`を実行して`http://localhost:8080`を開きます。ローカル認証は`X-User-ID: local-user`ヘッダーを使います。ローカルのPostgreSQL、RabbitMQ、SeaweedFSは`emptyDir`を使うため、kindクラスターを削除するとデータも削除されます。
+ブラウザから確認する場合は、別の端末で`kubectl -n beast port-forward service/beast-frontend 8080:8080`を実行して`http://localhost:8080`を開きます。ローカル認証のBearer tokenは`local-development-token`で、利用者を分ける場合は`X-User-ID`も指定します。ローカルのPostgreSQL、RabbitMQ、SeaweedFSは`emptyDir`を使うため、kindクラスターを削除するとデータも削除されます。
 
 本番相当のマニフェストはExternal Secrets Operatorと既存のPostgreSQL、RabbitMQ、SeaweedFSを利用します。SecretStoreとリモートSecretを用意したうえで、対象contextを確認してから次を実行してください。
 

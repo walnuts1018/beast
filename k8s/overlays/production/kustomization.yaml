@@ -9,6 +9,7 @@ configMapGenerator:
     namespace: beast
     behavior: merge
     literals:
+      - AUTH_MODE=introspection
       - OIDC_INTROSPECTION_URL=https://auth.walnuts.dev/oauth/v2/introspect
       - POSTGRES_HOST=postgresql-default-rw.databases.svc.cluster.local
       - POSTGRES_SSLMODE=verify-full

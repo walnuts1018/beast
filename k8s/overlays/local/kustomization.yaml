@@ -13,6 +13,7 @@ configMapGenerator:
     namespace: beast
     behavior: merge
     literals:
+      - AUTH_MODE=static
       - APP_ENV=development
       - POSTGRES_HOST=postgres.beast-data.svc.cluster.local
       - POSTGRES_SSLMODE=disable
@@ -27,6 +28,7 @@ secretGenerator:
       - POSTGRES_PASSWORD=local-postgres-password
       - POSTGRES_DB=beast
       - DATABASE_URL=postgres://beast:local-postgres-password@postgres.beast-data.svc.cluster.local:5432/beast?sslmode=disable
+      - AUTH_DEV_STATIC_TOKEN=local-development-token
       - S3_ACCESS_KEY_ID=beast
       - S3_SECRET_ACCESS_KEY=local-seaweedfs-password
       - S3_ACCESS_KEY=beast

@@ -9,6 +9,8 @@
 - `s3_access_key_id`、`s3_secret_access_key`
 - `oidc_client_id`、`oidc_client_secret`
 
+`database_url`の接続先は`postgresql-default-rw.databases.svc.cluster.local`、`rabbitmq_url`の接続先は`default.rabbitmq.svc.cluster.local`を指定してください。接続情報に含める認証情報はOnePassword itemだけで管理します。
+
 実測した接続先は`postgresql-default-rw.databases.svc.cluster.local`、`default.rabbitmq.svc.cluster.local`、`seaweedfs-default-filer.seaweedfs.svc.cluster.local:8333`です。`beast.walnuts.dev`はHTTPRouteによりEnvoy Gatewayへ公開し、既存のwildcard証明書を利用します。DNS反映は既存のExternalDNS構成に依存します。
 
 現時点でkurumiには`beast` namespaceとOnePasswordの`beast` itemは存在しないため、このitem作成とnamespaceを含む本overlayの適用が初回セットアップです。`beast-cluster-secret-store`や`s3.walnuts.dev`は参照していません。
