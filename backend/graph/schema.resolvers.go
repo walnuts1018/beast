@@ -26,26 +26,14 @@ func (r *mutationResolver) CreateVideo(ctx context.Context, input model.CreateVi
 	if input.Encryption == nil || input.SharedKeyID != input.Encryption.SharedKeyID {
 		return nil, errors.New("shared key IDs must match")
 	}
-	object, err := r.Media.Open(ctx, input.ObjectKey)
+	video, err := r.Store.GetVideoByObjectKey(ctx, ownerID, input.ObjectKey)
 	if err != nil {
-		return nil, errors.New("encrypted media object is not available")
+		return nil, errors.New("encrypted media object is not registered for this owner")
 	}
-	if err := object.Close(); err != nil {
-		return nil, errors.New("close encrypted media object")
+	if video.EncryptedTags != input.EncryptedTags || video.Encryption.SharedKeyID != input.Encryption.SharedKeyID || video.Encryption.KeyVersion != input.Encryption.KeyVersion {
+		return nil, errors.New("video encryption metadata does not match the registered object")
 	}
-	video, err := domain.NewVideo(ownerID, input.EncryptedTags, input.ObjectKey, domain.EncryptionMetadata{
-		Algorithm: input.Encryption.Algorithm, ChunkSize: input.Encryption.ChunkSize, KeyVersion: input.Encryption.KeyVersion,
-		Nonce: input.Encryption.Nonce, EncryptedDataKey: input.Encryption.EncryptedDataKey,
-		SharedKeyID: input.Encryption.SharedKeyID,
-	})
-	if err != nil {
-		return nil, err
-	}
-	created, err := r.Store.CreateVideo(ctx, video)
-	if err != nil {
-		return nil, err
-	}
-	return videoModel(created), nil
+	return videoModel(video), nil
 }
 
 // RateVideo is the resolver for the rateVideo field.

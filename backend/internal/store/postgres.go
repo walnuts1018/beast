@@ -167,6 +167,14 @@ func (s *Postgres) GetVideo(ctx context.Context, ownerID, id string) (domain.Vid
 	return videoFromDB(row), nil
 }
 
+func (s *Postgres) GetVideoByObjectKey(ctx context.Context, ownerID, objectKey string) (domain.Video, error) {
+	row, err := models.Videos.Query(models.SelectWhere.Videos.ObjectKey.EQ(objectKey), models.SelectWhere.Videos.OwnerID.EQ(ownerID)).One(ctx, s.db)
+	if err != nil {
+		return domain.Video{}, err
+	}
+	return videoFromDB(row), nil
+}
+
 func (s *Postgres) RecordPlayback(ctx context.Context, ownerID, id string) (domain.Video, error) {
 	video, err := s.GetVideo(ctx, ownerID, id)
 	if err != nil {

@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"encoding/base64"
+	"fmt"
 	"net/http"
 
 	"github.com/99designs/gqlgen/graphql/handler"
@@ -11,13 +12,15 @@ import (
 
 	"github.com/walnuts1018/beast/backend/graph"
 	"github.com/walnuts1018/beast/backend/internal/domain"
+	"github.com/walnuts1018/beast/backend/internal/encoding"
 	"github.com/walnuts1018/beast/backend/internal/media"
 	"github.com/walnuts1018/beast/backend/internal/store"
 )
 
 type Server struct {
-	Videos store.Repository
-	Media  media.ObjectStore
+	Videos   store.Repository
+	Media    media.ObjectStore
+	Encoding encoding.Publisher
 }
 
 func (s *Server) Register(e *echo.Echo, auth Authenticator, playgroundEnabled bool) {
@@ -74,6 +77,11 @@ func (s *Server) upload(c *echo.Context) error {
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "save video").Wrap(err)
 	}
+	if s.Encoding != nil {
+		if err := s.Encoding.Publish(request.Context(), encoding.Job{SchemaVersion: 1, VideoID: video.ID, OwnerID: video.OwnerID, ObjectKey: video.ObjectKey, Encryption: video.Encryption}); err != nil {
+			return echo.NewHTTPError(http.StatusServiceUnavailable, "encoding queue unavailable").Wrap(err)
+		}
+	}
 	return c.JSON(http.StatusCreated, video)
 }
 
@@ -83,14 +91,23 @@ func (s *Server) stream(c *echo.Context) error {
 	if err != nil {
 		return echo.NewHTTPError(http.StatusNotFound, "video not found")
 	}
+	if video.Status != domain.VideoStatusReady {
+		return echo.NewHTTPError(http.StatusConflict, "video is not ready")
+	}
 	file, err := s.Media.Open(request.Context(), video.ObjectKey)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusNotFound, "media object not found").Wrap(err)
 	}
 	defer func() { _ = file.Close() }()
+	video, err = s.Videos.RecordPlayback(request.Context(), graph.OwnerID(request.Context()), c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "record playback").Wrap(err)
+	}
 	c.Response().Header().Set("X-Encryption-Algorithm", video.Encryption.Algorithm)
+	c.Response().Header().Set("X-Encryption-Chunk-Size", fmt.Sprintf("%d", video.Encryption.ChunkSize))
 	c.Response().Header().Set("X-Encryption-Key-Version", video.Encryption.KeyVersion)
 	c.Response().Header().Set("X-Encryption-Nonce", video.Encryption.Nonce)
 	c.Response().Header().Set("X-Encryption-Data-Key", video.Encryption.EncryptedDataKey)
+	c.Response().Header().Set("X-Encryption-Shared-Key-ID", video.Encryption.SharedKeyID)
 	return c.Stream(http.StatusOK, "application/octet-stream", file)
 }

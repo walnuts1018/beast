@@ -125,6 +125,17 @@ func (m *Memory) GetVideo(_ context.Context, ownerID, id string) (domain.Video, 
 	return video, nil
 }
 
+func (m *Memory) GetVideoByObjectKey(_ context.Context, ownerID, objectKey string) (domain.Video, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	for _, video := range m.videos {
+		if video.OwnerID == ownerID && video.ObjectKey == objectKey {
+			return video, nil
+		}
+	}
+	return domain.Video{}, domain.ErrVideoNotFound
+}
+
 func (m *Memory) RecordPlayback(_ context.Context, ownerID, id string) (domain.Video, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
