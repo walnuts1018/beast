@@ -13,4 +13,4 @@
 
 実測した接続先は`postgresql-default-rw.databases.svc.cluster.local`、`default.rabbitmq.svc.cluster.local`、`seaweedfs-default-filer.seaweedfs.svc.cluster.local:8333`です。`beast.walnuts.dev`はHTTPRouteによりEnvoy Gatewayへ公開し、既存のwildcard証明書を利用します。DNS反映は既存のExternalDNS構成に依存します。
 
-現時点でkurumiには`beast` namespaceとOnePasswordの`beast` itemは存在しないため、このitem作成とnamespaceを含む本overlayの適用が初回セットアップです。`beast-cluster-secret-store`や`s3.walnuts.dev`は参照していません。
+`beast` namespaceは本overlayが作成します。kurumiのOnePassword vault `kurumi`には`beast` itemを事前に作成してください。`beast-cluster-secret-store`や`s3.walnuts.dev`は参照していません。
