@@ -3,6 +3,8 @@ package dev.walnuts.beast.security
 import android.content.Context
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
+import java.io.ByteArrayOutputStream
+import java.nio.ByteBuffer
 import java.security.KeyFactory
 import java.security.KeyPairGenerator
 import java.security.KeyStore
@@ -10,11 +12,14 @@ import java.security.MessageDigest
 import java.security.PrivateKey
 import java.security.SecureRandom
 import java.security.spec.ECGenParameterSpec
+import java.security.spec.MGF1ParameterSpec
 import java.security.spec.X509EncodedKeySpec
 import java.util.Base64
 import javax.crypto.Cipher
 import javax.crypto.KeyAgreement
 import javax.crypto.spec.GCMParameterSpec
+import javax.crypto.spec.OAEPParameterSpec
+import javax.crypto.spec.PSource
 import javax.crypto.spec.SecretKeySpec
 
 data class DevicePublicKey(val alias: String, val publicKeyBase64: String)
@@ -45,14 +50,19 @@ data class DataKeyEnvelope(
 interface VideoDataKeyDecryptor {
     fun decryptDataKey(envelope: DataKeyEnvelope, sharedPrivateKeyPkcs8: ByteArray): ByteArray
     fun decryptChunk(ciphertext: ByteArray, dataKey: ByteArray, nonce: ByteArray, associatedData: ByteArray? = null): ByteArray
+    fun decryptArtifact(ciphertext: ByteArray, envelope: DataKeyEnvelope, sharedPrivateKeyPkcs8: ByteArray): ByteArray
 }
 
 class AesGcmVideoDataKeyDecryptor : VideoDataKeyDecryptor {
     override fun decryptDataKey(envelope: DataKeyEnvelope, sharedPrivateKeyPkcs8: ByteArray): ByteArray {
-        require(envelope.algorithm == "RSA-OAEP-SHA256") { "Unsupported data key algorithm: ${envelope.algorithm}" }
+        require(envelope.algorithm == "AES-256-GCM-CHUNKED-RSA-OAEP-SHA256") { "Unsupported data key algorithm: ${envelope.algorithm}" }
         val sharedPrivateKey = KeyFactory.getInstance("RSA").generatePrivate(java.security.spec.PKCS8EncodedKeySpec(sharedPrivateKeyPkcs8))
         val cipher = Cipher.getInstance("RSA/ECB/OAEPWithSHA-256AndMGF1Padding")
-        cipher.init(Cipher.DECRYPT_MODE, sharedPrivateKey)
+        cipher.init(
+            Cipher.DECRYPT_MODE,
+            sharedPrivateKey,
+            OAEPParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, PSource.PSpecified.DEFAULT),
+        )
         return cipher.doFinal(envelope.encryptedDataKey)
     }
 
@@ -62,6 +72,29 @@ class AesGcmVideoDataKeyDecryptor : VideoDataKeyDecryptor {
         associatedData?.let(cipher::updateAAD)
         return cipher.doFinal(ciphertext)
     }
+
+    override fun decryptArtifact(ciphertext: ByteArray, envelope: DataKeyEnvelope, sharedPrivateKeyPkcs8: ByteArray): ByteArray {
+        require(envelope.chunkSize > 0) { "Chunk size must be positive" }
+        require(envelope.nonce.size == 12) { "Nonce must be 12 bytes" }
+        val dataKey = decryptDataKey(envelope, sharedPrivateKeyPkcs8)
+        val output = ByteArrayOutputStream(ciphertext.size)
+        val input = ByteBuffer.wrap(ciphertext)
+        var index = 0L
+        while (input.hasRemaining()) {
+            require(input.remaining() >= 4) { "Encrypted artifact length is truncated" }
+            val length = input.int
+            require(length >= 16 && length <= input.remaining()) { "Encrypted artifact chunk length is invalid" }
+            val sealed = ByteArray(length)
+            input.get(sealed)
+            output.write(decryptChunk(sealed, dataKey, chunkNonce(envelope.nonce, index)))
+            index++
+        }
+        return output.toByteArray()
+    }
+}
+
+private fun chunkNonce(base: ByteArray, index: Long): ByteArray = base.copyOf().also { nonce ->
+    repeat(8) { offset -> nonce[nonce.lastIndex - offset] = (nonce[nonce.lastIndex - offset].toInt() xor (index ushr (offset * 8)).toInt()).toByte() }
 }
 
 class DeviceKeyStore(context: Context) {

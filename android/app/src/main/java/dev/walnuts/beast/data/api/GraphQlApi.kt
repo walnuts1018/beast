@@ -67,20 +67,20 @@ object VideoGraphQlOperations {
     const val listVideos = """
         query ListVideos {
           videos {
-            id status encryptedTags playCount rating lastPlayedAt videoURL progress
+            id status encryptedTags playCount rating lastPlayedAt progress
             encryption { algorithm chunkSize keyVersion nonce encryptedDataKey sharedKeyID }
           }
         }
     """
     const val rateVideo = """
         mutation RateVideo(${"$"}id: ID!, ${"$"}rating: Int) {
-          rateVideo(id: ${"$"}id, rating: ${"$"}rating) { id status encryptedTags playCount rating lastPlayedAt videoURL progress
+          rateVideo(id: ${"$"}id, rating: ${"$"}rating) { id status encryptedTags playCount rating lastPlayedAt progress
             encryption { algorithm chunkSize keyVersion nonce encryptedDataKey sharedKeyID } }
         }
     """
     const val recordPlayback = """
         mutation RecordPlayback(${"$"}id: ID!) {
-          recordPlayback(id: ${"$"}id) { id status encryptedTags playCount rating lastPlayedAt videoURL progress
+          recordPlayback(id: ${"$"}id) { id status encryptedTags playCount rating lastPlayedAt progress
             encryption { algorithm chunkSize keyVersion nonce encryptedDataKey sharedKeyID } }
         }
     """
@@ -126,7 +126,6 @@ fun JsonElement.toVideo(): Video {
             sharedKeyId = encryption["sharedKeyID"]!!.toString().trim('"'),
         ),
         encryptedTags = objectValue["encryptedTags"]?.toString()?.trim('"'),
-        videoUrl = objectValue["videoURL"]?.toString()?.trim('"'),
         progress = objectValue["progress"]?.toString()?.toFloat() ?: 0f,
     )
 }

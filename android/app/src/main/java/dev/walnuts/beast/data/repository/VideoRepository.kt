@@ -9,6 +9,7 @@ import dev.walnuts.beast.data.api.toVideo
 import dev.walnuts.beast.domain.model.EncryptionMetadata
 import dev.walnuts.beast.domain.model.Video
 import dev.walnuts.beast.domain.model.VideoStatus
+import dev.walnuts.beast.domain.model.PlaybackSource
 import kotlinx.coroutines.delay
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.JsonNull
@@ -91,6 +92,7 @@ class PreviewVideoRepository : VideoRepository {
         rating = rating,
         lastPlayedAt = lastPlayedAt,
         encryption = EncryptionMetadata("AES-GCM", 1_048_576, "v1", "nonce-preview", "encrypted-data-key", sharedKeyId),
+        playbackSource = PlaybackSource.DEBUG_PREVIEW,
         playbackUrl = previewPlaybackUrl,
         durationSeconds = durationSeconds,
     )

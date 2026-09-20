@@ -46,6 +46,7 @@ import androidx.media3.common.MediaItem
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import dev.walnuts.beast.domain.model.Video
+import dev.walnuts.beast.domain.model.PlaybackSource
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -53,9 +54,10 @@ import kotlinx.coroutines.launch
 fun PlayerScreen(video: Video, onClose: () -> Unit, onRate: (Video, Int?) -> Unit, onPlaybackRecorded: (Video) -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val player = remember(video.id) {
+    val isPlayablePreview = video.playbackSource == PlaybackSource.DEBUG_PREVIEW && video.playbackUrl != null
+    val player = remember(video.id, video.playbackSource, video.playbackUrl) {
         ExoPlayer.Builder(context).build().apply {
-            video.playbackUrl?.let {
+            video.playbackUrl?.takeIf { isPlayablePreview }?.let {
                 setMediaItem(MediaItem.fromUri(Uri.parse(it)))
                 prepare()
                 playWhenReady = true
@@ -67,7 +69,8 @@ fun PlayerScreen(video: Video, onClose: () -> Unit, onRate: (Video, Int?) -> Uni
     DisposableEffect(player) {
         onDispose { player.release() }
     }
-    LaunchedEffect(video.id) {
+    LaunchedEffect(video.id, video.playbackSource, video.playbackUrl) {
+        if (!isPlayablePreview) return@LaunchedEffect
         onPlaybackRecorded(video)
         while (true) {
             val duration = player.duration
@@ -77,10 +80,10 @@ fun PlayerScreen(video: Video, onClose: () -> Unit, onRate: (Video, Int?) -> Uni
     }
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
-        if (video.playbackUrl != null) {
+        if (isPlayablePreview) {
             AndroidView(factory = { PlayerView(it).apply { this.player = player; useController = false } }, modifier = Modifier.fillMaxWidth().align(Alignment.Center))
         } else {
-            Text("この動画はまだ再生できません", color = Color.White, modifier = Modifier.align(Alignment.Center))
+            Text("暗号化DASHの端末復号器が未接続のため再生できません", color = Color.White, modifier = Modifier.align(Alignment.Center))
         }
         Box(
             Modifier.fillMaxSize().pointerInput(video.id) {
