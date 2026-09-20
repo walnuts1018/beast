@@ -1,0 +1,17 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: beast-apiserver
+  namespace: beast
+spec:
+  strategy:
+    type: Recreate
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: beast-encoder
+  namespace: beast
+spec:
+  strategy:
+    type: Recreate

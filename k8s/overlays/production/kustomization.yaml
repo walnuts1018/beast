@@ -17,6 +17,7 @@ configMapGenerator:
       - AWS_ENDPOINT_URL=http://seaweedfs-default-filer.seaweedfs.svc.cluster.local:8333
 patches:
   - path: image-pull-policy.yaml
+  - path: recreate-strategy.yaml
 images:
   - name: ghcr.io/walnuts1018/beast/backend
     newTag: 835237b-amd64
