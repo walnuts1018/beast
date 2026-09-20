@@ -1,7 +1,6 @@
 package worker
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -14,27 +13,61 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/walnuts1018/beast/encoder/internal/crypto"
 )
 
+const ContractVersion = "v1"
+
 type Job struct {
-	VideoID   string `json:"video_id"`
-	InputPath string `json:"input_path"`
-	OutputDir string `json:"output_dir"`
+	ContractVersion string `json:"contract_version"`
+	VideoID         string `json:"video_id"`
+	OwnerID         string `json:"owner_id"`
+	SourceObjectKey string `json:"source_object_key"`
+	OutputPrefix    string `json:"output_prefix"`
+	PublicKey       string `json:"public_key"`
+	SharedKeyID     string `json:"shared_key_id"`
+	KeyVersion      string `json:"key_version"`
+}
+
+type EncryptionMetadata struct {
+	Algorithm        string `json:"algorithm"`
+	ChunkSize        int    `json:"chunk_size"`
+	KeyVersion       string `json:"key_version"`
+	Nonce            string `json:"nonce"`
+	EncryptedDataKey string `json:"encrypted_data_key"`
+	SharedKeyID      string `json:"shared_key_id"`
+}
+
+type Artifact struct {
+	ObjectKey  string             `json:"object_key"`
+	Encryption EncryptionMetadata `json:"encryption"`
 }
 
 type Event struct {
-	VideoID      string    `json:"video_id"`
-	Status       string    `json:"status"`
-	Progress     float64   `json:"progress"`
-	ManifestPath string    `json:"manifest_path,omitempty"`
-	Error        string    `json:"error,omitempty"`
-	OccurredAt   time.Time `json:"occurred_at"`
+	ContractVersion string              `json:"contract_version"`
+	VideoID         string              `json:"video_id"`
+	OwnerID         string              `json:"owner_id"`
+	SourceObjectKey string              `json:"source_object_key"`
+	Status          string              `json:"status"`
+	Progress        float64             `json:"progress"`
+	Manifest        Artifact            `json:"manifest"`
+	Artifacts       map[string]Artifact `json:"artifacts"`
+	Error           string              `json:"error,omitempty"`
+	OccurredAt      time.Time           `json:"occurred_at"`
 }
 
 type EventSink func(context.Context, Event) error
 
+type ArtifactStore interface {
+	Open(context.Context, string) (io.ReadCloser, error)
+	PutEncrypted(context.Context, string, io.Reader, string) (crypto.Result, error)
+	Delete(context.Context, string) error
+}
+
 type Processor struct {
 	Runner     *FFmpegRunner
+	Store      ArtifactStore
 	OutputRoot string
 	Emit       EventSink
 }
@@ -43,45 +76,129 @@ func (p *Processor) Process(ctx context.Context, job Job) error {
 	if err := job.validate(); err != nil {
 		return err
 	}
-	if p.Runner == nil || p.Emit == nil {
+	if p.Runner == nil || p.Store == nil || p.Emit == nil {
 		return errors.New("worker dependencies are required")
 	}
-	if job.OutputDir == "" {
-		job.OutputDir = filepath.Join(p.OutputRoot, job.VideoID)
+	if p.OutputRoot == "" {
+		return errors.New("output root is required")
 	}
-	if err := p.emit(ctx, Event{VideoID: job.VideoID, Status: "ENCODING"}); err != nil {
+	workDir, err := os.MkdirTemp(p.OutputRoot, "job-")
+	if err != nil {
+		return fmt.Errorf("create encoder work directory: %w", err)
+	}
+	defer func() { _ = os.RemoveAll(workDir) }()
+	source, err := p.Store.Open(ctx, job.SourceObjectKey)
+	if err != nil {
+		return fmt.Errorf("open staged source: %w", err)
+	}
+	inputPath := filepath.Join(workDir, "input")
+	input, err := os.OpenFile(inputPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	if err != nil {
+		_ = source.Close()
+		return fmt.Errorf("create encoder input: %w", err)
+	}
+	_, copyErr := io.Copy(input, source)
+	closeInputErr := input.Close()
+	closeSourceErr := source.Close()
+	if copyErr != nil || closeInputErr != nil || closeSourceErr != nil {
+		deleteErr := p.Store.Delete(ctx, job.SourceObjectKey)
+		return errors.Join(copyErr, closeInputErr, closeSourceErr, deleteErr)
+	}
+	if err := p.emit(ctx, job, Event{Status: "ENCODING", Progress: 0}); err != nil {
 		return fmt.Errorf("emit encoding event: %w", err)
 	}
 	p.Runner.Progress = func(progress float64) {
-		if err := p.emit(ctx, Event{VideoID: job.VideoID, Status: "ENCODING", Progress: progress}); err != nil {
+		if err := p.emit(ctx, job, Event{Status: "ENCODING", Progress: progress}); err != nil {
 			slog.WarnContext(ctx, "failed to emit encoding progress", "error", err)
 		}
 	}
-	manifest, err := p.Runner.Process(ctx, job)
-	if err != nil {
-		publishErr := p.emit(ctx, Event{VideoID: job.VideoID, Status: "FAILED", Error: err.Error()})
+	outputDir := filepath.Join(workDir, "output")
+	if _, err := p.Runner.Process(ctx, inputPath, outputDir); err != nil {
+		publishErr := p.emit(ctx, job, Event{Status: "FAILED", Error: err.Error()})
 		if publishErr != nil {
 			return errors.Join(err, fmt.Errorf("emit failed event: %w", publishErr))
 		}
-		return err
+		if deleteErr := p.Store.Delete(ctx, job.SourceObjectKey); deleteErr != nil {
+			return fmt.Errorf("delete staged source after failure: %w", deleteErr)
+		}
+		return nil
 	}
-	if err := p.emit(ctx, Event{VideoID: job.VideoID, Status: "READY", Progress: 1, ManifestPath: manifest}); err != nil {
+	artifacts, manifest, err := p.encryptArtifacts(ctx, job, outputDir)
+	if err != nil {
+		publishErr := p.emit(ctx, job, Event{Status: "FAILED", Error: err.Error()})
+		if publishErr != nil {
+			return errors.Join(err, fmt.Errorf("emit failed event: %w", publishErr))
+		}
+		if deleteErr := p.Store.Delete(ctx, job.SourceObjectKey); deleteErr != nil {
+			return fmt.Errorf("delete staged source after failure: %w", deleteErr)
+		}
+		return nil
+	}
+	if err := p.emit(ctx, job, Event{Status: "READY", Progress: 1, Manifest: manifest, Artifacts: artifacts}); err != nil {
 		return fmt.Errorf("emit ready event: %w", err)
+	}
+	if err := p.Store.Delete(ctx, job.SourceObjectKey); err != nil {
+		return fmt.Errorf("delete staged source: %w", err)
 	}
 	return nil
 }
 
-func (p *Processor) emit(ctx context.Context, event Event) error {
+func (p *Processor) encryptArtifacts(ctx context.Context, job Job, outputDir string) (map[string]Artifact, Artifact, error) {
+	artifacts := make(map[string]Artifact)
+	var manifest Artifact
+	err := filepath.WalkDir(outputDir, func(filePath string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() {
+			return nil
+		}
+		name, err := filepath.Rel(outputDir, filePath)
+		if err != nil {
+			return err
+		}
+		name = filepath.ToSlash(name)
+		objectKey := strings.TrimSuffix(job.OutputPrefix, "/") + "/" + name
+		file, err := os.Open(filePath)
+		if err != nil {
+			return err
+		}
+		result, encryptErr := p.Store.PutEncrypted(ctx, objectKey, file, job.PublicKey)
+		closeErr := file.Close()
+		if encryptErr != nil || closeErr != nil {
+			return errors.Join(encryptErr, closeErr)
+		}
+		artifact := Artifact{ObjectKey: objectKey, Encryption: EncryptionMetadata{Algorithm: result.Algorithm, ChunkSize: result.ChunkSize, KeyVersion: job.KeyVersion, Nonce: result.Nonce, EncryptedDataKey: result.EncryptedDataKey, SharedKeyID: job.SharedKeyID}}
+		artifacts[name] = artifact
+		if name == "manifest.mpd" {
+			manifest = artifact
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, Artifact{}, fmt.Errorf("encrypt DASH artifacts: %w", err)
+	}
+	if manifest.ObjectKey == "" {
+		return nil, Artifact{}, errors.New("DASH manifest was not produced")
+	}
+	return artifacts, manifest, nil
+}
+
+func (p *Processor) emit(ctx context.Context, job Job, event Event) error {
+	event.ContractVersion = ContractVersion
+	event.VideoID = job.VideoID
+	event.OwnerID = job.OwnerID
+	event.SourceObjectKey = job.SourceObjectKey
 	event.OccurredAt = time.Now().UTC()
 	return p.Emit(ctx, event)
 }
 
 func (j Job) validate() error {
-	if j.VideoID == "" {
-		return errors.New("video_id is required")
+	if j.ContractVersion != ContractVersion || j.VideoID == "" || j.OwnerID == "" || j.SourceObjectKey == "" || j.OutputPrefix == "" || j.PublicKey == "" || j.SharedKeyID == "" || j.KeyVersion == "" {
+		return errors.New("encoder job contract is incomplete")
 	}
-	if j.InputPath == "" {
-		return errors.New("input_path is required")
+	if strings.Contains(j.OutputPrefix, "..") || strings.HasPrefix(j.SourceObjectKey, "/") || strings.Contains(j.SourceObjectKey, "..") {
+		return errors.New("encoder job object keys are invalid")
 	}
 	return nil
 }
@@ -95,29 +212,29 @@ type FFmpegRunner struct {
 	Progress              func(float64)
 }
 
-func (r *FFmpegRunner) Process(ctx context.Context, job Job) (string, error) {
+func (r *FFmpegRunner) Process(ctx context.Context, inputPath, outputDir string) (string, error) {
 	if r.FFmpegPath == "" || r.FFprobePath == "" {
 		return "", errors.New("ffmpeg and ffprobe paths are required")
 	}
 	if r.SegmentSeconds < 1 || r.SegmentSeconds > 30 {
 		return "", errors.New("segment seconds must be between 1 and 30")
 	}
-	if _, err := os.Stat(job.InputPath); err != nil {
+	if _, err := os.Stat(inputPath); err != nil {
 		return "", fmt.Errorf("input media is unavailable: %w", err)
 	}
-	if err := os.MkdirAll(job.OutputDir, 0o750); err != nil {
+	if err := os.MkdirAll(outputDir, 0o750); err != nil {
 		return "", fmt.Errorf("create output directory: %w", err)
 	}
-	duration, err := r.duration(ctx, job.InputPath)
+	duration, err := r.duration(ctx, inputPath)
 	if err != nil {
 		return "", err
 	}
-	manifestPath := filepath.Join(job.OutputDir, "manifest.mpd")
-	if err := r.run(ctx, job.InputPath, manifestPath, duration, false); err != nil {
+	manifestPath := filepath.Join(outputDir, "manifest.mpd")
+	if err := r.run(ctx, inputPath, manifestPath, duration, false); err != nil {
 		if !r.ReencodeOnCopyFailure {
 			return "", err
 		}
-		if fallbackErr := r.run(ctx, job.InputPath, manifestPath, duration, true); fallbackErr != nil {
+		if fallbackErr := r.run(ctx, inputPath, manifestPath, duration, true); fallbackErr != nil {
 			return "", errors.Join(err, fmt.Errorf("re-encode failed: %w", fallbackErr))
 		}
 	}
@@ -146,10 +263,7 @@ func (r *FFmpegRunner) run(ctx context.Context, input, manifest string, duration
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("ffmpeg DASH conversion failed: %w", err)
 	}
-	if err := progress.Err(); err != nil {
-		return err
-	}
-	return nil
+	return progress.Err()
 }
 
 func dashArgs(input, manifest string, segmentSeconds int, reencode bool) []string {
@@ -164,29 +278,24 @@ func dashArgs(input, manifest string, segmentSeconds int, reencode bool) []strin
 
 type progressReader struct {
 	duration float64
-	buffer   bytes.Buffer
-	progress float64
+	buffer   []byte
 	callback func(float64)
 }
 
 func (r *progressReader) Write(p []byte) (int, error) {
-	_, _ = r.buffer.Write(p)
+	r.buffer = append(r.buffer, p...)
 	for {
-		line, err := r.buffer.ReadString('\n')
-		if err != nil {
-			if !errors.Is(err, io.EOF) {
-				return 0, err
-			}
+		index := strings.IndexByte(string(r.buffer), '\n')
+		if index < 0 {
 			break
 		}
+		line := string(r.buffer[:index])
+		r.buffer = r.buffer[index+1:]
 		key, value, found := strings.Cut(strings.TrimSpace(line), "=")
 		if found && key == "out_time_ms" {
 			microseconds, parseErr := strconv.ParseFloat(value, 64)
-			if parseErr == nil && r.duration > 0 {
-				r.progress = min(0.99, max(0, microseconds/1_000_000/r.duration))
-				if r.callback != nil {
-					r.callback(r.progress)
-				}
+			if parseErr == nil && r.duration > 0 && r.callback != nil {
+				r.callback(min(0.99, max(0, microseconds/1_000_000/r.duration)))
 			}
 		}
 	}

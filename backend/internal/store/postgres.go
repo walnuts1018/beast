@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -11,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stephenafamo/bob/dialect/psql/sm"
 	pgxdriver "github.com/stephenafamo/bob/drivers/pgx"
+	"github.com/stephenafamo/bob/types"
 	"github.com/walnuts1018/beast/backend/internal/db/generated/models"
 	"github.com/walnuts1018/beast/backend/internal/domain"
 )
@@ -54,6 +56,9 @@ func (s *Postgres) RegisterSharedKey(ctx context.Context, key SharedKey) (Shared
 	if err != nil {
 		return SharedKey{}, err
 	}
+	if row.Status != "active" {
+		return SharedKey{}, domain.ErrVideoNotFound
+	}
 	return sharedKeyFromDB(row), nil
 }
 
@@ -88,6 +93,9 @@ func (s *Postgres) RegisterDeviceKey(ctx context.Context, key DeviceKey) (Device
 	}
 	sharedKeyID, err := uuid.Parse(key.SharedKeyID)
 	if err != nil {
+		return DeviceKey{}, err
+	}
+	if _, err := s.SharedKey(ctx, key.OwnerID, key.SharedKeyID); err != nil {
 		return DeviceKey{}, err
 	}
 	ciphertext, err := base64.RawStdEncoding.DecodeString(key.EncryptedSharedPrivateKey)
@@ -136,8 +144,64 @@ func (s *Postgres) CreateVideo(ctx context.Context, video domain.Video) (domain.
 	}
 	status := string(video.Status)
 	chunkSize := int32(video.Encryption.ChunkSize)
-	row, err := models.Videos.Insert(&models.VideoSetter{ID: &videoID, OwnerID: &video.OwnerID, Status: &status, ObjectKey: &video.ObjectKey, TagsCiphertext: &tags, TagsNonce: &nonce, EncryptedDataKey: &dataKey, EncryptionAlgorithm: &video.Encryption.Algorithm, ChunkSize: &chunkSize, EncryptionKeyVersion: &video.Encryption.KeyVersion, SharedKeyID: &sharedKeyID}).One(ctx, s.db)
+	sourceObjectKey := video.SourceObjectKey
+	if sourceObjectKey == "" {
+		sourceObjectKey = video.ObjectKey
+	}
+	progress := video.Progress
+	errorMessage := video.ErrorMessage
+	artifacts, err := marshalArtifacts(video.DashArtifacts)
 	if err != nil {
+		return domain.Video{}, err
+	}
+	dashArtifacts := types.NewJSON(json.RawMessage(artifacts))
+	row, err := models.Videos.Insert(&models.VideoSetter{ID: &videoID, OwnerID: &video.OwnerID, Status: &status, ObjectKey: &video.ObjectKey, SourceObjectKey: &sourceObjectKey, TagsCiphertext: &tags, TagsNonce: &nonce, EncryptedDataKey: &dataKey, EncryptionAlgorithm: &video.Encryption.Algorithm, ChunkSize: &chunkSize, EncryptionKeyVersion: &video.Encryption.KeyVersion, SharedKeyID: &sharedKeyID, Progress: &progress, ErrorMessage: &errorMessage, DashArtifacts: &dashArtifacts}).One(ctx, s.db)
+	if err != nil {
+		return domain.Video{}, err
+	}
+	return videoFromDB(row), nil
+}
+
+func (s *Postgres) UpdateVideo(ctx context.Context, video domain.Video) (domain.Video, error) {
+	row, err := s.GetVideoRow(ctx, video.ID)
+	if err != nil {
+		return domain.Video{}, err
+	}
+	status := string(video.Status)
+	objectKey := video.ObjectKey
+	sourceObjectKey := video.SourceObjectKey
+	progress := video.Progress
+	errorMessage := video.ErrorMessage
+	chunkSize := int32(video.Encryption.ChunkSize)
+	algorithm := video.Encryption.Algorithm
+	keyVersion := video.Encryption.KeyVersion
+	sharedKeyID, err := uuid.Parse(video.Encryption.SharedKeyID)
+	if err != nil {
+		return domain.Video{}, fmt.Errorf("parse shared key ID: %w", err)
+	}
+	nonce, err := base64.RawStdEncoding.DecodeString(video.Encryption.Nonce)
+	if err != nil {
+		return domain.Video{}, fmt.Errorf("decode encryption nonce: %w", err)
+	}
+	dataKey, err := base64.RawStdEncoding.DecodeString(video.Encryption.EncryptedDataKey)
+	if err != nil {
+		return domain.Video{}, fmt.Errorf("decode encrypted data key: %w", err)
+	}
+	artifacts, err := marshalArtifacts(video.DashArtifacts)
+	if err != nil {
+		return domain.Video{}, err
+	}
+	dashArtifacts := types.NewJSON(json.RawMessage(artifacts))
+	var rating sql.Null[int16]
+	if video.Rating != nil {
+		rating = sql.Null[int16]{V: int16(*video.Rating), Valid: true}
+	}
+	var lastPlayedAt sql.Null[time.Time]
+	if video.LastPlayedAt != nil {
+		lastPlayedAt = sql.Null[time.Time]{V: *video.LastPlayedAt, Valid: true}
+	}
+	updatedAt := video.UpdatedAt
+	if err := row.Update(ctx, s.db, &models.VideoSetter{Status: &status, ObjectKey: &objectKey, SourceObjectKey: &sourceObjectKey, TagsNonce: &nonce, EncryptedDataKey: &dataKey, EncryptionAlgorithm: &algorithm, ChunkSize: &chunkSize, EncryptionKeyVersion: &keyVersion, SharedKeyID: &sharedKeyID, PlayCount: &video.PlayCount, Rating: &rating, LastPlayedAt: &lastPlayedAt, UpdatedAt: &updatedAt, Progress: &progress, ErrorMessage: &errorMessage, DashArtifacts: &dashArtifacts}); err != nil {
 		return domain.Video{}, err
 	}
 	return videoFromDB(row), nil
@@ -244,5 +308,20 @@ func videoFromDB(row *models.Video) domain.Video {
 		lastPlayedAtValue := row.LastPlayedAt.V
 		lastPlayedAt = &lastPlayedAtValue
 	}
-	return domain.Video{ID: row.ID.String(), OwnerID: row.OwnerID, Status: domain.VideoStatus(row.Status), ObjectKey: row.ObjectKey, EncryptedTags: base64.RawStdEncoding.EncodeToString(row.TagsCiphertext), PlayCount: row.PlayCount, Rating: rating, LastPlayedAt: lastPlayedAt, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, Encryption: domain.EncryptionMetadata{Algorithm: row.EncryptionAlgorithm, ChunkSize: int(row.ChunkSize), KeyVersion: row.EncryptionKeyVersion, Nonce: base64.RawStdEncoding.EncodeToString(row.TagsNonce), EncryptedDataKey: base64.RawStdEncoding.EncodeToString(row.EncryptedDataKey), SharedKeyID: row.SharedKeyID.String()}}
+	artifacts := make(map[string]domain.DashArtifact)
+	if len(row.DashArtifacts.Val) > 0 {
+		_ = json.Unmarshal(row.DashArtifacts.Val, &artifacts)
+	}
+	return domain.Video{ID: row.ID.String(), OwnerID: row.OwnerID, Status: domain.VideoStatus(row.Status), ObjectKey: row.ObjectKey, SourceObjectKey: row.SourceObjectKey, EncryptedTags: base64.RawStdEncoding.EncodeToString(row.TagsCiphertext), PlayCount: row.PlayCount, Rating: rating, LastPlayedAt: lastPlayedAt, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, Progress: row.Progress, ErrorMessage: row.ErrorMessage, DashArtifacts: artifacts, Encryption: domain.EncryptionMetadata{Algorithm: row.EncryptionAlgorithm, ChunkSize: int(row.ChunkSize), KeyVersion: row.EncryptionKeyVersion, Nonce: base64.RawStdEncoding.EncodeToString(row.TagsNonce), EncryptedDataKey: base64.RawStdEncoding.EncodeToString(row.EncryptedDataKey), SharedKeyID: row.SharedKeyID.String()}}
+}
+
+func marshalArtifacts(artifacts map[string]domain.DashArtifact) ([]byte, error) {
+	if artifacts == nil {
+		artifacts = map[string]domain.DashArtifact{}
+	}
+	data, err := json.Marshal(artifacts)
+	if err != nil {
+		return nil, fmt.Errorf("marshal DASH artifacts: %w", err)
+	}
+	return data, nil
 }

@@ -6,6 +6,7 @@ package models
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"io"
 	"time"
@@ -20,28 +21,33 @@ import (
 	"github.com/stephenafamo/bob/expr"
 	"github.com/stephenafamo/bob/mods"
 	"github.com/stephenafamo/bob/orm"
+	"github.com/stephenafamo/bob/types"
 	"github.com/stephenafamo/bob/types/pgtypes"
 	"github.com/stephenafamo/scan"
 )
 
 // Video is an object representing the database table.
 type Video struct {
-	ID                   uuid.UUID           `db:"id,pk" `
-	OwnerID              string              `db:"owner_id" `
-	Status               string              `db:"status" `
-	ObjectKey            string              `db:"object_key" `
-	TagsCiphertext       []byte              `db:"tags_ciphertext" `
-	TagsNonce            []byte              `db:"tags_nonce" `
-	EncryptedDataKey     []byte              `db:"encrypted_data_key" `
-	EncryptionAlgorithm  string              `db:"encryption_algorithm" `
-	ChunkSize            int32               `db:"chunk_size" `
-	EncryptionKeyVersion string              `db:"encryption_key_version" `
-	SharedKeyID          uuid.UUID           `db:"shared_key_id" `
-	PlayCount            int64               `db:"play_count" `
-	Rating               sql.Null[int16]     `db:"rating" `
-	LastPlayedAt         sql.Null[time.Time] `db:"last_played_at" `
-	CreatedAt            time.Time           `db:"created_at" `
-	UpdatedAt            time.Time           `db:"updated_at" `
+	ID                   uuid.UUID                   `db:"id,pk" `
+	OwnerID              string                      `db:"owner_id" `
+	Status               string                      `db:"status" `
+	ObjectKey            string                      `db:"object_key" `
+	SourceObjectKey      string                      `db:"source_object_key" `
+	TagsCiphertext       []byte                      `db:"tags_ciphertext" `
+	TagsNonce            []byte                      `db:"tags_nonce" `
+	EncryptedDataKey     []byte                      `db:"encrypted_data_key" `
+	EncryptionAlgorithm  string                      `db:"encryption_algorithm" `
+	ChunkSize            int32                       `db:"chunk_size" `
+	EncryptionKeyVersion string                      `db:"encryption_key_version" `
+	SharedKeyID          uuid.UUID                   `db:"shared_key_id" `
+	PlayCount            int64                       `db:"play_count" `
+	Rating               sql.Null[int16]             `db:"rating" `
+	LastPlayedAt         sql.Null[time.Time]         `db:"last_played_at" `
+	CreatedAt            time.Time                   `db:"created_at" `
+	UpdatedAt            time.Time                   `db:"updated_at" `
+	Progress             float64                     `db:"progress" `
+	ErrorMessage         string                      `db:"error_message" `
+	DashArtifacts        types.JSON[json.RawMessage] `db:"dash_artifacts" `
 
 	R videoR `db:"-" `
 }
@@ -72,7 +78,7 @@ type videoRLoaded struct {
 
 func buildVideoColumns(tableName string) videoColumns {
 	columnsExpr := expr.NewColumnsExpr(
-		"id", "owner_id", "status", "object_key", "tags_ciphertext", "tags_nonce", "encrypted_data_key", "encryption_algorithm", "chunk_size", "encryption_key_version", "shared_key_id", "play_count", "rating", "last_played_at", "created_at", "updated_at",
+		"id", "owner_id", "status", "object_key", "source_object_key", "tags_ciphertext", "tags_nonce", "encrypted_data_key", "encryption_algorithm", "chunk_size", "encryption_key_version", "shared_key_id", "play_count", "rating", "last_played_at", "created_at", "updated_at", "progress", "error_message", "dash_artifacts",
 	)
 
 	if tableName != "" {
@@ -86,6 +92,7 @@ func buildVideoColumns(tableName string) videoColumns {
 		OwnerID:              buildVideoColumn(tableName, "owner_id"),
 		Status:               buildVideoColumn(tableName, "status"),
 		ObjectKey:            buildVideoColumn(tableName, "object_key"),
+		SourceObjectKey:      buildVideoColumn(tableName, "source_object_key"),
 		TagsCiphertext:       buildVideoColumn(tableName, "tags_ciphertext"),
 		TagsNonce:            buildVideoColumn(tableName, "tags_nonce"),
 		EncryptedDataKey:     buildVideoColumn(tableName, "encrypted_data_key"),
@@ -98,6 +105,9 @@ func buildVideoColumns(tableName string) videoColumns {
 		LastPlayedAt:         buildVideoColumn(tableName, "last_played_at"),
 		CreatedAt:            buildVideoColumn(tableName, "created_at"),
 		UpdatedAt:            buildVideoColumn(tableName, "updated_at"),
+		Progress:             buildVideoColumn(tableName, "progress"),
+		ErrorMessage:         buildVideoColumn(tableName, "error_message"),
+		DashArtifacts:        buildVideoColumn(tableName, "dash_artifacts"),
 	}
 }
 
@@ -108,6 +118,7 @@ type videoColumns struct {
 	OwnerID              videoColumn
 	Status               videoColumn
 	ObjectKey            videoColumn
+	SourceObjectKey      videoColumn
 	TagsCiphertext       videoColumn
 	TagsNonce            videoColumn
 	EncryptedDataKey     videoColumn
@@ -120,6 +131,9 @@ type videoColumns struct {
 	LastPlayedAt         videoColumn
 	CreatedAt            videoColumn
 	UpdatedAt            videoColumn
+	Progress             videoColumn
+	ErrorMessage         videoColumn
+	DashArtifacts        videoColumn
 }
 
 // Alias returns the current table alias for the columns set.
@@ -165,26 +179,30 @@ func (c videoColumn) ShouldOmitParens() bool {
 // All values are optional, and do not have to be set
 // Generated columns are not included
 type VideoSetter struct {
-	ID                   *uuid.UUID           `db:"id,pk" `
-	OwnerID              *string              `db:"owner_id" `
-	Status               *string              `db:"status" `
-	ObjectKey            *string              `db:"object_key" `
-	TagsCiphertext       *[]byte              `db:"tags_ciphertext" `
-	TagsNonce            *[]byte              `db:"tags_nonce" `
-	EncryptedDataKey     *[]byte              `db:"encrypted_data_key" `
-	EncryptionAlgorithm  *string              `db:"encryption_algorithm" `
-	ChunkSize            *int32               `db:"chunk_size" `
-	EncryptionKeyVersion *string              `db:"encryption_key_version" `
-	SharedKeyID          *uuid.UUID           `db:"shared_key_id" `
-	PlayCount            *int64               `db:"play_count" `
-	Rating               *sql.Null[int16]     `db:"rating" `
-	LastPlayedAt         *sql.Null[time.Time] `db:"last_played_at" `
-	CreatedAt            *time.Time           `db:"created_at" `
-	UpdatedAt            *time.Time           `db:"updated_at" `
+	ID                   *uuid.UUID                   `db:"id,pk" `
+	OwnerID              *string                      `db:"owner_id" `
+	Status               *string                      `db:"status" `
+	ObjectKey            *string                      `db:"object_key" `
+	SourceObjectKey      *string                      `db:"source_object_key" `
+	TagsCiphertext       *[]byte                      `db:"tags_ciphertext" `
+	TagsNonce            *[]byte                      `db:"tags_nonce" `
+	EncryptedDataKey     *[]byte                      `db:"encrypted_data_key" `
+	EncryptionAlgorithm  *string                      `db:"encryption_algorithm" `
+	ChunkSize            *int32                       `db:"chunk_size" `
+	EncryptionKeyVersion *string                      `db:"encryption_key_version" `
+	SharedKeyID          *uuid.UUID                   `db:"shared_key_id" `
+	PlayCount            *int64                       `db:"play_count" `
+	Rating               *sql.Null[int16]             `db:"rating" `
+	LastPlayedAt         *sql.Null[time.Time]         `db:"last_played_at" `
+	CreatedAt            *time.Time                   `db:"created_at" `
+	UpdatedAt            *time.Time                   `db:"updated_at" `
+	Progress             *float64                     `db:"progress" `
+	ErrorMessage         *string                      `db:"error_message" `
+	DashArtifacts        *types.JSON[json.RawMessage] `db:"dash_artifacts" `
 }
 
 func (s VideoSetter) SetColumns() []string {
-	vals := make([]string, 0, 16)
+	vals := make([]string, 0, 20)
 	if s.ID != nil {
 		vals = append(vals, "id")
 	}
@@ -196,6 +214,9 @@ func (s VideoSetter) SetColumns() []string {
 	}
 	if s.ObjectKey != nil {
 		vals = append(vals, "object_key")
+	}
+	if s.SourceObjectKey != nil {
+		vals = append(vals, "source_object_key")
 	}
 	if s.TagsCiphertext != nil {
 		vals = append(vals, "tags_ciphertext")
@@ -233,6 +254,15 @@ func (s VideoSetter) SetColumns() []string {
 	if s.UpdatedAt != nil {
 		vals = append(vals, "updated_at")
 	}
+	if s.Progress != nil {
+		vals = append(vals, "progress")
+	}
+	if s.ErrorMessage != nil {
+		vals = append(vals, "error_message")
+	}
+	if s.DashArtifacts != nil {
+		vals = append(vals, "dash_artifacts")
+	}
 	return vals
 }
 
@@ -267,6 +297,14 @@ func (s VideoSetter) Overwrite(t *Video) {
 				return *new(string)
 			}
 			return *s.ObjectKey
+		}()
+	}
+	if s.SourceObjectKey != nil {
+		t.SourceObjectKey = func() string {
+			if s.SourceObjectKey == nil {
+				return *new(string)
+			}
+			return *s.SourceObjectKey
 		}()
 	}
 	if s.TagsCiphertext != nil {
@@ -367,6 +405,30 @@ func (s VideoSetter) Overwrite(t *Video) {
 			return *s.UpdatedAt
 		}()
 	}
+	if s.Progress != nil {
+		t.Progress = func() float64 {
+			if s.Progress == nil {
+				return *new(float64)
+			}
+			return *s.Progress
+		}()
+	}
+	if s.ErrorMessage != nil {
+		t.ErrorMessage = func() string {
+			if s.ErrorMessage == nil {
+				return *new(string)
+			}
+			return *s.ErrorMessage
+		}()
+	}
+	if s.DashArtifacts != nil {
+		t.DashArtifacts = func() types.JSON[json.RawMessage] {
+			if s.DashArtifacts == nil {
+				return *new(types.JSON[json.RawMessage])
+			}
+			return *s.DashArtifacts
+		}()
+	}
 }
 
 func (s *VideoSetter) Apply(q *dialect.InsertQuery) {
@@ -414,6 +476,16 @@ func (s *VideoSetter) Apply(q *dialect.InsertQuery) {
 					return *new(string)
 				}
 				return *s.ObjectKey
+			}()).WriteSQL(ctx, w, d, start)
+		}), bob.ExpressionFunc(func(ctx context.Context, w io.StringWriter, d bob.Dialect, start int) ([]any, error) {
+			if s.SourceObjectKey == nil {
+				return psql.Raw("DEFAULT").WriteSQL(ctx, w, d, start)
+			}
+			return psql.Arg(func() string {
+				if s.SourceObjectKey == nil {
+					return *new(string)
+				}
+				return *s.SourceObjectKey
 			}()).WriteSQL(ctx, w, d, start)
 		}), bob.ExpressionFunc(func(ctx context.Context, w io.StringWriter, d bob.Dialect, start int) ([]any, error) {
 			if s.TagsCiphertext == nil {
@@ -537,6 +609,36 @@ func (s *VideoSetter) Apply(q *dialect.InsertQuery) {
 				}
 				return *s.UpdatedAt
 			}()).WriteSQL(ctx, w, d, start)
+		}), bob.ExpressionFunc(func(ctx context.Context, w io.StringWriter, d bob.Dialect, start int) ([]any, error) {
+			if s.Progress == nil {
+				return psql.Raw("DEFAULT").WriteSQL(ctx, w, d, start)
+			}
+			return psql.Arg(func() float64 {
+				if s.Progress == nil {
+					return *new(float64)
+				}
+				return *s.Progress
+			}()).WriteSQL(ctx, w, d, start)
+		}), bob.ExpressionFunc(func(ctx context.Context, w io.StringWriter, d bob.Dialect, start int) ([]any, error) {
+			if s.ErrorMessage == nil {
+				return psql.Raw("DEFAULT").WriteSQL(ctx, w, d, start)
+			}
+			return psql.Arg(func() string {
+				if s.ErrorMessage == nil {
+					return *new(string)
+				}
+				return *s.ErrorMessage
+			}()).WriteSQL(ctx, w, d, start)
+		}), bob.ExpressionFunc(func(ctx context.Context, w io.StringWriter, d bob.Dialect, start int) ([]any, error) {
+			if s.DashArtifacts == nil {
+				return psql.Raw("DEFAULT").WriteSQL(ctx, w, d, start)
+			}
+			return psql.Arg(func() types.JSON[json.RawMessage] {
+				if s.DashArtifacts == nil {
+					return *new(types.JSON[json.RawMessage])
+				}
+				return *s.DashArtifacts
+			}()).WriteSQL(ctx, w, d, start)
 		}))
 }
 
@@ -545,7 +647,7 @@ func (s VideoSetter) UpdateMod() bob.Mod[*dialect.UpdateQuery] {
 }
 
 func (s VideoSetter) Expressions(prefix ...string) []bob.Expression {
-	exprs := make([]bob.Expression, 0, 16)
+	exprs := make([]bob.Expression, 0, 20)
 
 	if s.ID != nil {
 		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
@@ -572,6 +674,13 @@ func (s VideoSetter) Expressions(prefix ...string) []bob.Expression {
 		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
 			psql.Quote(append(prefix, "object_key")...),
 			psql.Arg(s.ObjectKey),
+		}})
+	}
+
+	if s.SourceObjectKey != nil {
+		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
+			psql.Quote(append(prefix, "source_object_key")...),
+			psql.Arg(s.SourceObjectKey),
 		}})
 	}
 
@@ -659,6 +768,27 @@ func (s VideoSetter) Expressions(prefix ...string) []bob.Expression {
 		}})
 	}
 
+	if s.Progress != nil {
+		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
+			psql.Quote(append(prefix, "progress")...),
+			psql.Arg(s.Progress),
+		}})
+	}
+
+	if s.ErrorMessage != nil {
+		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
+			psql.Quote(append(prefix, "error_message")...),
+			psql.Arg(s.ErrorMessage),
+		}})
+	}
+
+	if s.DashArtifacts != nil {
+		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
+			psql.Quote(append(prefix, "dash_artifacts")...),
+			psql.Arg(s.DashArtifacts),
+		}})
+	}
+
 	return exprs
 }
 
@@ -669,7 +799,7 @@ func videoScanMapper(ctx context.Context, cols []string) (scan.BeforeFunc, func(
 		idx int
 		dst func(o *Video) any
 	}
-	targets := make([]target, 0, 16)
+	targets := make([]target, 0, 20)
 	for i, col := range cols {
 		switch col {
 		case "id":
@@ -680,6 +810,8 @@ func videoScanMapper(ctx context.Context, cols []string) (scan.BeforeFunc, func(
 			targets = append(targets, target{i, func(o *Video) any { return &o.Status }})
 		case "object_key":
 			targets = append(targets, target{i, func(o *Video) any { return &o.ObjectKey }})
+		case "source_object_key":
+			targets = append(targets, target{i, func(o *Video) any { return &o.SourceObjectKey }})
 		case "tags_ciphertext":
 			targets = append(targets, target{i, func(o *Video) any { return &o.TagsCiphertext }})
 		case "tags_nonce":
@@ -704,6 +836,12 @@ func videoScanMapper(ctx context.Context, cols []string) (scan.BeforeFunc, func(
 			targets = append(targets, target{i, func(o *Video) any { return &o.CreatedAt }})
 		case "updated_at":
 			targets = append(targets, target{i, func(o *Video) any { return &o.UpdatedAt }})
+		case "progress":
+			targets = append(targets, target{i, func(o *Video) any { return &o.Progress }})
+		case "error_message":
+			targets = append(targets, target{i, func(o *Video) any { return &o.ErrorMessage }})
+		case "dash_artifacts":
+			targets = append(targets, target{i, func(o *Video) any { return &o.DashArtifacts }})
 		}
 	}
 
@@ -1065,6 +1203,7 @@ type videoWhere[Q psql.Filterable] struct {
 	OwnerID              psql.WhereMod[Q, string]
 	Status               psql.WhereMod[Q, string]
 	ObjectKey            psql.WhereMod[Q, string]
+	SourceObjectKey      psql.WhereMod[Q, string]
 	TagsCiphertext       psql.WhereMod[Q, []byte]
 	TagsNonce            psql.WhereMod[Q, []byte]
 	EncryptedDataKey     psql.WhereMod[Q, []byte]
@@ -1077,6 +1216,9 @@ type videoWhere[Q psql.Filterable] struct {
 	LastPlayedAt         psql.WhereNullMod[Q, time.Time]
 	CreatedAt            psql.WhereMod[Q, time.Time]
 	UpdatedAt            psql.WhereMod[Q, time.Time]
+	Progress             psql.WhereMod[Q, float64]
+	ErrorMessage         psql.WhereMod[Q, string]
+	DashArtifacts        psql.WhereMod[Q, types.JSON[json.RawMessage]]
 	R                    videoWhereR[Q]
 }
 
@@ -1091,6 +1233,7 @@ func buildVideoWhere[Q psql.Filterable](cols videoColumns) videoWhere[Q] {
 		OwnerID:              psql.Where[Q, string](cols.OwnerID.Expression),
 		Status:               psql.Where[Q, string](cols.Status.Expression),
 		ObjectKey:            psql.Where[Q, string](cols.ObjectKey.Expression),
+		SourceObjectKey:      psql.Where[Q, string](cols.SourceObjectKey.Expression),
 		TagsCiphertext:       psql.Where[Q, []byte](cols.TagsCiphertext.Expression),
 		TagsNonce:            psql.Where[Q, []byte](cols.TagsNonce.Expression),
 		EncryptedDataKey:     psql.Where[Q, []byte](cols.EncryptedDataKey.Expression),
@@ -1103,6 +1246,9 @@ func buildVideoWhere[Q psql.Filterable](cols videoColumns) videoWhere[Q] {
 		LastPlayedAt:         psql.WhereNull[Q, time.Time](cols.LastPlayedAt.Expression),
 		CreatedAt:            psql.Where[Q, time.Time](cols.CreatedAt.Expression),
 		UpdatedAt:            psql.Where[Q, time.Time](cols.UpdatedAt.Expression),
+		Progress:             psql.Where[Q, float64](cols.Progress.Expression),
+		ErrorMessage:         psql.Where[Q, string](cols.ErrorMessage.Expression),
+		DashArtifacts:        psql.Where[Q, types.JSON[json.RawMessage]](cols.DashArtifacts.Expression),
 		R:                    videoWhereR[Q]{cols: cols},
 	}
 }

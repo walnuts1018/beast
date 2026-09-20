@@ -31,6 +31,11 @@ type EncryptionMetadata struct {
 	SharedKeyID      string
 }
 
+type DashArtifact struct {
+	ObjectKey  string
+	Encryption EncryptionMetadata
+}
+
 func (v *Video) TransitionStatus(next VideoStatus) error {
 	valid := map[VideoStatus]bool{VideoStatusUploaded: true, VideoStatusEncoding: true, VideoStatusReady: true, VideoStatusFailed: true}
 	if !valid[next] {
@@ -51,17 +56,21 @@ func (v *Video) TransitionStatus(next VideoStatus) error {
 }
 
 type Video struct {
-	ID            string
-	OwnerID       string
-	Status        VideoStatus
-	ObjectKey     string
-	EncryptedTags string
-	PlayCount     int64
-	Rating        *int
-	LastPlayedAt  *time.Time
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
-	Encryption    EncryptionMetadata
+	ID              string
+	OwnerID         string
+	Status          VideoStatus
+	ObjectKey       string
+	SourceObjectKey string
+	EncryptedTags   string
+	PlayCount       int64
+	Rating          *int
+	LastPlayedAt    *time.Time
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+	Encryption      EncryptionMetadata
+	Progress        float64
+	ErrorMessage    string
+	DashArtifacts   map[string]DashArtifact
 }
 
 func NewVideo(ownerID, encryptedTags, objectKey string, encryption EncryptionMetadata) (Video, error) {
@@ -70,15 +79,26 @@ func NewVideo(ownerID, encryptedTags, objectKey string, encryption EncryptionMet
 	}
 	now := time.Now().UTC()
 	return Video{
-		ID:            uuid.New().String(),
-		OwnerID:       ownerID,
-		Status:        VideoStatusUploaded,
-		ObjectKey:     objectKey,
-		EncryptedTags: encryptedTags,
-		CreatedAt:     now,
-		UpdatedAt:     now,
-		Encryption:    encryption,
+		ID:              uuid.New().String(),
+		OwnerID:         ownerID,
+		Status:          VideoStatusUploaded,
+		ObjectKey:       objectKey,
+		SourceObjectKey: objectKey,
+		EncryptedTags:   encryptedTags,
+		CreatedAt:       now,
+		UpdatedAt:       now,
+		Encryption:      encryption,
+		DashArtifacts:   make(map[string]DashArtifact),
 	}, nil
+}
+
+func (v *Video) SetProgress(progress float64) error {
+	if progress < 0 || progress > 1 {
+		return errors.New("progress must be between 0 and 1")
+	}
+	v.Progress = progress
+	v.UpdatedAt = time.Now().UTC()
+	return nil
 }
 
 func (v *Video) SetRating(rating *int) error {

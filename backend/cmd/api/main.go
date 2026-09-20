@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json/v2"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -14,6 +15,7 @@ import (
 	"github.com/labstack/echo/v5"
 	"github.com/labstack/echo/v5/middleware"
 
+	"github.com/walnuts1018/beast/backend/internal/encoding"
 	"github.com/walnuts1018/beast/backend/internal/httpapi"
 	"github.com/walnuts1018/beast/backend/internal/media"
 	"github.com/walnuts1018/beast/backend/internal/store"
@@ -79,16 +81,35 @@ func main() {
 	var mediaStore media.ObjectStore
 	var err error
 	if environment == "production" || os.Getenv("OBJECT_STORAGE") == "s3" {
-		mediaStore, err = media.NewS3Store(context.Background(), os.Getenv("S3_ENDPOINT"), envOr("S3_REGION", "us-east-1"), os.Getenv("S3_BUCKET"), firstNonEmptyEnv("S3_ACCESS_KEY_ID", "AWS_ACCESS_KEY_ID", "S3_ACCESS_KEY"), firstNonEmptyEnv("S3_SECRET_ACCESS_KEY", "AWS_SECRET_ACCESS_KEY", "S3_SECRET_KEY"))
+		mediaStore, err = media.NewS3Store(context.Background(), os.Getenv("S3_ENDPOINT"), envOr("S3_REGION", "us-east-1"), os.Getenv("S3_BUCKET"), firstNonEmptyEnv("S3_ACCESS_KEY_ID", "AWS_ACCESS_KEY_ID", "S3_ACCESS_KEY"), firstNonEmptyEnv("S3_SECRET_ACCESS_KEY", "AWS_SECRET_ACCESS_KEY", "S3_SECRET_KEY"), os.Getenv("STAGING_ENCRYPTION_KEY"))
 		if err == nil {
 			err = mediaStore.(*media.S3Store).Check(context.Background())
 		}
 	} else {
-		mediaStore, err = media.NewLocalStore(envOr("MEDIA_DIR", ".beast-data/media"))
+		mediaStore, err = media.NewLocalStore(envOr("MEDIA_DIR", ".beast-data/media"), os.Getenv("STAGING_ENCRYPTION_KEY"))
 	}
 	if err != nil {
 		logger.Error("media storage initialization failed", "error", err)
 		os.Exit(1)
+	}
+	var rabbit *encoding.RabbitMQ
+	var deliveries <-chan encoding.Delivery
+	if rabbitURL := os.Getenv("RABBITMQ_URL"); rabbitURL != "" {
+		rabbit, deliveries, err = encoding.NewRabbitMQ(rabbitURL, envOr("RABBITMQ_ENCODE_JOB_QUEUE", "beast.encoder.jobs"), envOr("RABBITMQ_ENCODE_EVENT_QUEUE", "beast.encoder.events"), envOr("RABBITMQ_CONSUMER_TAG", "beast-api"))
+		if err != nil {
+			logger.Error("encoder queue initialization failed", "error", err)
+			os.Exit(1)
+		}
+		defer func() {
+			if closeErr := rabbit.Close(); closeErr != nil {
+				logger.Error("encoder queue close failed", "error", closeErr)
+			}
+		}()
+	} else if environment == "production" {
+		logger.Error("RABBITMQ_URL is required in production")
+		os.Exit(1)
+	} else {
+		logger.Warn("RABBITMQ_URL is not set; video encoding is unavailable")
 	}
 	auth := httpapi.Authenticator{
 		Mode:          authMode,
@@ -102,14 +123,18 @@ func main() {
 	e := echo.New()
 	e.Use(middleware.RequestLogger())
 	e.Use(middleware.Recover())
-	(&httpapi.Server{Videos: videoStore, Media: mediaStore}).Register(e, auth, environment != "production")
+	server := &httpapi.Server{Videos: videoStore, Media: mediaStore, Jobs: rabbit}
+	server.Register(e, auth, environment != "production")
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+	if rabbit != nil {
+		go consumeEncodingEvents(ctx, server, deliveries, logger)
+	}
 
 	serverErrors := make(chan error, 1)
 	httpServer := &http.Server{Addr: envOr("HTTP_ADDR", ":8080"), Handler: e}
 	go func() { serverErrors <- httpServer.ListenAndServe() }()
 
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer stop()
 	select {
 	case err := <-serverErrors:
 		if err != nil && !errors.Is(err, http.ErrServerClosed) {
@@ -122,6 +147,35 @@ func main() {
 		if err := httpServer.Shutdown(shutdownCtx); err != nil {
 			logger.Error("http server shutdown failed", "error", err)
 			os.Exit(1)
+		}
+	}
+}
+
+func consumeEncodingEvents(ctx context.Context, server *httpapi.Server, deliveries <-chan encoding.Delivery, logger *slog.Logger) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case delivery, ok := <-deliveries:
+			if !ok {
+				logger.Error("encoder event queue closed")
+				return
+			}
+			var event encoding.Event
+			if err := json.Unmarshal(delivery.Body(), &event); err != nil {
+				logger.Error("decode encoder event failed", "error", err)
+				_ = delivery.Nack(false)
+				continue
+			}
+			if err := server.HandleEncodingEvent(ctx, event); err != nil {
+				logger.Error("apply encoder event failed", "video_id", event.VideoID, "error", err)
+				_ = delivery.Nack(true)
+				continue
+			}
+			if err := delivery.Ack(); err != nil {
+				logger.Error("ack encoder event failed", "error", err)
+				return
+			}
 		}
 	}
 }

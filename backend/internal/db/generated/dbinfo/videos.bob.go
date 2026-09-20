@@ -51,6 +51,15 @@ var Videos = Table[
 			Generated: false,
 			AutoIncr:  false,
 		},
+		SourceObjectKey: column{
+			Name:      "source_object_key",
+			DBType:    "text",
+			Default:   "''::text",
+			Comment:   "",
+			Nullable:  false,
+			Generated: false,
+			AutoIncr:  false,
+		},
 		TagsCiphertext: column{
 			Name:      "tags_ciphertext",
 			DBType:    "bytea",
@@ -159,6 +168,33 @@ var Videos = Table[
 			Generated: false,
 			AutoIncr:  false,
 		},
+		Progress: column{
+			Name:      "progress",
+			DBType:    "double precision",
+			Default:   "0",
+			Comment:   "",
+			Nullable:  false,
+			Generated: false,
+			AutoIncr:  false,
+		},
+		ErrorMessage: column{
+			Name:      "error_message",
+			DBType:    "text",
+			Default:   "''::text",
+			Comment:   "",
+			Nullable:  false,
+			Generated: false,
+			AutoIncr:  false,
+		},
+		DashArtifacts: column{
+			Name:      "dash_artifacts",
+			DBType:    "jsonb",
+			Default:   "'{}'::jsonb",
+			Comment:   "",
+			Nullable:  false,
+			Generated: false,
+			AutoIncr:  false,
+		},
 	},
 	Indexes: videoIndexes{
 		VideosPkey: index{
@@ -257,6 +293,14 @@ var Videos = Table[
 			},
 			Expression: "(play_count >= 0)",
 		},
+		VideosProgressCheck: check{
+			constraint: constraint{
+				Name:    "videos_progress_check",
+				Columns: []string{"progress"},
+				Comment: "",
+			},
+			Expression: "((progress >= (0)::double precision) AND (progress <= (1)::double precision))",
+		},
 		VideosRatingCheck: check{
 			constraint: constraint{
 				Name:    "videos_rating_check",
@@ -282,6 +326,7 @@ type videoColumns struct {
 	OwnerID              column
 	Status               column
 	ObjectKey            column
+	SourceObjectKey      column
 	TagsCiphertext       column
 	TagsNonce            column
 	EncryptedDataKey     column
@@ -294,11 +339,14 @@ type videoColumns struct {
 	LastPlayedAt         column
 	CreatedAt            column
 	UpdatedAt            column
+	Progress             column
+	ErrorMessage         column
+	DashArtifacts        column
 }
 
 func (c videoColumns) AsSlice() []column {
 	return []column{
-		c.ID, c.OwnerID, c.Status, c.ObjectKey, c.TagsCiphertext, c.TagsNonce, c.EncryptedDataKey, c.EncryptionAlgorithm, c.ChunkSize, c.EncryptionKeyVersion, c.SharedKeyID, c.PlayCount, c.Rating, c.LastPlayedAt, c.CreatedAt, c.UpdatedAt,
+		c.ID, c.OwnerID, c.Status, c.ObjectKey, c.SourceObjectKey, c.TagsCiphertext, c.TagsNonce, c.EncryptedDataKey, c.EncryptionAlgorithm, c.ChunkSize, c.EncryptionKeyVersion, c.SharedKeyID, c.PlayCount, c.Rating, c.LastPlayedAt, c.CreatedAt, c.UpdatedAt, c.Progress, c.ErrorMessage, c.DashArtifacts,
 	}
 }
 
@@ -333,12 +381,13 @@ func (u videoUniques) AsSlice() []constraint {
 type videoChecks struct {
 	VideosChunkSizeCheck check
 	VideosPlayCountCheck check
+	VideosProgressCheck  check
 	VideosRatingCheck    check
 	VideosStatusCheck    check
 }
 
 func (c videoChecks) AsSlice() []check {
 	return []check{
-		c.VideosChunkSizeCheck, c.VideosPlayCountCheck, c.VideosRatingCheck, c.VideosStatusCheck,
+		c.VideosChunkSizeCheck, c.VideosPlayCountCheck, c.VideosProgressCheck, c.VideosRatingCheck, c.VideosStatusCheck,
 	}
 }

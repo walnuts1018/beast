@@ -13,6 +13,7 @@ import (
 
 	"github.com/walnuts1018/beast/encoder/internal/config"
 	"github.com/walnuts1018/beast/encoder/internal/queue"
+	"github.com/walnuts1018/beast/encoder/internal/storage"
 	"github.com/walnuts1018/beast/encoder/internal/worker"
 )
 
@@ -38,9 +39,16 @@ func run() error {
 		ReencodeOnCopyFailure: cfg.ReencodeOnCopyFailure,
 		Logger:                logger,
 	}
+	objectStore, err := storage.NewS3(ctx, cfg.S3Endpoint, cfg.S3Region, cfg.S3Bucket, cfg.S3AccessKey, cfg.S3SecretKey, cfg.StagingEncryptionKey)
+	if err != nil {
+		return err
+	}
+	if err := objectStore.Check(ctx); err != nil {
+		return err
+	}
 
 	if cfg.JobInput == "stdin" {
-		return runStdin(ctx, cfg, runner, logger)
+		return runStdin(ctx, cfg, runner, objectStore, logger)
 	}
 	client, deliveries, err := queue.New(cfg.RabbitMQURL, cfg.JobQueue, cfg.EventQueue, cfg.ConsumerTag)
 	if err != nil {
@@ -51,7 +59,7 @@ func run() error {
 			logger.Error("close RabbitMQ failed", "error", closeErr)
 		}
 	}()
-	processor := &worker.Processor{Runner: runner, OutputRoot: cfg.OutputRoot, Emit: client.Publish}
+	processor := &worker.Processor{Runner: runner, Store: objectStore, OutputRoot: cfg.OutputRoot, Emit: client.Publish}
 	logger.Info("encoder worker started", "job_queue", cfg.JobQueue, "event_queue", cfg.EventQueue)
 	for {
 		select {
@@ -69,6 +77,10 @@ func run() error {
 			}
 			if err := processor.Process(ctx, job); err != nil {
 				logger.Error("encoder job failed", "video_id", job.VideoID, "error", err)
+				if err := delivery.Nack(false, true); err != nil {
+					return fmt.Errorf("requeue encoder job: %w", err)
+				}
+				continue
 			}
 			if err := delivery.Ack(false); err != nil {
 				return fmt.Errorf("ack encoder job: %w", err)
@@ -77,7 +89,7 @@ func run() error {
 	}
 }
 
-func runStdin(ctx context.Context, cfg config.Config, runner *worker.FFmpegRunner, logger *slog.Logger) error {
+func runStdin(ctx context.Context, cfg config.Config, runner *worker.FFmpegRunner, objectStore *storage.S3, logger *slog.Logger) error {
 	var events []worker.Event
 	emit := func(_ context.Context, event worker.Event) error {
 		events = append(events, event)
@@ -89,7 +101,7 @@ func runStdin(ctx context.Context, cfg config.Config, runner *worker.FFmpegRunne
 		_, err = os.Stdout.Write(body)
 		return err
 	}
-	processor := &worker.Processor{Runner: runner, OutputRoot: cfg.OutputRoot, Emit: emit}
+	processor := &worker.Processor{Runner: runner, Store: objectStore, OutputRoot: cfg.OutputRoot, Emit: emit}
 	scanner := bufio.NewScanner(os.Stdin)
 	scanner.Buffer(make([]byte, 1024), 1024*1024)
 	for scanner.Scan() {

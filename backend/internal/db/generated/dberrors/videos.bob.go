@@ -25,6 +25,13 @@ var VideoErrors = &videoErrors{
 		s:       "videos_play_count_check",
 	},
 
+	ErrCheckVideosProgressCheck: &CheckConstraintError{
+		schema:  "",
+		table:   "videos",
+		columns: []string{"progress"},
+		s:       "videos_progress_check",
+	},
+
 	ErrCheckVideosRatingCheck: &CheckConstraintError{
 		schema:  "",
 		table:   "videos",
@@ -46,6 +53,8 @@ type videoErrors struct {
 	ErrCheckVideosChunkSizeCheck *CheckConstraintError
 
 	ErrCheckVideosPlayCountCheck *CheckConstraintError
+
+	ErrCheckVideosProgressCheck *CheckConstraintError
 
 	ErrCheckVideosRatingCheck *CheckConstraintError
 

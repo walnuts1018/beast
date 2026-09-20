@@ -24,9 +24,9 @@ func TestJobValidate(t *testing.T) {
 		job  Job
 		want bool
 	}{
-		{name: "valid", job: Job{VideoID: "video-1", InputPath: "/tmp/input.mp4"}, want: true},
-		{name: "missing id", job: Job{InputPath: "/tmp/input.mp4"}},
-		{name: "missing input", job: Job{VideoID: "video-1"}},
+		{name: "valid", job: Job{ContractVersion: ContractVersion, VideoID: "video-1", OwnerID: "owner-1", SourceObjectKey: "staging/source", OutputPrefix: "videos/video-1/dash", PublicKey: "public-key", SharedKeyID: "shared-key", KeyVersion: "1"}, want: true},
+		{name: "missing id", job: Job{ContractVersion: ContractVersion, OwnerID: "owner-1", SourceObjectKey: "staging/source", OutputPrefix: "videos/video-1/dash", PublicKey: "public-key", SharedKeyID: "shared-key", KeyVersion: "1"}},
+		{name: "missing source", job: Job{ContractVersion: ContractVersion, VideoID: "video-1", OwnerID: "owner-1", OutputPrefix: "videos/video-1/dash", PublicKey: "public-key", SharedKeyID: "shared-key", KeyVersion: "1"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

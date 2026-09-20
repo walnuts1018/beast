@@ -52,7 +52,7 @@ func (m *Memory) SharedKey(_ context.Context, ownerID, id string) (SharedKey, er
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	key, ok := m.sharedKeys[id]
-	if !ok || key.OwnerID != ownerID {
+	if !ok || key.OwnerID != ownerID || key.Status != "active" {
 		return SharedKey{}, domain.ErrVideoNotFound
 	}
 	return key, nil
@@ -74,7 +74,7 @@ func (m *Memory) RegisterDeviceKey(_ context.Context, key DeviceKey) (DeviceKey,
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	sharedKey, ok := m.sharedKeys[key.SharedKeyID]
-	if !ok || sharedKey.OwnerID != key.OwnerID {
+	if !ok || sharedKey.OwnerID != key.OwnerID || sharedKey.Status != "active" {
 		return DeviceKey{}, domain.ErrVideoNotFound
 	}
 	m.deviceKeys[key.ID] = key
@@ -96,7 +96,8 @@ func (m *Memory) ListDeviceKeys(_ context.Context, ownerID string) ([]DeviceKey,
 func (m *Memory) CreateVideo(_ context.Context, video domain.Video) (domain.Video, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if _, ok := m.sharedKeys[video.Encryption.SharedKeyID]; !ok {
+	sharedKey, ok := m.sharedKeys[video.Encryption.SharedKeyID]
+	if !ok || sharedKey.OwnerID != video.OwnerID {
 		return domain.Video{}, errors.New("shared key is not registered")
 	}
 	m.videos[video.ID] = video
@@ -134,6 +135,20 @@ func (m *Memory) GetVideoByObjectKey(_ context.Context, ownerID, objectKey strin
 		}
 	}
 	return domain.Video{}, domain.ErrVideoNotFound
+}
+
+func (m *Memory) UpdateVideo(_ context.Context, video domain.Video) (domain.Video, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	current, ok := m.videos[video.ID]
+	if !ok || current.OwnerID != video.OwnerID {
+		return domain.Video{}, domain.ErrVideoNotFound
+	}
+	if video.DashArtifacts == nil {
+		video.DashArtifacts = current.DashArtifacts
+	}
+	m.videos[video.ID] = video
+	return video, nil
 }
 
 func (m *Memory) RecordPlayback(_ context.Context, ownerID, id string) (domain.Video, error) {

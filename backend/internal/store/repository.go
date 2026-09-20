@@ -16,6 +16,7 @@ type Repository interface {
 	ListVideos(context.Context, string) ([]domain.Video, error)
 	GetVideo(context.Context, string, string) (domain.Video, error)
 	GetVideoByObjectKey(context.Context, string, string) (domain.Video, error)
+	UpdateVideo(context.Context, domain.Video) (domain.Video, error)
 	RecordPlayback(context.Context, string, string) (domain.Video, error)
 	SetRating(context.Context, string, string, *int) (domain.Video, error)
 }

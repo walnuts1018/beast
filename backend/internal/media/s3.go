@@ -14,13 +14,18 @@ import (
 )
 
 type S3Store struct {
-	client *s3.Client
-	bucket string
+	client     *s3.Client
+	bucket     string
+	stagingKey []byte
 }
 
-func NewS3Store(ctx context.Context, endpoint, region, bucket, accessKey, secretKey string) (*S3Store, error) {
-	if endpoint == "" || region == "" || bucket == "" || accessKey == "" || secretKey == "" {
-		return nil, fmt.Errorf("S3 endpoint, region, bucket, access key, and secret key are required")
+func NewS3Store(ctx context.Context, endpoint, region, bucket, accessKey, secretKey, stagingKey string) (*S3Store, error) {
+	if endpoint == "" || region == "" || bucket == "" || accessKey == "" || secretKey == "" || stagingKey == "" {
+		return nil, fmt.Errorf("S3 endpoint, region, bucket, access key, secret key, and staging encryption key are required")
+	}
+	parsedStagingKey, err := crypto.ParseStagingKey(stagingKey)
+	if err != nil {
+		return nil, err
 	}
 	awsConfig, err := config.LoadDefaultConfig(ctx, config.WithRegion(region), config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(accessKey, secretKey, "")))
 	if err != nil {
@@ -30,7 +35,7 @@ func NewS3Store(ctx context.Context, endpoint, region, bucket, accessKey, secret
 		options.BaseEndpoint = aws.String(endpoint)
 		options.UsePathStyle = true
 	})
-	return &S3Store{client: client, bucket: bucket}, nil
+	return &S3Store{client: client, bucket: bucket, stagingKey: parsedStagingKey}, nil
 }
 
 func (s *S3Store) Save(ctx context.Context, objectKey string, src io.Reader, publicKey string) (crypto.Result, error) {
@@ -76,3 +81,38 @@ func (s *S3Store) Check(ctx context.Context) error {
 }
 
 var _ ObjectStore = (*S3Store)(nil)
+var _ SourceStore = (*S3Store)(nil)
+
+func (s *S3Store) SaveSource(ctx context.Context, objectKey string, src io.Reader) error {
+	temporary, err := os.CreateTemp("", "beast-staging-")
+	if err != nil {
+		return fmt.Errorf("create temporary staging object: %w", err)
+	}
+	path := temporary.Name()
+	defer func() { _ = os.Remove(path) }()
+	if err := crypto.EncryptStagingTo(temporary, src, s.stagingKey); err != nil {
+		_ = temporary.Close()
+		return err
+	}
+	if err := temporary.Close(); err != nil {
+		return fmt.Errorf("close temporary staging object: %w", err)
+	}
+	file, err := os.Open(path)
+	if err != nil {
+		return fmt.Errorf("open temporary staging object: %w", err)
+	}
+	defer func() { _ = file.Close() }()
+	_, err = s.client.PutObject(ctx, &s3.PutObjectInput{Bucket: aws.String(s.bucket), Key: aws.String(objectKey), Body: file, ContentType: aws.String("application/octet-stream")})
+	if err != nil {
+		return fmt.Errorf("put source object: %w", err)
+	}
+	return nil
+}
+
+func (s *S3Store) Delete(ctx context.Context, objectKey string) error {
+	_, err := s.client.DeleteObject(ctx, &s3.DeleteObjectInput{Bucket: aws.String(s.bucket), Key: aws.String(objectKey)})
+	if err != nil {
+		return fmt.Errorf("delete source object: %w", err)
+	}
+	return nil
+}

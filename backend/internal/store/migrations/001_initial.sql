@@ -23,8 +23,9 @@ CREATE TABLE IF NOT EXISTS device_keys (
 CREATE TABLE IF NOT EXISTS videos (
     id uuid PRIMARY KEY,
     owner_id text NOT NULL,
-    status text NOT NULL CHECK (status IN ('UPLOADED', 'ENCODING', 'READY', 'FAILED')),
-    object_key text NOT NULL,
+	status text NOT NULL CHECK (status IN ('UPLOADED', 'ENCODING', 'READY', 'FAILED')),
+	object_key text NOT NULL,
+	source_object_key text NOT NULL DEFAULT '',
     tags_ciphertext bytea NOT NULL,
     tags_nonce bytea NOT NULL,
     encrypted_data_key bytea NOT NULL,
@@ -36,10 +37,17 @@ CREATE TABLE IF NOT EXISTS videos (
     rating smallint CHECK (rating IS NULL OR rating BETWEEN 1 AND 5),
     last_played_at timestamptz,
     created_at timestamptz NOT NULL DEFAULT now(),
-    updated_at timestamptz NOT NULL DEFAULT now()
+	updated_at timestamptz NOT NULL DEFAULT now(),
+	progress double precision NOT NULL DEFAULT 0 CHECK (progress BETWEEN 0 AND 1),
+	error_message text NOT NULL DEFAULT '',
+	dash_artifacts jsonb NOT NULL DEFAULT '{}'::jsonb
 );
 
 ALTER TABLE videos ADD COLUMN IF NOT EXISTS chunk_size integer NOT NULL DEFAULT 1048576;
+ALTER TABLE videos ADD COLUMN IF NOT EXISTS source_object_key text NOT NULL DEFAULT '';
+ALTER TABLE videos ADD COLUMN IF NOT EXISTS progress double precision NOT NULL DEFAULT 0;
+ALTER TABLE videos ADD COLUMN IF NOT EXISTS error_message text NOT NULL DEFAULT '';
+ALTER TABLE videos ADD COLUMN IF NOT EXISTS dash_artifacts jsonb NOT NULL DEFAULT '{}'::jsonb;
 
 CREATE INDEX IF NOT EXISTS videos_owner_created_at_idx ON videos (owner_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS videos_owner_rating_idx ON videos (owner_id, rating DESC NULLS LAST);

@@ -12,10 +12,7 @@ func videoModel(video domain.Video) *model.Video {
 	if video.LastPlayedAt != nil {
 		lastPlayedAt = video.LastPlayedAt
 	}
-	progress := 0.0
-	if video.Status == domain.VideoStatusReady {
-		progress = 1
-	}
+	progress := video.Progress
 	return &model.Video{
 		ID: video.ID, Status: model.VideoStatus(video.Status), EncryptedTags: video.EncryptedTags,
 		PlayCount: int(video.PlayCount), Rating: video.Rating, LastPlayedAt: lastPlayedAt,
