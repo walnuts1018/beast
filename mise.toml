@@ -24,7 +24,7 @@ run = "go vet ./..."
 [tasks.backend-lint]
 description = "バックエンドの静的解析を実行"
 dir = "backend"
-run = "go tool golangci-lint run"
+run = "go tool -modfile=tools.mod golangci-lint run"
 
 [tasks.encoder-test]
 description = "エンコーダーのテストを実行"
