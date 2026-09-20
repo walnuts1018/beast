@@ -80,7 +80,7 @@
 ### API Server
 
 - GraphQL Serverを実装します。
-- 実装には、Go 1.26を使用します。
+- 実装には、Go 1.27を使用します。
 - DBアクセスには、Piccaと同じBob v0.50.0のコード生成を用い、sqlcは使用しません。
 - HTTP Serverには、echo/v5を用います。
 - GraphQL Serverには、99designs/gqlgen v0.17を用います。
