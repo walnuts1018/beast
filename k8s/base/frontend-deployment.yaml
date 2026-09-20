@@ -26,6 +26,7 @@ spec:
         runAsNonRoot: true
         runAsUser: 101
         runAsGroup: 101
+        fsGroup: 101
       containers:
         - name: frontend
           image: ghcr.io/walnuts1018/beast/frontend:latest

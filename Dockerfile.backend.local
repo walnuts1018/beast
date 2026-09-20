@@ -8,4 +8,4 @@ RUN cd backend && go mod download
 COPY backend ./backend
 
 EXPOSE 8080
-CMD ["go", "run", "."]
+CMD ["go", "run", "./backend/cmd/api"]

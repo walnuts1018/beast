@@ -43,7 +43,7 @@ spec:
               kubernetes.io/metadata.name: beast
         - namespaceSelector:
             matchLabels:
-              kubernetes.io/metadata.name: ingress-nginx
+              kubernetes.io/metadata.name: envoy-gateway-system
       ports:
         - protocol: TCP
           port: 8080
@@ -65,7 +65,7 @@ spec:
               kubernetes.io/metadata.name: beast-data
         - namespaceSelector:
             matchLabels:
-              kubernetes.io/metadata.name: postgres
+              kubernetes.io/metadata.name: databases
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: rabbitmq
@@ -103,7 +103,7 @@ spec:
               kubernetes.io/metadata.name: beast-data
         - namespaceSelector:
             matchLabels:
-              kubernetes.io/metadata.name: postgres
+              kubernetes.io/metadata.name: databases
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: rabbitmq
@@ -139,7 +139,7 @@ spec:
               kubernetes.io/metadata.name: beast
         - namespaceSelector:
             matchLabels:
-              kubernetes.io/metadata.name: ingress-nginx
+              kubernetes.io/metadata.name: envoy-gateway-system
       ports:
         - protocol: TCP
           port: 8080

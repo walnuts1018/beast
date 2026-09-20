@@ -3,17 +3,16 @@ kind: Kustomization
 resources:
   - ../../base
   - external-secrets.yaml
-  - ingress.yaml
+  - http-route.yaml
 configMapGenerator:
   - name: beast-config
     namespace: beast
     behavior: merge
     literals:
-      - AUTH_MODE=introspection
       - OIDC_INTROSPECTION_URL=https://auth.walnuts.dev/oauth/v2/introspect
-      - POSTGRES_HOST=postgresql-rw.postgres.svc.cluster.local
+      - POSTGRES_HOST=postgresql-default-rw.databases.svc.cluster.local
       - POSTGRES_SSLMODE=verify-full
-      - S3_ENDPOINT=https://s3.walnuts.dev
-      - AWS_ENDPOINT_URL=https://s3.walnuts.dev
+      - S3_ENDPOINT=http://seaweedfs-default-filer.seaweedfs.svc.cluster.local:8333
+      - AWS_ENDPOINT_URL=http://seaweedfs-default-filer.seaweedfs.svc.cluster.local:8333
 patches:
   - path: image-pull-policy.yaml

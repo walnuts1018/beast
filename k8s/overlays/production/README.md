@@ -1,12 +1,14 @@
 # 本番overlay
 
-このoverlayはアプリケーションだけを配置し、PostgreSQL、RabbitMQ、SeaweedFSは既存のクラスタサービスを利用します。Secretの値はリポジトリに保存せず、External Secrets Operatorの`beast-cluster-secret-store`から`beast-runtime`へ同期します。
+このoverlayはアプリケーションだけを配置し、PostgreSQL、RabbitMQ、SeaweedFSはkurumiの既存サービスを利用します。Secretの値はリポジトリに保存せず、既存のExternal Secrets Operatorの`onepassword`から`beast-runtime`へ同期します。
 
-適用前に、External Secrets Operatorの`ClusterSecretStore`と次のリモートSecretを用意してください。
+適用前に、kurumiのOnePassword vault `kurumi`にitem `beast`を作成し、次のfieldを用意してください。`onepassword` ClusterSecretStoreはinfraリポジトリで既にReadyであることを実測済みです。
 
-- `beast/postgres`: `username`、`password`、`database`
-- `beast/rabbitmq`: `url`
-- `beast/seaweedfs`: `accessKey`、`secretKey`
-- `beast/oidc`: `clientId`、`clientSecret`
+- `database_url`、`database_user`、`database_password`、`database_name`
+- `rabbitmq_url`
+- `s3_access_key_id`、`s3_secret_access_key`
+- `oidc_client_id`、`oidc_client_secret`
 
-クラスタ内サービス名やS3エンドポイントが異なる場合は、`kustomization.yaml`の`configMapGenerator`を環境固有のoverlayから上書きしてください。`beast.walnuts.dev`のDNS、Ingress Controller、`letsencrypt-prod`のIssuerも事前に必要です。
+実測した接続先は`postgresql-default-rw.databases.svc.cluster.local`、`default.rabbitmq.svc.cluster.local`、`seaweedfs-default-filer.seaweedfs.svc.cluster.local:8333`です。`beast.walnuts.dev`はHTTPRouteによりEnvoy Gatewayへ公開し、既存のwildcard証明書を利用します。DNS反映は既存のExternalDNS構成に依存します。
+
+現時点でkurumiには`beast` namespaceとOnePasswordの`beast` itemは存在しないため、このitem作成とnamespaceを含む本overlayの適用が初回セットアップです。`beast-cluster-secret-store`や`s3.walnuts.dev`は参照していません。
