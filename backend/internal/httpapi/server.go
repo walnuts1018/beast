@@ -12,15 +12,13 @@ import (
 
 	"github.com/walnuts1018/beast/backend/graph"
 	"github.com/walnuts1018/beast/backend/internal/domain"
-	"github.com/walnuts1018/beast/backend/internal/encoding"
 	"github.com/walnuts1018/beast/backend/internal/media"
 	"github.com/walnuts1018/beast/backend/internal/store"
 )
 
 type Server struct {
-	Videos   store.Repository
-	Media    media.ObjectStore
-	Encoding encoding.Publisher
+	Videos store.Repository
+	Media  media.ObjectStore
 }
 
 func (s *Server) Register(e *echo.Echo, auth Authenticator, playgroundEnabled bool) {
@@ -76,11 +74,6 @@ func (s *Server) upload(c *echo.Context) error {
 	video, err = s.Videos.CreateVideo(request.Context(), video)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "save video").Wrap(err)
-	}
-	if s.Encoding != nil {
-		if err := s.Encoding.Publish(request.Context(), encoding.Job{SchemaVersion: 1, VideoID: video.ID, OwnerID: video.OwnerID, ObjectKey: video.ObjectKey, Encryption: video.Encryption}); err != nil {
-			return echo.NewHTTPError(http.StatusServiceUnavailable, "encoding queue unavailable").Wrap(err)
-		}
 	}
 	return c.JSON(http.StatusCreated, video)
 }

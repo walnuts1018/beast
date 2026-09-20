@@ -14,7 +14,6 @@ import (
 	"github.com/labstack/echo/v5"
 	"github.com/labstack/echo/v5/middleware"
 
-	"github.com/walnuts1018/beast/backend/internal/encoding"
 	"github.com/walnuts1018/beast/backend/internal/httpapi"
 	"github.com/walnuts1018/beast/backend/internal/media"
 	"github.com/walnuts1018/beast/backend/internal/store"
@@ -46,10 +45,6 @@ func main() {
 	}
 	if authMode == "static" && os.Getenv("AUTH_DEV_STATIC_TOKEN") == "" {
 		logger.Error("static authentication requires AUTH_DEV_STATIC_TOKEN")
-		os.Exit(1)
-	}
-	if environment == "production" && os.Getenv("RABBITMQ_URL") == "" {
-		logger.Error("RABBITMQ_URL is required in production")
 		os.Exit(1)
 	}
 	if environment == "production" && os.Getenv("DATABASE_URL") == "" {
@@ -95,17 +90,6 @@ func main() {
 		logger.Error("media storage initialization failed", "error", err)
 		os.Exit(1)
 	}
-	var publisher encoding.Publisher = encoding.NoopPublisher{}
-	var rabbitPublisher *encoding.RabbitPublisher
-	if rabbitURL := os.Getenv("RABBITMQ_URL"); rabbitURL != "" {
-		rabbitPublisher, err = encoding.NewRabbitPublisher(rabbitURL, envOr("RABBITMQ_ENCODE_JOB_QUEUE", "beast.encoder.jobs"))
-		if err != nil {
-			logger.Error("encoding queue initialization failed", "error", err)
-			os.Exit(1)
-		}
-		publisher = rabbitPublisher
-		defer func() { _ = rabbitPublisher.Close() }()
-	}
 	auth := httpapi.Authenticator{
 		Mode:          authMode,
 		Environment:   environment,
@@ -118,7 +102,7 @@ func main() {
 	e := echo.New()
 	e.Use(middleware.RequestLogger())
 	e.Use(middleware.Recover())
-	(&httpapi.Server{Videos: videoStore, Media: mediaStore, Encoding: publisher}).Register(e, auth, environment != "production")
+	(&httpapi.Server{Videos: videoStore, Media: mediaStore}).Register(e, auth, environment != "production")
 
 	serverErrors := make(chan error, 1)
 	httpServer := &http.Server{Addr: envOr("HTTP_ADDR", ":8080"), Handler: e}
