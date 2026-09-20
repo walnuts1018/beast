@@ -36,10 +36,16 @@ type Authenticator struct {
 	SessionCookieMaxAge  int
 	SecureCookies        bool
 	Scopes               []string
+	RequiredRole         string
+	RoleClaim            string
 	HTTPClient           *http.Client
 }
 
-const defaultNativeRedirectURL = "dev.walnuts.beast://oauth2redirect"
+const (
+	defaultNativeRedirectURL = "dev.walnuts.beast://oauth2redirect"
+	defaultRequiredRole      = "beast-user"
+	defaultRoleClaim         = "urn:zitadel:iam:org:project:roles"
+)
 
 func (a Authenticator) Middleware(next echo.HandlerFunc) echo.HandlerFunc {
 	return func(c *echo.Context) error {
@@ -314,7 +320,7 @@ func (a Authenticator) scopes() []string {
 	if len(a.Scopes) > 0 {
 		return a.Scopes
 	}
-	return []string{"openid", "profile", "email"}
+	return []string{"openid", "profile", "email", "urn:zitadel:iam:org:projects:roles"}
 }
 
 func (a Authenticator) httpClient() *http.Client {
@@ -322,6 +328,20 @@ func (a Authenticator) httpClient() *http.Client {
 		return a.HTTPClient
 	}
 	return http.DefaultClient
+}
+
+func (a Authenticator) requiredRole() string {
+	if a.RequiredRole != "" {
+		return a.RequiredRole
+	}
+	return defaultRequiredRole
+}
+
+func (a Authenticator) roleClaim() string {
+	if a.RoleClaim != "" {
+		return a.RoleClaim
+	}
+	return defaultRoleClaim
 }
 
 func codeChallenge(verifier string) string {
@@ -363,16 +383,61 @@ func (a Authenticator) introspect(ctx context.Context, token string) (string, er
 	if response.StatusCode != http.StatusOK {
 		return "", errors.New("token introspection rejected")
 	}
-	var result struct {
-		Active bool   `json:"active"`
-		Sub    string `json:"sub"`
-		Exp    int64  `json:"exp"`
-	}
+	var result map[string]json.RawMessage
 	if err := json.NewDecoder(response.Body).Decode(&result); err != nil {
 		return "", err
 	}
-	if !result.Active || result.Sub == "" || (result.Exp != 0 && !time.Unix(result.Exp, 0).After(time.Now())) {
+	var active bool
+	if err := json.Unmarshal(result["active"], &active); err != nil {
+		return "", err
+	}
+	var subject string
+	if err := json.Unmarshal(result["sub"], &subject); err != nil {
+		return "", err
+	}
+	var expiry int64
+	if rawExpiry, ok := result["exp"]; ok {
+		if err := json.Unmarshal(rawExpiry, &expiry); err != nil {
+			return "", err
+		}
+	}
+	if !active || subject == "" || (expiry != 0 && !time.Unix(expiry, 0).After(time.Now())) {
 		return "", errors.New("token is inactive or expired")
 	}
-	return result.Sub, nil
+	roles, ok := result[a.roleClaim()]
+	if !ok || !hasRole(roles, a.requiredRole()) {
+		return "", errors.New("required role is missing")
+	}
+	return subject, nil
+}
+
+func hasRole(raw json.RawMessage, required string) bool {
+	if required == "" {
+		return false
+	}
+	var object map[string]json.RawMessage
+	if json.Unmarshal(raw, &object) == nil && object != nil {
+		if _, ok := object[required]; ok {
+			return true
+		}
+		return false
+	}
+
+	var values []json.RawMessage
+	if json.Unmarshal(raw, &values) != nil {
+		return false
+	}
+	for _, value := range values {
+		var name string
+		if json.Unmarshal(value, &name) == nil && name == required {
+			return true
+		}
+		var item map[string]json.RawMessage
+		if json.Unmarshal(value, &item) == nil && item != nil {
+			if _, ok := item[required]; ok {
+				return true
+			}
+		}
+	}
+	return false
 }

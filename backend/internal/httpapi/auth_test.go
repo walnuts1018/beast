@@ -69,7 +69,7 @@ func TestCallbackExchangesCodeWithBasicAuthAndSetsSessionCookie(t *testing.T) {
 				return
 			}
 			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{"active":true,"sub":"user-123"}`))
+			_, _ = w.Write([]byte(`{"active":true,"sub":"user-123","urn:zitadel:iam:org:project:roles":{"beast-user":{}}}`))
 		default:
 			http.NotFound(w, r)
 		}
@@ -143,7 +143,7 @@ func TestNativeCallbackReturnsTokenInFragment(t *testing.T) {
 			_, _ = w.Write([]byte(`{"access_token":"native-token","token_type":"Bearer","expires_in":3600}`))
 		case "/introspect":
 			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{"active":true,"sub":"user-123"}`))
+			_, _ = w.Write([]byte(`{"active":true,"sub":"user-123","urn:zitadel:iam:org:project:roles":[{"beast-user":{"391616443902329228":"walnuts.dev"}}]}`))
 		default:
 			http.NotFound(w, r)
 		}
@@ -198,6 +198,71 @@ func TestNativeCallbackReturnsTokenInFragment(t *testing.T) {
 		if cookie.Name == auth.sessionCookieName() && cookie.Value != "" {
 			t.Fatal("native callback must not create a browser session cookie")
 		}
+	}
+}
+
+func TestSubjectRejectsIntrospectionWithoutRequiredRole(t *testing.T) {
+	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"active":true,"sub":"user-123","urn:zitadel:iam:org:project:roles":{"other-role":{}}}`))
+	}))
+	defer provider.Close()
+
+	auth := Authenticator{
+		Mode:          "introspection",
+		ClientID:      "client-id",
+		ClientSecret:  "client-secret",
+		Introspection: provider.URL,
+		HTTPClient:    provider.Client(),
+	}
+	request := httptest.NewRequest(http.MethodGet, "/api/auth/session", nil)
+	request.Header.Set("Authorization", "Bearer access-token")
+	if subject, err := auth.Subject(t.Context(), request); err == nil || subject != "" {
+		t.Fatalf("introspection without required role was accepted: subject=%q err=%v", subject, err)
+	}
+}
+
+func TestSubjectAcceptsExactRoleKeyInIntrospectionObject(t *testing.T) {
+	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"active":true,"sub":"user-123","urn:zitadel:iam:org:project:roles":{"beast-user-admin":{},"beast-user":{}}}`))
+	}))
+	defer provider.Close()
+
+	auth := Authenticator{
+		Mode:          "introspection",
+		ClientID:      "client-id",
+		ClientSecret:  "client-secret",
+		Introspection: provider.URL,
+		HTTPClient:    provider.Client(),
+	}
+	request := httptest.NewRequest(http.MethodGet, "/api/auth/session", nil)
+	request.Header.Set("Authorization", "Bearer access-token")
+	if subject, err := auth.Subject(t.Context(), request); err != nil || subject != "user-123" {
+		t.Fatalf("introspection with exact required role was rejected: subject=%q err=%v", subject, err)
+	}
+}
+
+func TestSubjectAcceptsConfiguredFlatRoleClaim(t *testing.T) {
+	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"active":true,"sub":"user-123","my:zitadel:grants":["391616443902329228:beast-user"]}`))
+	}))
+	defer provider.Close()
+
+	auth := Authenticator{
+		Mode:          "introspection",
+		ClientID:      "client-id",
+		ClientSecret:  "client-secret",
+		Introspection: provider.URL,
+		RequiredRole:  "391616443902329228:beast-user",
+		RoleClaim:     "my:zitadel:grants",
+		HTTPClient:    provider.Client(),
+	}
+	request := httptest.NewRequest(http.MethodGet, "/api/auth/session", nil)
+	request.Header.Set("Authorization", "Bearer access-token")
+	if subject, err := auth.Subject(t.Context(), request); err != nil || subject != "user-123" {
+		t.Fatalf("configured flat role claim was rejected: subject=%q err=%v", subject, err)
 	}
 }
 

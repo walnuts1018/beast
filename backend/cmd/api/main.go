@@ -139,6 +139,8 @@ func main() {
 		RedirectURL:         envOr("OIDC_REDIRECT_URL", "https://beast.walnuts.dev/api/auth/callback"),
 		NativeRedirectURL:   envOr("OIDC_NATIVE_REDIRECT_URL", "dev.walnuts.beast://oauth2redirect"),
 		FrontendURL:         envOr("OIDC_FRONTEND_URL", "/"),
+		RequiredRole:        envOr("OIDC_REQUIRED_ROLE", "beast-user"),
+		RoleClaim:           envOr("OIDC_ROLE_CLAIM", "urn:zitadel:iam:org:project:roles"),
 		SessionCookieMaxAge: 8 * 60 * 60,
 		SecureCookies:       environment == "production" || os.Getenv("AUTH_COOKIE_SECURE") == "true",
 		HTTPClient:          &http.Client{Timeout: 5 * time.Second},
