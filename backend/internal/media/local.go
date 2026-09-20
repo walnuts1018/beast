@@ -2,6 +2,7 @@ package media
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -13,11 +14,25 @@ import (
 type LocalStore struct {
 	root       string
 	stagingKey []byte
+	mediaKey   []byte
 }
 
 type ObjectStore interface {
-	Save(context.Context, string, io.Reader, string) (crypto.Result, error)
-	Open(context.Context, string) (io.ReadCloser, error)
+	PutEncrypted(context.Context, string, io.Reader) (crypto.AtRestResult, error)
+	OpenDecrypted(context.Context, string, crypto.AtRestResult, int64, int64) (io.ReadCloser, error)
+}
+
+type pipeReadCloser struct {
+	*io.PipeReader
+	closeFn func() error
+}
+
+func (r *pipeReadCloser) Close() error {
+	pipeErr := r.PipeReader.Close()
+	if r.closeFn == nil {
+		return pipeErr
+	}
+	return errors.Join(pipeErr, r.closeFn())
 }
 
 type SourceStore interface {
@@ -28,50 +43,71 @@ type SourceStore interface {
 var _ ObjectStore = (*LocalStore)(nil)
 var _ SourceStore = (*LocalStore)(nil)
 
-func NewLocalStore(root string, stagingKey ...string) (*LocalStore, error) {
+func NewLocalStore(root, stagingKey, mediaKey string) (*LocalStore, error) {
 	if root == "" {
 		return nil, fmt.Errorf("media storage directory is required")
 	}
 	if err := os.MkdirAll(root, 0o750); err != nil {
 		return nil, fmt.Errorf("create media storage directory: %w", err)
 	}
-	var parsedKey []byte
-	if len(stagingKey) > 0 && stagingKey[0] != "" {
-		var err error
-		parsedKey, err = crypto.ParseStagingKey(stagingKey[0])
-		if err != nil {
-			return nil, err
-		}
+	parsedStagingKey, err := crypto.ParseStagingKey(stagingKey)
+	if err != nil {
+		return nil, err
 	}
-	return &LocalStore{root: root, stagingKey: parsedKey}, nil
+	parsedMediaKey, err := crypto.ParseMasterKey(mediaKey)
+	if err != nil {
+		return nil, err
+	}
+	return &LocalStore{root: root, stagingKey: parsedStagingKey, mediaKey: parsedMediaKey}, nil
 }
 
-func (s *LocalStore) Save(ctx context.Context, objectKey string, src io.Reader, publicKey string) (crypto.Result, error) {
+func (s *LocalStore) PutEncrypted(ctx context.Context, objectKey string, src io.Reader) (crypto.AtRestResult, error) {
 	if err := ctx.Err(); err != nil {
-		return crypto.Result{}, err
+		return crypto.AtRestResult{}, err
+	}
+	if len(s.mediaKey) != 32 {
+		return crypto.AtRestResult{}, fmt.Errorf("media encryption key is required")
 	}
 	path := filepath.Join(s.root, objectKey+".bin")
+	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+		return crypto.AtRestResult{}, fmt.Errorf("create encrypted media directory: %w", err)
+	}
 	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
 	if err != nil {
-		return crypto.Result{}, fmt.Errorf("create encrypted media object: %w", err)
+		return crypto.AtRestResult{}, fmt.Errorf("create encrypted media object: %w", err)
 	}
-	result, encryptErr := crypto.EncryptTo(file, src, publicKey)
-	if closeErr := file.Close(); closeErr != nil && encryptErr == nil {
-		encryptErr = fmt.Errorf("close encrypted media object: %w", closeErr)
-	}
-	if encryptErr != nil {
+	result, encryptErr := crypto.EncryptToAtRest(file, src, s.mediaKey)
+	closeErr := file.Close()
+	if encryptErr != nil || closeErr != nil {
 		_ = os.Remove(path)
-		return crypto.Result{}, encryptErr
+		return crypto.AtRestResult{}, errors.Join(encryptErr, closeErr)
 	}
 	return result, nil
 }
 
-func (s *LocalStore) Open(_ context.Context, objectKey string) (io.ReadCloser, error) {
+func (s *LocalStore) OpenDecrypted(ctx context.Context, objectKey string, metadata crypto.AtRestResult, start, end int64) (io.ReadCloser, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if start < 0 || end < start || end > metadata.PlaintextSize {
+		return nil, fmt.Errorf("media range is invalid")
+	}
+	offset, length, _, err := crypto.EncryptedRange(metadata, start, end)
+	if err != nil {
+		return nil, err
+	}
 	file, err := os.Open(filepath.Join(s.root, objectKey+".bin"))
 	if err != nil {
 		return nil, fmt.Errorf("open encrypted media object: %w", err)
 	}
-	return file, nil
+	section := io.NewSectionReader(file, offset, length)
+	reader, writer := io.Pipe()
+	go func() {
+		decryptErr := crypto.DecryptRangeTo(writer, section, metadata, s.mediaKey, start, end)
+		_ = file.Close()
+		_ = writer.CloseWithError(decryptErr)
+	}()
+	return &pipeReadCloser{PipeReader: reader, closeFn: func() error { _ = file.Close(); return reader.Close() }}, nil
 }
 
 func (s *LocalStore) SaveSource(ctx context.Context, objectKey string, src io.Reader) error {

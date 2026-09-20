@@ -19,12 +19,13 @@ import (
 )
 
 type Postgres struct {
-	db pgxdriver.Pool
+	db       pgxdriver.Pool
+	mediaKey []byte
 }
 
 var _ Repository = (*Postgres)(nil)
 
-func NewPostgres(ctx context.Context, databaseURL string) (*Postgres, error) {
+func NewPostgres(ctx context.Context, databaseURL string, mediaKeys ...[]byte) (*Postgres, error) {
 	db, err := pgxdriver.New(ctx, databaseURL)
 	if err != nil {
 		return nil, fmt.Errorf("connect postgres: %w", err)
@@ -33,7 +34,11 @@ func NewPostgres(ctx context.Context, databaseURL string) (*Postgres, error) {
 		db.Close()
 		return nil, fmt.Errorf("ping postgres: %w", err)
 	}
-	return &Postgres{db: db}, nil
+	var mediaKey []byte
+	if len(mediaKeys) > 0 {
+		mediaKey = append([]byte(nil), mediaKeys[0]...)
+	}
+	return &Postgres{db: db, mediaKey: mediaKey}, nil
 }
 
 func (s *Postgres) Close() { s.db.Close() }
@@ -48,99 +53,23 @@ func (s *Postgres) Migrate(ctx context.Context, schema string) error {
 	return nil
 }
 
-func (s *Postgres) RegisterSharedKey(ctx context.Context, key SharedKey) (SharedKey, error) {
-	id, err := uuid.Parse(key.ID)
-	if err != nil {
-		return SharedKey{}, fmt.Errorf("parse shared key ID: %w", err)
-	}
-	row, err := models.SharedKeys.Insert(&models.SharedKeySetter{ID: &id, OwnerID: &key.OwnerID, Version: &key.Version, PublicKey: &key.PublicKey, Status: &key.Status}).One(ctx, s.db)
-	if err != nil {
-		return SharedKey{}, err
-	}
-	if row.Status != "active" {
-		return SharedKey{}, domain.ErrVideoNotFound
-	}
-	return sharedKeyFromDB(row), nil
-}
-
-func (s *Postgres) SharedKey(ctx context.Context, ownerID, id string) (SharedKey, error) {
-	keyID, err := uuid.Parse(id)
-	if err != nil {
-		return SharedKey{}, err
-	}
-	row, err := models.SharedKeys.Query(models.SelectWhere.SharedKeys.ID.EQ(keyID), models.SelectWhere.SharedKeys.OwnerID.EQ(ownerID)).One(ctx, s.db)
-	if err != nil {
-		return SharedKey{}, err
-	}
-	return sharedKeyFromDB(row), nil
-}
-
-func (s *Postgres) ListSharedKeys(ctx context.Context, ownerID string) ([]SharedKey, error) {
-	rows, err := models.SharedKeys.Query(models.SelectWhere.SharedKeys.OwnerID.EQ(ownerID), sm.OrderBy(models.SharedKeys.Columns.CreatedAt).Desc()).All(ctx, s.db)
-	if err != nil {
-		return nil, err
-	}
-	result := make([]SharedKey, 0, len(rows))
-	for _, row := range rows {
-		result = append(result, sharedKeyFromDB(row))
-	}
-	return result, nil
-}
-
-func (s *Postgres) RegisterDeviceKey(ctx context.Context, key DeviceKey) (DeviceKey, error) {
-	id, err := uuid.Parse(key.ID)
-	if err != nil {
-		return DeviceKey{}, err
-	}
-	sharedKeyID, err := uuid.Parse(key.SharedKeyID)
-	if err != nil {
-		return DeviceKey{}, err
-	}
-	if _, err := s.SharedKey(ctx, key.OwnerID, key.SharedKeyID); err != nil {
-		return DeviceKey{}, err
-	}
-	ciphertext, err := base64.RawStdEncoding.DecodeString(key.EncryptedSharedPrivateKey)
-	if err != nil {
-		return DeviceKey{}, fmt.Errorf("decode encrypted device key: %w", err)
-	}
-	row, err := models.DeviceKeys.Insert(&models.DeviceKeySetter{ID: &id, OwnerID: &key.OwnerID, DeviceID: &key.DeviceID, SharedKeyID: &sharedKeyID, EncryptedSharedPrivateKey: &ciphertext}).One(ctx, s.db)
-	if err != nil {
-		return DeviceKey{}, err
-	}
-	return deviceKeyFromDB(row), nil
-}
-
-func (s *Postgres) ListDeviceKeys(ctx context.Context, ownerID string) ([]DeviceKey, error) {
-	rows, err := models.DeviceKeys.Query(models.SelectWhere.DeviceKeys.OwnerID.EQ(ownerID), sm.OrderBy(models.DeviceKeys.Columns.CreatedAt).Desc()).All(ctx, s.db)
-	if err != nil {
-		return nil, err
-	}
-	result := make([]DeviceKey, 0, len(rows))
-	for _, row := range rows {
-		result = append(result, deviceKeyFromDB(row))
-	}
-	return result, nil
-}
-
 func (s *Postgres) CreateVideo(ctx context.Context, video domain.Video) (domain.Video, error) {
-	if _, err := s.SharedKey(ctx, video.OwnerID, video.Encryption.SharedKeyID); err != nil {
-		return domain.Video{}, err
-	}
 	videoID, err := uuid.Parse(video.ID)
 	if err != nil {
 		return domain.Video{}, err
 	}
-	sharedKeyID, err := uuid.Parse(video.Encryption.SharedKeyID)
-	if err != nil {
-		return domain.Video{}, err
+	var tags, nonce []byte
+	if len(s.mediaKey) == 32 {
+		encodedTags, marshalErr := json.Marshal(video.Tags)
+		if marshalErr != nil {
+			return domain.Video{}, marshalErr
+		}
+		tags, nonce, err = crypto.EncryptTags(encodedTags, s.mediaKey)
+	} else if video.TagsCiphertext != "" {
+		tags, err = base64.RawStdEncoding.DecodeString(video.TagsCiphertext)
 	}
-	tags, err := base64.RawStdEncoding.DecodeString(video.EncryptedTags)
 	if err != nil {
-		return domain.Video{}, fmt.Errorf("decode encrypted tags: %w", err)
-	}
-	nonce, err := base64.RawStdEncoding.DecodeString(video.Encryption.Nonce)
-	if err != nil {
-		return domain.Video{}, fmt.Errorf("decode encryption nonce: %w", err)
+		return domain.Video{}, fmt.Errorf("encrypt tags: %w", err)
 	}
 	dataKey, err := base64.RawStdEncoding.DecodeString(video.Encryption.EncryptedDataKey)
 	if err != nil {
@@ -154,16 +83,17 @@ func (s *Postgres) CreateVideo(ctx context.Context, video domain.Video) (domain.
 	}
 	progress := video.Progress
 	errorMessage := video.ErrorMessage
-	artifacts, err := marshalArtifacts(video.DashArtifacts)
+	artifacts, err := marshalArtifacts(video.HLSArtifacts)
 	if err != nil {
 		return domain.Video{}, err
 	}
-	dashArtifacts := types.NewJSON(json.RawMessage(artifacts))
-	row, err := models.Videos.Insert(&models.VideoSetter{ID: &videoID, OwnerID: &video.OwnerID, Status: &status, ObjectKey: &video.ObjectKey, SourceObjectKey: &sourceObjectKey, TagsCiphertext: &tags, TagsNonce: &nonce, EncryptedDataKey: &dataKey, EncryptionAlgorithm: &video.Encryption.Algorithm, ChunkSize: &chunkSize, EncryptionKeyVersion: &video.Encryption.KeyVersion, SharedKeyID: &sharedKeyID, Progress: &progress, ErrorMessage: &errorMessage, DashArtifacts: &dashArtifacts}).One(ctx, s.db)
+	hlsArtifacts := types.NewJSON(json.RawMessage(artifacts))
+	keyVersion := "media-v1"
+	row, err := models.Videos.Insert(&models.VideoSetter{ID: &videoID, OwnerID: &video.OwnerID, Status: &status, ObjectKey: &video.ObjectKey, SourceObjectKey: &sourceObjectKey, TagsCiphertext: &tags, TagsNonce: &nonce, EncryptedDataKey: &dataKey, EncryptionAlgorithm: &video.Encryption.Algorithm, ChunkSize: &chunkSize, EncryptionKeyVersion: &keyVersion, Progress: &progress, ErrorMessage: &errorMessage, HLSArtifacts: &hlsArtifacts}).One(ctx, s.db)
 	if err != nil {
 		return domain.Video{}, err
 	}
-	return videoFromDB(row), nil
+	return videoFromDB(row, s.mediaKey), nil
 }
 
 func (s *Postgres) UpdateVideo(ctx context.Context, video domain.Video) (domain.Video, error) {
@@ -178,24 +108,16 @@ func (s *Postgres) UpdateVideo(ctx context.Context, video domain.Video) (domain.
 	errorMessage := video.ErrorMessage
 	chunkSize := normalizedChunkSize(video.Encryption.ChunkSize)
 	algorithm := video.Encryption.Algorithm
-	keyVersion := video.Encryption.KeyVersion
-	sharedKeyID, err := uuid.Parse(video.Encryption.SharedKeyID)
-	if err != nil {
-		return domain.Video{}, fmt.Errorf("parse shared key ID: %w", err)
-	}
-	nonce, err := base64.RawStdEncoding.DecodeString(video.Encryption.Nonce)
-	if err != nil {
-		return domain.Video{}, fmt.Errorf("decode encryption nonce: %w", err)
-	}
+	keyVersion := "media-v1"
 	dataKey, err := base64.RawStdEncoding.DecodeString(video.Encryption.EncryptedDataKey)
 	if err != nil {
 		return domain.Video{}, fmt.Errorf("decode encrypted data key: %w", err)
 	}
-	artifacts, err := marshalArtifacts(video.DashArtifacts)
+	artifacts, err := marshalArtifacts(video.HLSArtifacts)
 	if err != nil {
 		return domain.Video{}, err
 	}
-	dashArtifacts := types.NewJSON(json.RawMessage(artifacts))
+	hlsArtifacts := types.NewJSON(json.RawMessage(artifacts))
 	var rating sql.Null[int16]
 	if video.Rating != nil {
 		rating = sql.Null[int16]{V: int16(*video.Rating), Valid: true}
@@ -205,10 +127,10 @@ func (s *Postgres) UpdateVideo(ctx context.Context, video domain.Video) (domain.
 		lastPlayedAt = sql.Null[time.Time]{V: *video.LastPlayedAt, Valid: true}
 	}
 	updatedAt := video.UpdatedAt
-	if err := row.Update(ctx, s.db, &models.VideoSetter{Status: &status, ObjectKey: &objectKey, SourceObjectKey: &sourceObjectKey, TagsNonce: &nonce, EncryptedDataKey: &dataKey, EncryptionAlgorithm: &algorithm, ChunkSize: &chunkSize, EncryptionKeyVersion: &keyVersion, SharedKeyID: &sharedKeyID, PlayCount: &video.PlayCount, Rating: &rating, LastPlayedAt: &lastPlayedAt, UpdatedAt: &updatedAt, Progress: &progress, ErrorMessage: &errorMessage, DashArtifacts: &dashArtifacts}); err != nil {
+	if err := row.Update(ctx, s.db, &models.VideoSetter{Status: &status, ObjectKey: &objectKey, SourceObjectKey: &sourceObjectKey, EncryptedDataKey: &dataKey, EncryptionAlgorithm: &algorithm, ChunkSize: &chunkSize, EncryptionKeyVersion: &keyVersion, PlayCount: &video.PlayCount, Rating: &rating, LastPlayedAt: &lastPlayedAt, UpdatedAt: &updatedAt, Progress: &progress, ErrorMessage: &errorMessage, HLSArtifacts: &hlsArtifacts}); err != nil {
 		return domain.Video{}, err
 	}
-	return videoFromDB(row), nil
+	return videoFromDB(row, s.mediaKey), nil
 }
 
 func (s *Postgres) ListVideos(ctx context.Context, ownerID string) ([]domain.Video, error) {
@@ -218,7 +140,7 @@ func (s *Postgres) ListVideos(ctx context.Context, ownerID string) ([]domain.Vid
 	}
 	result := make([]domain.Video, 0, len(rows))
 	for _, row := range rows {
-		result = append(result, videoFromDB(row))
+		result = append(result, videoFromDB(row, s.mediaKey))
 	}
 	return result, nil
 }
@@ -232,7 +154,7 @@ func (s *Postgres) GetVideo(ctx context.Context, ownerID, id string) (domain.Vid
 	if err != nil {
 		return domain.Video{}, err
 	}
-	return videoFromDB(row), nil
+	return videoFromDB(row, s.mediaKey), nil
 }
 
 func (s *Postgres) GetVideoByObjectKey(ctx context.Context, ownerID, objectKey string) (domain.Video, error) {
@@ -240,7 +162,46 @@ func (s *Postgres) GetVideoByObjectKey(ctx context.Context, ownerID, objectKey s
 	if err != nil {
 		return domain.Video{}, err
 	}
-	return videoFromDB(row), nil
+	return videoFromDB(row, s.mediaKey), nil
+}
+
+func (s *Postgres) UpdateVideoTags(ctx context.Context, ownerID, id string, tagsInput []string) (domain.Video, error) {
+	video, err := s.GetVideo(ctx, ownerID, id)
+	if err != nil {
+		return domain.Video{}, err
+	}
+	row, err := s.GetVideoRow(ctx, video.ID)
+	if err != nil {
+		return domain.Video{}, err
+	}
+	updatedAt := time.Now().UTC()
+	var tags []byte
+	var nonce []byte
+	normalizedTags, err := domain.NormalizeTags(tagsInput)
+	if err != nil {
+		return domain.Video{}, err
+	}
+	if len(s.mediaKey) != 32 {
+		return domain.Video{}, errors.New("media encryption key is unavailable")
+	}
+	encoded, marshalErr := json.Marshal(normalizedTags)
+	if marshalErr != nil {
+		return domain.Video{}, marshalErr
+	}
+	tags, nonce, err = crypto.EncryptTags(encoded, s.mediaKey)
+	if err != nil {
+		return domain.Video{}, err
+	}
+	if err := row.Update(ctx, s.db, &models.VideoSetter{TagsCiphertext: &tags, TagsNonce: &nonce, UpdatedAt: &updatedAt}); err != nil {
+		return domain.Video{}, err
+	}
+	video.TagsCiphertext = base64.RawStdEncoding.EncodeToString(tags)
+	video.TagsNonce = base64.RawStdEncoding.EncodeToString(nonce)
+	if normalizedTags != nil {
+		video.Tags = normalizedTags
+	}
+	video.UpdatedAt = updatedAt
+	return video, nil
 }
 
 func (s *Postgres) RecordPlayback(ctx context.Context, ownerID, id string) (domain.Video, error) {
@@ -259,7 +220,7 @@ func (s *Postgres) RecordPlayback(ctx context.Context, ownerID, id string) (doma
 	if err := row.Update(ctx, s.db, &models.VideoSetter{PlayCount: &playCount, LastPlayedAt: &lastPlayedAt, UpdatedAt: &updatedAt}); err != nil {
 		return domain.Video{}, err
 	}
-	return videoFromDB(row), nil
+	return videoFromDB(row, s.mediaKey), nil
 }
 
 func (s *Postgres) SetRating(ctx context.Context, ownerID, id string, rating *int) (domain.Video, error) {
@@ -282,7 +243,7 @@ func (s *Postgres) SetRating(ctx context.Context, ownerID, id string, rating *in
 	if err := row.Update(ctx, s.db, &models.VideoSetter{Rating: &value, UpdatedAt: &updatedAt}); err != nil {
 		return domain.Video{}, err
 	}
-	return videoFromDB(row), nil
+	return videoFromDB(row, s.mediaKey), nil
 }
 
 func (s *Postgres) GetVideoRow(ctx context.Context, id string) (*models.Video, error) {
@@ -293,15 +254,7 @@ func (s *Postgres) GetVideoRow(ctx context.Context, id string) (*models.Video, e
 	return models.Videos.Query(models.SelectWhere.Videos.ID.EQ(videoID)).One(ctx, s.db)
 }
 
-func sharedKeyFromDB(row *models.SharedKey) SharedKey {
-	return SharedKey{ID: row.ID.String(), OwnerID: row.OwnerID, Version: row.Version, PublicKey: row.PublicKey, Status: row.Status}
-}
-
-func deviceKeyFromDB(row *models.DeviceKey) DeviceKey {
-	return DeviceKey{ID: row.ID.String(), OwnerID: row.OwnerID, DeviceID: row.DeviceID, SharedKeyID: row.SharedKeyID.String(), EncryptedSharedPrivateKey: base64.RawStdEncoding.EncodeToString(row.EncryptedSharedPrivateKey)}
-}
-
-func videoFromDB(row *models.Video) domain.Video {
+func videoFromDB(row *models.Video, mediaKeys ...[]byte) domain.Video {
 	var rating *int
 	if row.Rating.Valid {
 		ratingValue := int(row.Rating.V)
@@ -312,27 +265,38 @@ func videoFromDB(row *models.Video) domain.Video {
 		lastPlayedAtValue := row.LastPlayedAt.V
 		lastPlayedAt = &lastPlayedAtValue
 	}
-	artifacts := make(map[string]domain.DashArtifact)
-	if len(row.DashArtifacts.Val) > 0 {
-		_ = json.Unmarshal(row.DashArtifacts.Val, &artifacts)
+	artifacts := make(map[string]domain.HLSArtifact)
+	if len(row.HLSArtifacts.Val) > 0 {
+		_ = json.Unmarshal(row.HLSArtifacts.Val, &artifacts)
 	}
-	return domain.Video{ID: row.ID.String(), OwnerID: row.OwnerID, Status: domain.VideoStatus(row.Status), ObjectKey: row.ObjectKey, SourceObjectKey: row.SourceObjectKey, EncryptedTags: base64.RawStdEncoding.EncodeToString(row.TagsCiphertext), PlayCount: row.PlayCount, Rating: rating, LastPlayedAt: lastPlayedAt, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, Progress: row.Progress, ErrorMessage: row.ErrorMessage, DashArtifacts: artifacts, Encryption: domain.EncryptionMetadata{Algorithm: row.EncryptionAlgorithm, ChunkSize: int(row.ChunkSize), KeyVersion: row.EncryptionKeyVersion, Nonce: base64.RawStdEncoding.EncodeToString(row.TagsNonce), EncryptedDataKey: base64.RawStdEncoding.EncodeToString(row.EncryptedDataKey), SharedKeyID: row.SharedKeyID.String()}}
+	video := domain.Video{ID: row.ID.String(), OwnerID: row.OwnerID, Status: domain.VideoStatus(row.Status), ObjectKey: row.ObjectKey, SourceObjectKey: row.SourceObjectKey, TagsCiphertext: base64.RawStdEncoding.EncodeToString(row.TagsCiphertext), TagsNonce: base64.RawStdEncoding.EncodeToString(row.TagsNonce), PlayCount: row.PlayCount, Rating: rating, LastPlayedAt: lastPlayedAt, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, Progress: row.Progress, ErrorMessage: row.ErrorMessage, HLSArtifacts: artifacts, Encryption: domain.EncryptionMetadata{Algorithm: row.EncryptionAlgorithm, ChunkSize: int(row.ChunkSize), EncryptedDataKey: base64.RawStdEncoding.EncodeToString(row.EncryptedDataKey)}}
+	if manifest, ok := artifacts["manifest.m3u8"]; ok {
+		video.Encryption = manifest.Encryption
+	} else if manifest, ok := artifacts["manifest.mpd"]; ok {
+		video.Encryption = manifest.Encryption
+	}
+	if len(mediaKeys) > 0 && len(mediaKeys[0]) == 32 {
+		if plaintext, err := crypto.DecryptTags(row.TagsCiphertext, row.TagsNonce, mediaKeys[0]); err == nil {
+			_ = json.Unmarshal(plaintext, &video.Tags)
+		}
+	}
+	return video
 }
 
-func marshalArtifacts(artifacts map[string]domain.DashArtifact) ([]byte, error) {
+func marshalArtifacts(artifacts map[string]domain.HLSArtifact) ([]byte, error) {
 	if artifacts == nil {
-		artifacts = map[string]domain.DashArtifact{}
+		artifacts = map[string]domain.HLSArtifact{}
 	}
 	data, err := json.Marshal(artifacts)
 	if err != nil {
-		return nil, fmt.Errorf("marshal DASH artifacts: %w", err)
+		return nil, fmt.Errorf("marshal HLS artifacts: %w", err)
 	}
 	return data, nil
 }
 
 func normalizedChunkSize(chunkSize int) int32 {
 	if chunkSize <= 0 {
-		return crypto.ChunkSize
+		return crypto.AtRestChunkSize
 	}
 	return int32(chunkSize)
 }

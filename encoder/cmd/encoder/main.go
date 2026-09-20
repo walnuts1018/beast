@@ -39,7 +39,7 @@ func run() error {
 		ReencodeOnCopyFailure: cfg.ReencodeOnCopyFailure,
 		Logger:                logger,
 	}
-	objectStore, err := storage.NewS3(ctx, cfg.S3Endpoint, cfg.S3Region, cfg.S3Bucket, cfg.S3AccessKey, cfg.S3SecretKey, cfg.StagingEncryptionKey)
+	objectStore, err := storage.NewS3(ctx, cfg.S3Endpoint, cfg.S3Region, cfg.S3Bucket, cfg.S3AccessKey, cfg.S3SecretKey, cfg.StagingEncryptionKey, cfg.MediaEncryptionKey)
 	if err != nil {
 		return err
 	}

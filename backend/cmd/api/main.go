@@ -15,6 +15,7 @@ import (
 	"github.com/labstack/echo/v5"
 	"github.com/labstack/echo/v5/middleware"
 
+	"github.com/walnuts1018/beast/backend/internal/crypto"
 	"github.com/walnuts1018/beast/backend/internal/encoding"
 	"github.com/walnuts1018/beast/backend/internal/httpapi"
 	"github.com/walnuts1018/beast/backend/internal/media"
@@ -45,6 +46,10 @@ func main() {
 		logger.Error("introspection authentication requires OIDC_INTROSPECTION_URL, OIDC_CLIENT_ID, and OIDC_CLIENT_SECRET")
 		os.Exit(1)
 	}
+	if environment == "production" && (os.Getenv("OIDC_CLIENT_ID") == "" || os.Getenv("OIDC_CLIENT_SECRET") == "") {
+		logger.Error("production OIDC login requires OIDC_CLIENT_ID and OIDC_CLIENT_SECRET")
+		os.Exit(1)
+	}
 	if authMode == "static" && os.Getenv("AUTH_DEV_STATIC_TOKEN") == "" {
 		logger.Error("static authentication requires AUTH_DEV_STATIC_TOKEN")
 		os.Exit(1)
@@ -53,13 +58,25 @@ func main() {
 		logger.Error("DATABASE_URL is required in production")
 		os.Exit(1)
 	}
+	var err error
+	var mediaEncryptionKey []byte
+	if value := os.Getenv("MEDIA_ENCRYPTION_KEY"); value != "" {
+		mediaEncryptionKey, err = crypto.ParseMasterKey(value)
+		if err != nil {
+			logger.Error("MEDIA_ENCRYPTION_KEY is invalid", "error", err)
+			os.Exit(1)
+		}
+	} else if environment == "production" {
+		logger.Error("MEDIA_ENCRYPTION_KEY is required in production")
+		os.Exit(1)
+	}
 
 	var videoStore store.Repository = store.NewMemory()
 	var database *store.Postgres
 	if databaseURL := os.Getenv("DATABASE_URL"); databaseURL != "" {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		var err error
-		database, err = store.NewPostgres(ctx, databaseURL)
+		database, err = store.NewPostgres(ctx, databaseURL, mediaEncryptionKey)
 		if err == nil {
 			err = database.Migrate(ctx, store.Schema)
 		}
@@ -79,14 +96,13 @@ func main() {
 	}
 
 	var mediaStore media.ObjectStore
-	var err error
 	if environment == "production" || os.Getenv("OBJECT_STORAGE") == "s3" {
-		mediaStore, err = media.NewS3Store(context.Background(), os.Getenv("S3_ENDPOINT"), envOr("S3_REGION", "us-east-1"), os.Getenv("S3_BUCKET"), firstNonEmptyEnv("S3_ACCESS_KEY_ID", "AWS_ACCESS_KEY_ID", "S3_ACCESS_KEY"), firstNonEmptyEnv("S3_SECRET_ACCESS_KEY", "AWS_SECRET_ACCESS_KEY", "S3_SECRET_KEY"), os.Getenv("STAGING_ENCRYPTION_KEY"))
+		mediaStore, err = media.NewS3Store(context.Background(), os.Getenv("S3_ENDPOINT"), envOr("S3_REGION", "us-east-1"), os.Getenv("S3_BUCKET"), firstNonEmptyEnv("S3_ACCESS_KEY_ID", "AWS_ACCESS_KEY_ID", "S3_ACCESS_KEY"), firstNonEmptyEnv("S3_SECRET_ACCESS_KEY", "AWS_SECRET_ACCESS_KEY", "S3_SECRET_KEY"), os.Getenv("STAGING_ENCRYPTION_KEY"), os.Getenv("MEDIA_ENCRYPTION_KEY"))
 		if err == nil {
 			err = mediaStore.(*media.S3Store).Check(context.Background())
 		}
 	} else {
-		mediaStore, err = media.NewLocalStore(envOr("MEDIA_DIR", ".beast-data/media"), os.Getenv("STAGING_ENCRYPTION_KEY"))
+		mediaStore, err = media.NewLocalStore(envOr("MEDIA_DIR", ".beast-data/media"), os.Getenv("STAGING_ENCRYPTION_KEY"), os.Getenv("MEDIA_ENCRYPTION_KEY"))
 	}
 	if err != nil {
 		logger.Error("media storage initialization failed", "error", err)
@@ -112,13 +128,19 @@ func main() {
 		logger.Warn("RABBITMQ_URL is not set; video encoding is unavailable")
 	}
 	auth := httpapi.Authenticator{
-		Mode:          authMode,
-		Environment:   environment,
-		StaticToken:   os.Getenv("AUTH_DEV_STATIC_TOKEN"),
-		Introspection: os.Getenv("OIDC_INTROSPECTION_URL"),
-		ClientID:      os.Getenv("OIDC_CLIENT_ID"),
-		ClientSecret:  os.Getenv("OIDC_CLIENT_SECRET"),
-		HTTPClient:    &http.Client{Timeout: 5 * time.Second},
+		Mode:                authMode,
+		Environment:         environment,
+		StaticToken:         os.Getenv("AUTH_DEV_STATIC_TOKEN"),
+		Introspection:       os.Getenv("OIDC_INTROSPECTION_URL"),
+		ClientID:            os.Getenv("OIDC_CLIENT_ID"),
+		ClientSecret:        os.Getenv("OIDC_CLIENT_SECRET"),
+		AuthorizationURL:    envOr("OIDC_AUTHORIZATION_URL", "https://auth.walnuts.dev/oauth/v2/authorize"),
+		TokenURL:            envOr("OIDC_TOKEN_URL", "https://auth.walnuts.dev/oauth/v2/token"),
+		RedirectURL:         envOr("OIDC_REDIRECT_URL", "https://beast.walnuts.dev/api/auth/callback"),
+		FrontendURL:         envOr("OIDC_FRONTEND_URL", "/"),
+		SessionCookieMaxAge: 8 * 60 * 60,
+		SecureCookies:       environment == "production" || os.Getenv("AUTH_COOKIE_SECURE") == "true",
+		HTTPClient:          &http.Client{Timeout: 5 * time.Second},
 	}
 	e := echo.New()
 	e.Use(middleware.RequestLogger())

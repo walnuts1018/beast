@@ -25,10 +25,11 @@ type Config struct {
 	S3AccessKey           string
 	S3SecretKey           string
 	StagingEncryptionKey  string
+	MediaEncryptionKey    string
 }
 
 func Load() (Config, error) {
-	segmentSeconds, err := intEnv("ENCODER_DASH_SEGMENT_SECONDS", 4)
+	segmentSeconds, err := intEnv("ENCODER_HLS_SEGMENT_SECONDS", 4)
 	if err != nil {
 		return Config{}, err
 	}
@@ -54,6 +55,7 @@ func Load() (Config, error) {
 		S3AccessKey:           firstNonEmptyEnv("S3_ACCESS_KEY_ID", "AWS_ACCESS_KEY_ID", "S3_ACCESS_KEY"),
 		S3SecretKey:           firstNonEmptyEnv("S3_SECRET_ACCESS_KEY", "AWS_SECRET_ACCESS_KEY", "S3_SECRET_KEY"),
 		StagingEncryptionKey:  os.Getenv("STAGING_ENCRYPTION_KEY"),
+		MediaEncryptionKey:    os.Getenv("MEDIA_ENCRYPTION_KEY"),
 	}, nil
 }
 
@@ -79,8 +81,8 @@ func intEnv(name string, fallback int) (int, error) {
 		return fallback, nil
 	}
 	parsed, err := strconv.Atoi(value)
-	if err != nil || parsed < 1 || parsed > 30 {
-		return 0, fmt.Errorf("%s must be an integer between 1 and 30", name)
+	if err != nil || parsed < 2 || parsed > 4 {
+		return 0, fmt.Errorf("%s must be an integer between 2 and 4", name)
 	}
 	return parsed, nil
 }

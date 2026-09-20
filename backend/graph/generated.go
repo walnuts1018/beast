@@ -38,55 +38,27 @@ type DirectiveRoot struct {
 }
 
 type ComplexityRoot struct {
-	DeviceKey struct {
-		DeviceID                  func(childComplexity int) int
-		EncryptedSharedPrivateKey func(childComplexity int) int
-		ID                        func(childComplexity int) int
-		SharedKeyID               func(childComplexity int) int
-	}
-
-	EncryptionMetadata struct {
-		Algorithm        func(childComplexity int) int
-		ChunkSize        func(childComplexity int) int
-		EncryptedDataKey func(childComplexity int) int
-		KeyVersion       func(childComplexity int) int
-		Nonce            func(childComplexity int) int
-		SharedKeyID      func(childComplexity int) int
-	}
-
 	Mutation struct {
-		CreateVideo       func(childComplexity int, input model.CreateVideoInput) int
-		RateVideo         func(childComplexity int, id string, rating *int) int
-		RecordPlayback    func(childComplexity int, id string) int
-		RegisterDeviceKey func(childComplexity int, input model.RegisterDeviceKeyInput) int
-		RegisterSharedKey func(childComplexity int, input model.RegisterSharedKeyInput) int
+		RateVideo       func(childComplexity int, id string, rating *int) int
+		RecordPlayback  func(childComplexity int, id string) int
+		UpdateVideoTags func(childComplexity int, id string, input model.UpdateVideoTagsInput) int
 	}
 
 	Query struct {
-		DeviceKeys      func(childComplexity int) int
 		Recommendations func(childComplexity int, kind model.RecommendationKind) int
-		SharedKeys      func(childComplexity int) int
 		Video           func(childComplexity int, id string) int
 		Videos          func(childComplexity int) int
 	}
 
-	SharedKey struct {
-		ID        func(childComplexity int) int
-		PublicKey func(childComplexity int) int
-		Status    func(childComplexity int) int
-		Version   func(childComplexity int) int
-	}
-
 	Video struct {
-		EncryptedTags func(childComplexity int) int
-		Encryption    func(childComplexity int) int
-		ID            func(childComplexity int) int
-		LastPlayedAt  func(childComplexity int) int
-		PlayCount     func(childComplexity int) int
-		Progress      func(childComplexity int) int
-		Rating        func(childComplexity int) int
-		Status        func(childComplexity int) int
-		VideoURL      func(childComplexity int) int
+		ID           func(childComplexity int) int
+		LastPlayedAt func(childComplexity int) int
+		PlayCount    func(childComplexity int) int
+		Progress     func(childComplexity int) int
+		Rating       func(childComplexity int) int
+		Status       func(childComplexity int) int
+		Tags         func(childComplexity int) int
+		VideoURL     func(childComplexity int) int
 	}
 }
 
@@ -95,17 +67,13 @@ type ComplexityRoot struct {
 // region    ************************** generated!.gotpl **************************
 
 type MutationResolver interface {
-	CreateVideo(ctx context.Context, input model.CreateVideoInput) (*model.Video, error)
+	UpdateVideoTags(ctx context.Context, id string, input model.UpdateVideoTagsInput) (*model.Video, error)
 	RateVideo(ctx context.Context, id string, rating *int) (*model.Video, error)
 	RecordPlayback(ctx context.Context, id string) (*model.Video, error)
-	RegisterSharedKey(ctx context.Context, input model.RegisterSharedKeyInput) (*model.SharedKey, error)
-	RegisterDeviceKey(ctx context.Context, input model.RegisterDeviceKeyInput) (*model.DeviceKey, error)
 }
 type QueryResolver interface {
 	Videos(ctx context.Context) ([]*model.Video, error)
 	Video(ctx context.Context, id string) (*model.Video, error)
-	SharedKeys(ctx context.Context) ([]*model.SharedKey, error)
-	DeviceKeys(ctx context.Context) ([]*model.DeviceKey, error)
 	Recommendations(ctx context.Context, kind model.RecommendationKind) ([]*model.Video, error)
 }
 
@@ -127,79 +95,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 	_ = ec
 	switch typeName + "." + field {
 
-	case "DeviceKey.deviceID":
-		if e.ComplexityRoot.DeviceKey.DeviceID == nil {
-			break
-		}
-
-		return e.ComplexityRoot.DeviceKey.DeviceID(childComplexity), true
-	case "DeviceKey.encryptedSharedPrivateKey":
-		if e.ComplexityRoot.DeviceKey.EncryptedSharedPrivateKey == nil {
-			break
-		}
-
-		return e.ComplexityRoot.DeviceKey.EncryptedSharedPrivateKey(childComplexity), true
-	case "DeviceKey.id":
-		if e.ComplexityRoot.DeviceKey.ID == nil {
-			break
-		}
-
-		return e.ComplexityRoot.DeviceKey.ID(childComplexity), true
-	case "DeviceKey.sharedKeyID":
-		if e.ComplexityRoot.DeviceKey.SharedKeyID == nil {
-			break
-		}
-
-		return e.ComplexityRoot.DeviceKey.SharedKeyID(childComplexity), true
-
-	case "EncryptionMetadata.algorithm":
-		if e.ComplexityRoot.EncryptionMetadata.Algorithm == nil {
-			break
-		}
-
-		return e.ComplexityRoot.EncryptionMetadata.Algorithm(childComplexity), true
-	case "EncryptionMetadata.chunkSize":
-		if e.ComplexityRoot.EncryptionMetadata.ChunkSize == nil {
-			break
-		}
-
-		return e.ComplexityRoot.EncryptionMetadata.ChunkSize(childComplexity), true
-	case "EncryptionMetadata.encryptedDataKey":
-		if e.ComplexityRoot.EncryptionMetadata.EncryptedDataKey == nil {
-			break
-		}
-
-		return e.ComplexityRoot.EncryptionMetadata.EncryptedDataKey(childComplexity), true
-	case "EncryptionMetadata.keyVersion":
-		if e.ComplexityRoot.EncryptionMetadata.KeyVersion == nil {
-			break
-		}
-
-		return e.ComplexityRoot.EncryptionMetadata.KeyVersion(childComplexity), true
-	case "EncryptionMetadata.nonce":
-		if e.ComplexityRoot.EncryptionMetadata.Nonce == nil {
-			break
-		}
-
-		return e.ComplexityRoot.EncryptionMetadata.Nonce(childComplexity), true
-	case "EncryptionMetadata.sharedKeyID":
-		if e.ComplexityRoot.EncryptionMetadata.SharedKeyID == nil {
-			break
-		}
-
-		return e.ComplexityRoot.EncryptionMetadata.SharedKeyID(childComplexity), true
-
-	case "Mutation.createVideo":
-		if e.ComplexityRoot.Mutation.CreateVideo == nil {
-			break
-		}
-
-		args, err := ec.field_Mutation_createVideo_args(ctx, rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.ComplexityRoot.Mutation.CreateVideo(childComplexity, args["input"].(model.CreateVideoInput)), true
 	case "Mutation.rateVideo":
 		if e.ComplexityRoot.Mutation.RateVideo == nil {
 			break
@@ -222,35 +117,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.RecordPlayback(childComplexity, args["id"].(string)), true
-	case "Mutation.registerDeviceKey":
-		if e.ComplexityRoot.Mutation.RegisterDeviceKey == nil {
+	case "Mutation.updateVideoTags":
+		if e.ComplexityRoot.Mutation.UpdateVideoTags == nil {
 			break
 		}
 
-		args, err := ec.field_Mutation_registerDeviceKey_args(ctx, rawArgs)
+		args, err := ec.field_Mutation_updateVideoTags_args(ctx, rawArgs)
 		if err != nil {
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Mutation.RegisterDeviceKey(childComplexity, args["input"].(model.RegisterDeviceKeyInput)), true
-	case "Mutation.registerSharedKey":
-		if e.ComplexityRoot.Mutation.RegisterSharedKey == nil {
-			break
-		}
-
-		args, err := ec.field_Mutation_registerSharedKey_args(ctx, rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.ComplexityRoot.Mutation.RegisterSharedKey(childComplexity, args["input"].(model.RegisterSharedKeyInput)), true
-
-	case "Query.deviceKeys":
-		if e.ComplexityRoot.Query.DeviceKeys == nil {
-			break
-		}
-
-		return e.ComplexityRoot.Query.DeviceKeys(childComplexity), true
+		return e.ComplexityRoot.Mutation.UpdateVideoTags(childComplexity, args["id"].(string), args["input"].(model.UpdateVideoTagsInput)), true
 
 	case "Query.recommendations":
 		if e.ComplexityRoot.Query.Recommendations == nil {
@@ -263,12 +140,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.Recommendations(childComplexity, args["kind"].(model.RecommendationKind)), true
-	case "Query.sharedKeys":
-		if e.ComplexityRoot.Query.SharedKeys == nil {
-			break
-		}
-
-		return e.ComplexityRoot.Query.SharedKeys(childComplexity), true
 	case "Query.video":
 		if e.ComplexityRoot.Query.Video == nil {
 			break
@@ -287,43 +158,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.Query.Videos(childComplexity), true
 
-	case "SharedKey.id":
-		if e.ComplexityRoot.SharedKey.ID == nil {
-			break
-		}
-
-		return e.ComplexityRoot.SharedKey.ID(childComplexity), true
-	case "SharedKey.publicKey":
-		if e.ComplexityRoot.SharedKey.PublicKey == nil {
-			break
-		}
-
-		return e.ComplexityRoot.SharedKey.PublicKey(childComplexity), true
-	case "SharedKey.status":
-		if e.ComplexityRoot.SharedKey.Status == nil {
-			break
-		}
-
-		return e.ComplexityRoot.SharedKey.Status(childComplexity), true
-	case "SharedKey.version":
-		if e.ComplexityRoot.SharedKey.Version == nil {
-			break
-		}
-
-		return e.ComplexityRoot.SharedKey.Version(childComplexity), true
-
-	case "Video.encryptedTags":
-		if e.ComplexityRoot.Video.EncryptedTags == nil {
-			break
-		}
-
-		return e.ComplexityRoot.Video.EncryptedTags(childComplexity), true
-	case "Video.encryption":
-		if e.ComplexityRoot.Video.Encryption == nil {
-			break
-		}
-
-		return e.ComplexityRoot.Video.Encryption(childComplexity), true
 	case "Video.id":
 		if e.ComplexityRoot.Video.ID == nil {
 			break
@@ -360,6 +194,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Video.Status(childComplexity), true
+	case "Video.tags":
+		if e.ComplexityRoot.Video.Tags == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Video.Tags(childComplexity), true
 	case "Video.videoURL":
 		if e.ComplexityRoot.Video.VideoURL == nil {
 			break
@@ -375,10 +215,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 	opCtx := graphql.GetOperationContext(ctx)
 	ec := newExecutionContext(opCtx, e, make(chan graphql.DeferredResult))
 	inputUnmarshalMap := graphql.BuildUnmarshalerMap(
-		ec.unmarshalInputCreateVideoInput,
-		ec.unmarshalInputEncryptionInput,
-		ec.unmarshalInputRegisterDeviceKeyInput,
-		ec.unmarshalInputRegisterSharedKeyInput,
+		ec.unmarshalInputUpdateVideoTagsInput,
 	)
 	first := true
 
@@ -473,68 +310,20 @@ var parsedSchema = gqlparser.MustLoadSchema(sources...)
 // Each function is generated once per unique object type, deduplicating the
 // switch statements that were previously inlined in every fieldContext_* function.
 
-func (ec *executionContext) childFields_DeviceKey(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-	switch field.Name {
-	case "id":
-		return ec.fieldContext_DeviceKey_id(ctx, field)
-	case "deviceID":
-		return ec.fieldContext_DeviceKey_deviceID(ctx, field)
-	case "sharedKeyID":
-		return ec.fieldContext_DeviceKey_sharedKeyID(ctx, field)
-	case "encryptedSharedPrivateKey":
-		return ec.fieldContext_DeviceKey_encryptedSharedPrivateKey(ctx, field)
-	}
-	return nil, fmt.Errorf("no field named %q was found under type DeviceKey", field.Name)
-}
-
-func (ec *executionContext) childFields_EncryptionMetadata(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-	switch field.Name {
-	case "algorithm":
-		return ec.fieldContext_EncryptionMetadata_algorithm(ctx, field)
-	case "chunkSize":
-		return ec.fieldContext_EncryptionMetadata_chunkSize(ctx, field)
-	case "keyVersion":
-		return ec.fieldContext_EncryptionMetadata_keyVersion(ctx, field)
-	case "nonce":
-		return ec.fieldContext_EncryptionMetadata_nonce(ctx, field)
-	case "encryptedDataKey":
-		return ec.fieldContext_EncryptionMetadata_encryptedDataKey(ctx, field)
-	case "sharedKeyID":
-		return ec.fieldContext_EncryptionMetadata_sharedKeyID(ctx, field)
-	}
-	return nil, fmt.Errorf("no field named %q was found under type EncryptionMetadata", field.Name)
-}
-
-func (ec *executionContext) childFields_SharedKey(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-	switch field.Name {
-	case "id":
-		return ec.fieldContext_SharedKey_id(ctx, field)
-	case "version":
-		return ec.fieldContext_SharedKey_version(ctx, field)
-	case "publicKey":
-		return ec.fieldContext_SharedKey_publicKey(ctx, field)
-	case "status":
-		return ec.fieldContext_SharedKey_status(ctx, field)
-	}
-	return nil, fmt.Errorf("no field named %q was found under type SharedKey", field.Name)
-}
-
 func (ec *executionContext) childFields_Video(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "id":
 		return ec.fieldContext_Video_id(ctx, field)
 	case "status":
 		return ec.fieldContext_Video_status(ctx, field)
-	case "encryptedTags":
-		return ec.fieldContext_Video_encryptedTags(ctx, field)
+	case "tags":
+		return ec.fieldContext_Video_tags(ctx, field)
 	case "playCount":
 		return ec.fieldContext_Video_playCount(ctx, field)
 	case "rating":
 		return ec.fieldContext_Video_rating(ctx, field)
 	case "lastPlayedAt":
 		return ec.fieldContext_Video_lastPlayedAt(ctx, field)
-	case "encryption":
-		return ec.fieldContext_Video_encryption(ctx, field)
 	case "videoURL":
 		return ec.fieldContext_Video_videoURL(ctx, field)
 	case "progress":
@@ -659,20 +448,6 @@ func (ec *executionContext) childFields___Type(ctx context.Context, field graphq
 
 // region    ***************************** args.gotpl *****************************
 
-func (ec *executionContext) field_Mutation_createVideo_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
-	var err error
-	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
-		func(ctx context.Context, v any) (model.CreateVideoInput, error) {
-			return ec.unmarshalNCreateVideoInput2githubᚗcomᚋwalnuts1018ᚋbeastᚋbackendᚋgraphᚋmodelᚐCreateVideoInput(ctx, v)
-		})
-	if err != nil {
-		return nil, err
-	}
-	args["input"] = arg0
-	return args, nil
-}
-
 func (ec *executionContext) field_Mutation_rateVideo_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -709,31 +484,25 @@ func (ec *executionContext) field_Mutation_recordPlayback_args(ctx context.Conte
 	return args, nil
 }
 
-func (ec *executionContext) field_Mutation_registerDeviceKey_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+func (ec *executionContext) field_Mutation_updateVideoTags_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
-		func(ctx context.Context, v any) (model.RegisterDeviceKeyInput, error) {
-			return ec.unmarshalNRegisterDeviceKeyInput2githubᚗcomᚋwalnuts1018ᚋbeastᚋbackendᚋgraphᚋmodelᚐRegisterDeviceKeyInput(ctx, v)
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
 		})
 	if err != nil {
 		return nil, err
 	}
-	args["input"] = arg0
-	return args, nil
-}
-
-func (ec *executionContext) field_Mutation_registerSharedKey_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
-	var err error
-	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
-		func(ctx context.Context, v any) (model.RegisterSharedKeyInput, error) {
-			return ec.unmarshalNRegisterSharedKeyInput2githubᚗcomᚋwalnuts1018ᚋbeastᚋbackendᚋgraphᚋmodelᚐRegisterSharedKeyInput(ctx, v)
+	args["id"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (model.UpdateVideoTagsInput, error) {
+			return ec.unmarshalNUpdateVideoTagsInput2githubᚗcomᚋwalnuts1018ᚋbeastᚋbackendᚋgraphᚋmodelᚐUpdateVideoTagsInput(ctx, v)
 		})
 	if err != nil {
 		return nil, err
 	}
-	args["input"] = arg0
+	args["input"] = arg1
 	return args, nil
 }
 
@@ -839,247 +608,17 @@ func (ec *executionContext) field___Type_fields_args(ctx context.Context, rawArg
 
 // region    **************************** field.gotpl *****************************
 
-func (ec *executionContext) _DeviceKey_id(ctx context.Context, field graphql.CollectedField, obj *model.DeviceKey) (ret graphql.Marshaler) {
+func (ec *executionContext) _Mutation_updateVideoTags(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
 		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_DeviceKey_id(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.ID, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNID2string(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_DeviceKey_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("DeviceKey", field, false, false, errors.New("field of type ID does not have child fields"))
-}
-
-func (ec *executionContext) _DeviceKey_deviceID(ctx context.Context, field graphql.CollectedField, obj *model.DeviceKey) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_DeviceKey_deviceID(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.DeviceID, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNString2string(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_DeviceKey_deviceID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("DeviceKey", field, false, false, errors.New("field of type String does not have child fields"))
-}
-
-func (ec *executionContext) _DeviceKey_sharedKeyID(ctx context.Context, field graphql.CollectedField, obj *model.DeviceKey) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_DeviceKey_sharedKeyID(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.SharedKeyID, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNID2string(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_DeviceKey_sharedKeyID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("DeviceKey", field, false, false, errors.New("field of type ID does not have child fields"))
-}
-
-func (ec *executionContext) _DeviceKey_encryptedSharedPrivateKey(ctx context.Context, field graphql.CollectedField, obj *model.DeviceKey) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_DeviceKey_encryptedSharedPrivateKey(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.EncryptedSharedPrivateKey, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNString2string(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_DeviceKey_encryptedSharedPrivateKey(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("DeviceKey", field, false, false, errors.New("field of type String does not have child fields"))
-}
-
-func (ec *executionContext) _EncryptionMetadata_algorithm(ctx context.Context, field graphql.CollectedField, obj *model.EncryptionMetadata) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_EncryptionMetadata_algorithm(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.Algorithm, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNString2string(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_EncryptionMetadata_algorithm(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("EncryptionMetadata", field, false, false, errors.New("field of type String does not have child fields"))
-}
-
-func (ec *executionContext) _EncryptionMetadata_chunkSize(ctx context.Context, field graphql.CollectedField, obj *model.EncryptionMetadata) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_EncryptionMetadata_chunkSize(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.ChunkSize, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
-			return ec.marshalNInt2int(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_EncryptionMetadata_chunkSize(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("EncryptionMetadata", field, false, false, errors.New("field of type Int does not have child fields"))
-}
-
-func (ec *executionContext) _EncryptionMetadata_keyVersion(ctx context.Context, field graphql.CollectedField, obj *model.EncryptionMetadata) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_EncryptionMetadata_keyVersion(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.KeyVersion, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNString2string(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_EncryptionMetadata_keyVersion(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("EncryptionMetadata", field, false, false, errors.New("field of type String does not have child fields"))
-}
-
-func (ec *executionContext) _EncryptionMetadata_nonce(ctx context.Context, field graphql.CollectedField, obj *model.EncryptionMetadata) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_EncryptionMetadata_nonce(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.Nonce, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNString2string(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_EncryptionMetadata_nonce(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("EncryptionMetadata", field, false, false, errors.New("field of type String does not have child fields"))
-}
-
-func (ec *executionContext) _EncryptionMetadata_encryptedDataKey(ctx context.Context, field graphql.CollectedField, obj *model.EncryptionMetadata) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_EncryptionMetadata_encryptedDataKey(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.EncryptedDataKey, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNString2string(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_EncryptionMetadata_encryptedDataKey(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("EncryptionMetadata", field, false, false, errors.New("field of type String does not have child fields"))
-}
-
-func (ec *executionContext) _EncryptionMetadata_sharedKeyID(ctx context.Context, field graphql.CollectedField, obj *model.EncryptionMetadata) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_EncryptionMetadata_sharedKeyID(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.SharedKeyID, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNID2string(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_EncryptionMetadata_sharedKeyID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("EncryptionMetadata", field, false, false, errors.New("field of type ID does not have child fields"))
-}
-
-func (ec *executionContext) _Mutation_createVideo(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_Mutation_createVideo(ctx, field)
+			return ec.fieldContext_Mutation_updateVideoTags(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().CreateVideo(ctx, fc.Args["input"].(model.CreateVideoInput))
+			return ec.Resolvers.Mutation().UpdateVideoTags(ctx, fc.Args["id"].(string), fc.Args["input"].(model.UpdateVideoTagsInput))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.Video) graphql.Marshaler {
@@ -1089,7 +628,7 @@ func (ec *executionContext) _Mutation_createVideo(ctx context.Context, field gra
 		true,
 	)
 }
-func (ec *executionContext) fieldContext_Mutation_createVideo(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Mutation_updateVideoTags(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Mutation",
 		Field:      field,
@@ -1106,7 +645,7 @@ func (ec *executionContext) fieldContext_Mutation_createVideo(ctx context.Contex
 		}
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Mutation_createVideo_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+	if fc.Args, err = ec.field_Mutation_updateVideoTags_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -1201,94 +740,6 @@ func (ec *executionContext) fieldContext_Mutation_recordPlayback(ctx context.Con
 	return fc, nil
 }
 
-func (ec *executionContext) _Mutation_registerSharedKey(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_Mutation_registerSharedKey(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().RegisterSharedKey(ctx, fc.Args["input"].(model.RegisterSharedKeyInput))
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v *model.SharedKey) graphql.Marshaler {
-			return ec.marshalNSharedKey2ᚖgithubᚗcomᚋwalnuts1018ᚋbeastᚋbackendᚋgraphᚋmodelᚐSharedKey(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_Mutation_registerSharedKey(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Mutation",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.childFields_SharedKey(ctx, field)
-		},
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			err = ec.Recover(ctx, r)
-			ec.Error(ctx, err)
-		}
-	}()
-	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Mutation_registerSharedKey_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
-		ec.Error(ctx, err)
-		return fc, err
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Mutation_registerDeviceKey(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_Mutation_registerDeviceKey(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().RegisterDeviceKey(ctx, fc.Args["input"].(model.RegisterDeviceKeyInput))
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v *model.DeviceKey) graphql.Marshaler {
-			return ec.marshalNDeviceKey2ᚖgithubᚗcomᚋwalnuts1018ᚋbeastᚋbackendᚋgraphᚋmodelᚐDeviceKey(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_Mutation_registerDeviceKey(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Mutation",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.childFields_DeviceKey(ctx, field)
-		},
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			err = ec.Recover(ctx, r)
-			ec.Error(ctx, err)
-		}
-	}()
-	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Mutation_registerDeviceKey_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
-		ec.Error(ctx, err)
-		return fc, err
-	}
-	return fc, nil
-}
-
 func (ec *executionContext) _Query_videos(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -1361,70 +812,6 @@ func (ec *executionContext) fieldContext_Query_video(ctx context.Context, field 
 	if fc.Args, err = ec.field_Query_video_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Query_sharedKeys(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_Query_sharedKeys(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return ec.Resolvers.Query().SharedKeys(ctx)
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v []*model.SharedKey) graphql.Marshaler {
-			return ec.marshalNSharedKey2ᚕᚖgithubᚗcomᚋwalnuts1018ᚋbeastᚋbackendᚋgraphᚋmodelᚐSharedKeyᚄ(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_Query_sharedKeys(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Query",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.childFields_SharedKey(ctx, field)
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Query_deviceKeys(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_Query_deviceKeys(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return ec.Resolvers.Query().DeviceKeys(ctx)
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v []*model.DeviceKey) graphql.Marshaler {
-			return ec.marshalNDeviceKey2ᚕᚖgithubᚗcomᚋwalnuts1018ᚋbeastᚋbackendᚋgraphᚋmodelᚐDeviceKeyᚄ(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_Query_deviceKeys(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Query",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.childFields_DeviceKey(ctx, field)
-		},
 	}
 	return fc, nil
 }
@@ -1549,98 +936,6 @@ func (ec *executionContext) fieldContext_Query___schema(_ context.Context, field
 	return fc, nil
 }
 
-func (ec *executionContext) _SharedKey_id(ctx context.Context, field graphql.CollectedField, obj *model.SharedKey) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_SharedKey_id(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.ID, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNID2string(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_SharedKey_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("SharedKey", field, false, false, errors.New("field of type ID does not have child fields"))
-}
-
-func (ec *executionContext) _SharedKey_version(ctx context.Context, field graphql.CollectedField, obj *model.SharedKey) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_SharedKey_version(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.Version, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNString2string(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_SharedKey_version(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("SharedKey", field, false, false, errors.New("field of type String does not have child fields"))
-}
-
-func (ec *executionContext) _SharedKey_publicKey(ctx context.Context, field graphql.CollectedField, obj *model.SharedKey) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_SharedKey_publicKey(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.PublicKey, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNString2string(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_SharedKey_publicKey(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("SharedKey", field, false, false, errors.New("field of type String does not have child fields"))
-}
-
-func (ec *executionContext) _SharedKey_status(ctx context.Context, field graphql.CollectedField, obj *model.SharedKey) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_SharedKey_status(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.Status, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNString2string(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_SharedKey_status(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("SharedKey", field, false, false, errors.New("field of type String does not have child fields"))
-}
-
 func (ec *executionContext) _Video_id(ctx context.Context, field graphql.CollectedField, obj *model.Video) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -1687,26 +982,26 @@ func (ec *executionContext) fieldContext_Video_status(_ context.Context, field g
 	return graphql.NewScalarFieldContext("Video", field, false, false, errors.New("field of type VideoStatus does not have child fields"))
 }
 
-func (ec *executionContext) _Video_encryptedTags(ctx context.Context, field graphql.CollectedField, obj *model.Video) (ret graphql.Marshaler) {
+func (ec *executionContext) _Video_tags(ctx context.Context, field graphql.CollectedField, obj *model.Video) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
 		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_Video_encryptedTags(ctx, field)
+			return ec.fieldContext_Video_tags(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			return obj.EncryptedTags, nil
+			return obj.Tags, nil
 		},
 		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNString2string(ctx, selections, v)
+		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
+			return ec.marshalNString2ᚕstringᚄ(ctx, selections, v)
 		},
 		true,
 		true,
 	)
 }
-func (ec *executionContext) fieldContext_Video_encryptedTags(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Video_tags(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("Video", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
@@ -1777,38 +1072,6 @@ func (ec *executionContext) _Video_lastPlayedAt(ctx context.Context, field graph
 }
 func (ec *executionContext) fieldContext_Video_lastPlayedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("Video", field, false, false, errors.New("field of type Time does not have child fields"))
-}
-
-func (ec *executionContext) _Video_encryption(ctx context.Context, field graphql.CollectedField, obj *model.Video) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_Video_encryption(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.Encryption, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v *model.EncryptionMetadata) graphql.Marshaler {
-			return ec.marshalNEncryptionMetadata2ᚖgithubᚗcomᚋwalnuts1018ᚋbeastᚋbackendᚋgraphᚋmodelᚐEncryptionMetadata(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_Video_encryption(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Video",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.childFields_EncryptionMetadata(ctx, field)
-		},
-	}
-	return fc, nil
 }
 
 func (ec *executionContext) _Video_videoURL(ctx context.Context, field graphql.CollectedField, obj *model.Video) (ret graphql.Marshaler) {
@@ -2916,8 +2179,8 @@ func (ec *executionContext) fieldContext___Type_isOneOf(_ context.Context, field
 
 // region    **************************** input.gotpl *****************************
 
-func (ec *executionContext) unmarshalInputCreateVideoInput(ctx context.Context, obj any) (model.CreateVideoInput, error) {
-	var it model.CreateVideoInput
+func (ec *executionContext) unmarshalInputUpdateVideoTagsInput(ctx context.Context, obj any) (model.UpdateVideoTagsInput, error) {
+	var it model.UpdateVideoTagsInput
 	if obj == nil {
 		return it, nil
 	}
@@ -2927,187 +2190,20 @@ func (ec *executionContext) unmarshalInputCreateVideoInput(ctx context.Context, 
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"objectKey", "encryptedTags", "sharedKeyID", "encryption"}
+	fieldsInOrder := [...]string{"tags"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
 			continue
 		}
 		switch k {
-		case "objectKey":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("objectKey"))
-			data, err := ec.unmarshalNString2string(ctx, v)
+		case "tags":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("tags"))
+			data, err := ec.unmarshalNString2ᚕstringᚄ(ctx, v)
 			if err != nil {
 				return it, err
 			}
-			it.ObjectKey = data
-		case "encryptedTags":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("encryptedTags"))
-			data, err := ec.unmarshalNString2string(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.EncryptedTags = data
-		case "sharedKeyID":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sharedKeyID"))
-			data, err := ec.unmarshalNID2string(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.SharedKeyID = data
-		case "encryption":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("encryption"))
-			data, err := ec.unmarshalNEncryptionInput2ᚖgithubᚗcomᚋwalnuts1018ᚋbeastᚋbackendᚋgraphᚋmodelᚐEncryptionInput(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.Encryption = data
-		}
-	}
-	return it, nil
-}
-
-func (ec *executionContext) unmarshalInputEncryptionInput(ctx context.Context, obj any) (model.EncryptionInput, error) {
-	var it model.EncryptionInput
-	if obj == nil {
-		return it, nil
-	}
-
-	asMap := map[string]any{}
-	for k, v := range obj.(map[string]any) {
-		asMap[k] = v
-	}
-
-	fieldsInOrder := [...]string{"algorithm", "chunkSize", "keyVersion", "nonce", "encryptedDataKey", "sharedKeyID"}
-	for _, k := range fieldsInOrder {
-		v, ok := asMap[k]
-		if !ok {
-			continue
-		}
-		switch k {
-		case "algorithm":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("algorithm"))
-			data, err := ec.unmarshalNString2string(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.Algorithm = data
-		case "chunkSize":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("chunkSize"))
-			data, err := ec.unmarshalNInt2int(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.ChunkSize = data
-		case "keyVersion":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("keyVersion"))
-			data, err := ec.unmarshalNString2string(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.KeyVersion = data
-		case "nonce":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("nonce"))
-			data, err := ec.unmarshalNString2string(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.Nonce = data
-		case "encryptedDataKey":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("encryptedDataKey"))
-			data, err := ec.unmarshalNString2string(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.EncryptedDataKey = data
-		case "sharedKeyID":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sharedKeyID"))
-			data, err := ec.unmarshalNID2string(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.SharedKeyID = data
-		}
-	}
-	return it, nil
-}
-
-func (ec *executionContext) unmarshalInputRegisterDeviceKeyInput(ctx context.Context, obj any) (model.RegisterDeviceKeyInput, error) {
-	var it model.RegisterDeviceKeyInput
-	if obj == nil {
-		return it, nil
-	}
-
-	asMap := map[string]any{}
-	for k, v := range obj.(map[string]any) {
-		asMap[k] = v
-	}
-
-	fieldsInOrder := [...]string{"deviceID", "sharedKeyID", "encryptedSharedPrivateKey"}
-	for _, k := range fieldsInOrder {
-		v, ok := asMap[k]
-		if !ok {
-			continue
-		}
-		switch k {
-		case "deviceID":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("deviceID"))
-			data, err := ec.unmarshalNString2string(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.DeviceID = data
-		case "sharedKeyID":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sharedKeyID"))
-			data, err := ec.unmarshalNID2string(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.SharedKeyID = data
-		case "encryptedSharedPrivateKey":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("encryptedSharedPrivateKey"))
-			data, err := ec.unmarshalNString2string(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.EncryptedSharedPrivateKey = data
-		}
-	}
-	return it, nil
-}
-
-func (ec *executionContext) unmarshalInputRegisterSharedKeyInput(ctx context.Context, obj any) (model.RegisterSharedKeyInput, error) {
-	var it model.RegisterSharedKeyInput
-	if obj == nil {
-		return it, nil
-	}
-
-	asMap := map[string]any{}
-	for k, v := range obj.(map[string]any) {
-		asMap[k] = v
-	}
-
-	fieldsInOrder := [...]string{"version", "publicKey"}
-	for _, k := range fieldsInOrder {
-		v, ok := asMap[k]
-		if !ok {
-			continue
-		}
-		switch k {
-		case "version":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("version"))
-			data, err := ec.unmarshalNString2string(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.Version = data
-		case "publicKey":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("publicKey"))
-			data, err := ec.unmarshalNString2string(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.PublicKey = data
+			it.Tags = data
 		}
 	}
 	return it, nil
@@ -3120,122 +2216,6 @@ func (ec *executionContext) unmarshalInputRegisterSharedKeyInput(ctx context.Con
 // endregion ************************** interface.gotpl ***************************
 
 // region    **************************** object.gotpl ****************************
-
-var deviceKeyImplementors = []string{"DeviceKey"}
-
-func (ec *executionContext) _DeviceKey(ctx context.Context, sel ast.SelectionSet, obj *model.DeviceKey) graphql.Marshaler {
-	fields := graphql.CollectFields(ec.OperationContext, sel, deviceKeyImplementors)
-
-	out := graphql.NewFieldSet(fields)
-	deferredFieldSet := graphql.NewFieldSet(nil)
-	deferLabelToView := make(map[string]*graphql.FieldSetView)
-	for i, field := range fields {
-		switch field.Name {
-		case "__typename":
-			out.Values[i] = graphql.MarshalString("DeviceKey")
-		case "id":
-			out.Values[i] = ec._DeviceKey_id(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "deviceID":
-			out.Values[i] = ec._DeviceKey_deviceID(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "sharedKeyID":
-			out.Values[i] = ec._DeviceKey_sharedKeyID(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "encryptedSharedPrivateKey":
-			out.Values[i] = ec._DeviceKey_encryptedSharedPrivateKey(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		default:
-			panic("unknown field " + strconv.Quote(field.Name))
-		}
-	}
-	out.Dispatch(ctx)
-	if out.Invalids > 0 {
-		return graphql.Null
-	}
-
-	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
-
-	ec.ProcessDeferredGroup(graphql.DeferredGroup{
-		Defers:   deferLabelToView,
-		Path:     graphql.GetPath(ctx),
-		FieldSet: deferredFieldSet,
-		Context:  ctx,
-	})
-
-	return out
-}
-
-var encryptionMetadataImplementors = []string{"EncryptionMetadata"}
-
-func (ec *executionContext) _EncryptionMetadata(ctx context.Context, sel ast.SelectionSet, obj *model.EncryptionMetadata) graphql.Marshaler {
-	fields := graphql.CollectFields(ec.OperationContext, sel, encryptionMetadataImplementors)
-
-	out := graphql.NewFieldSet(fields)
-	deferredFieldSet := graphql.NewFieldSet(nil)
-	deferLabelToView := make(map[string]*graphql.FieldSetView)
-	for i, field := range fields {
-		switch field.Name {
-		case "__typename":
-			out.Values[i] = graphql.MarshalString("EncryptionMetadata")
-		case "algorithm":
-			out.Values[i] = ec._EncryptionMetadata_algorithm(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "chunkSize":
-			out.Values[i] = ec._EncryptionMetadata_chunkSize(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "keyVersion":
-			out.Values[i] = ec._EncryptionMetadata_keyVersion(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "nonce":
-			out.Values[i] = ec._EncryptionMetadata_nonce(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "encryptedDataKey":
-			out.Values[i] = ec._EncryptionMetadata_encryptedDataKey(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "sharedKeyID":
-			out.Values[i] = ec._EncryptionMetadata_sharedKeyID(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		default:
-			panic("unknown field " + strconv.Quote(field.Name))
-		}
-	}
-	out.Dispatch(ctx)
-	if out.Invalids > 0 {
-		return graphql.Null
-	}
-
-	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
-
-	ec.ProcessDeferredGroup(graphql.DeferredGroup{
-		Defers:   deferLabelToView,
-		Path:     graphql.GetPath(ctx),
-		FieldSet: deferredFieldSet,
-		Context:  ctx,
-	})
-
-	return out
-}
 
 var mutationImplementors = []string{"Mutation"}
 
@@ -3257,9 +2237,9 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		switch field.Name {
 		case "__typename":
 			out.Values[i] = graphql.MarshalString("Mutation")
-		case "createVideo":
+		case "updateVideoTags":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
-				return ec._Mutation_createVideo(ctx, field)
+				return ec._Mutation_updateVideoTags(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -3274,20 +2254,6 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "recordPlayback":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_recordPlayback(ctx, field)
-			})
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "registerSharedKey":
-			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
-				return ec._Mutation_registerSharedKey(ctx, field)
-			})
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "registerDeviceKey":
-			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
-				return ec._Mutation_registerDeviceKey(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -3377,50 +2343,6 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
-		case "sharedKeys":
-			field := field
-
-			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
-				defer func() {
-					if r := recover(); r != nil {
-						ec.Error(ctx, ec.Recover(ctx, r))
-					}
-				}()
-				res = ec._Query_sharedKeys(ctx, field)
-				if res == graphql.Null {
-					atomic.AddUint32(&fs.Invalids, 1)
-				}
-				return res
-			}
-
-			rrm := func(ctx context.Context) graphql.Marshaler {
-				return ec.OperationContext.RootResolverMiddleware(ctx,
-					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
-			}
-
-			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
-		case "deviceKeys":
-			field := field
-
-			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
-				defer func() {
-					if r := recover(); r != nil {
-						ec.Error(ctx, ec.Recover(ctx, r))
-					}
-				}()
-				res = ec._Query_deviceKeys(ctx, field)
-				if res == graphql.Null {
-					atomic.AddUint32(&fs.Invalids, 1)
-				}
-				return res
-			}
-
-			rrm := func(ctx context.Context) graphql.Marshaler {
-				return ec.OperationContext.RootResolverMiddleware(ctx,
-					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
-			}
-
-			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "recommendations":
 			field := field
 
@@ -3478,59 +2400,6 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 	return out
 }
 
-var sharedKeyImplementors = []string{"SharedKey"}
-
-func (ec *executionContext) _SharedKey(ctx context.Context, sel ast.SelectionSet, obj *model.SharedKey) graphql.Marshaler {
-	fields := graphql.CollectFields(ec.OperationContext, sel, sharedKeyImplementors)
-
-	out := graphql.NewFieldSet(fields)
-	deferredFieldSet := graphql.NewFieldSet(nil)
-	deferLabelToView := make(map[string]*graphql.FieldSetView)
-	for i, field := range fields {
-		switch field.Name {
-		case "__typename":
-			out.Values[i] = graphql.MarshalString("SharedKey")
-		case "id":
-			out.Values[i] = ec._SharedKey_id(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "version":
-			out.Values[i] = ec._SharedKey_version(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "publicKey":
-			out.Values[i] = ec._SharedKey_publicKey(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "status":
-			out.Values[i] = ec._SharedKey_status(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		default:
-			panic("unknown field " + strconv.Quote(field.Name))
-		}
-	}
-	out.Dispatch(ctx)
-	if out.Invalids > 0 {
-		return graphql.Null
-	}
-
-	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
-
-	ec.ProcessDeferredGroup(graphql.DeferredGroup{
-		Defers:   deferLabelToView,
-		Path:     graphql.GetPath(ctx),
-		FieldSet: deferredFieldSet,
-		Context:  ctx,
-	})
-
-	return out
-}
-
 var videoImplementors = []string{"Video"}
 
 func (ec *executionContext) _Video(ctx context.Context, sel ast.SelectionSet, obj *model.Video) graphql.Marshaler {
@@ -3553,8 +2422,8 @@ func (ec *executionContext) _Video(ctx context.Context, sel ast.SelectionSet, ob
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "encryptedTags":
-			out.Values[i] = ec._Video_encryptedTags(ctx, field, obj)
+		case "tags":
+			out.Values[i] = ec._Video_tags(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -3571,11 +2440,6 @@ func (ec *executionContext) _Video(ctx context.Context, sel ast.SelectionSet, ob
 		case "lastPlayedAt":
 			out.Values[i] = ec._Video_lastPlayedAt(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
-			}
-		case "encryption":
-			out.Values[i] = ec._Video_encryption(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
 		case "videoURL":
@@ -4017,52 +2881,6 @@ func (ec *executionContext) marshalNBoolean2bool(ctx context.Context, sel ast.Se
 	return res
 }
 
-func (ec *executionContext) unmarshalNCreateVideoInput2githubᚗcomᚋwalnuts1018ᚋbeastᚋbackendᚋgraphᚋmodelᚐCreateVideoInput(ctx context.Context, v any) (model.CreateVideoInput, error) {
-	res, err := ec.unmarshalInputCreateVideoInput(ctx, v)
-	return res, graphql.ErrorOnPath(ctx, err)
-}
-
-func (ec *executionContext) marshalNDeviceKey2ᚕᚖgithubᚗcomᚋwalnuts1018ᚋbeastᚋbackendᚋgraphᚋmodelᚐDeviceKeyᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.DeviceKey) graphql.Marshaler {
-	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
-		fc := graphql.GetFieldContext(ctx)
-		fc.Result = &v[i]
-		return ec.marshalNDeviceKey2ᚖgithubᚗcomᚋwalnuts1018ᚋbeastᚋbackendᚋgraphᚋmodelᚐDeviceKey(ctx, sel, v[i])
-	})
-
-	for _, e := range ret {
-		if e == graphql.Null {
-			return graphql.Null
-		}
-	}
-
-	return ret
-}
-
-func (ec *executionContext) marshalNDeviceKey2ᚖgithubᚗcomᚋwalnuts1018ᚋbeastᚋbackendᚋgraphᚋmodelᚐDeviceKey(ctx context.Context, sel ast.SelectionSet, v *model.DeviceKey) graphql.Marshaler {
-	if v == nil {
-		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
-			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
-		}
-		return graphql.Null
-	}
-	return ec._DeviceKey(ctx, sel, v)
-}
-
-func (ec *executionContext) unmarshalNEncryptionInput2ᚖgithubᚗcomᚋwalnuts1018ᚋbeastᚋbackendᚋgraphᚋmodelᚐEncryptionInput(ctx context.Context, v any) (*model.EncryptionInput, error) {
-	res, err := ec.unmarshalInputEncryptionInput(ctx, v)
-	return &res, graphql.ErrorOnPath(ctx, err)
-}
-
-func (ec *executionContext) marshalNEncryptionMetadata2ᚖgithubᚗcomᚋwalnuts1018ᚋbeastᚋbackendᚋgraphᚋmodelᚐEncryptionMetadata(ctx context.Context, sel ast.SelectionSet, v *model.EncryptionMetadata) graphql.Marshaler {
-	if v == nil {
-		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
-			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
-		}
-		return graphql.Null
-	}
-	return ec._EncryptionMetadata(ctx, sel, v)
-}
-
 func (ec *executionContext) unmarshalNFloat2float64(ctx context.Context, v any) (float64, error) {
 	res, err := graphql.UnmarshalFloatContext(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -4121,42 +2939,6 @@ func (ec *executionContext) marshalNRecommendationKind2githubᚗcomᚋwalnuts101
 	return v
 }
 
-func (ec *executionContext) unmarshalNRegisterDeviceKeyInput2githubᚗcomᚋwalnuts1018ᚋbeastᚋbackendᚋgraphᚋmodelᚐRegisterDeviceKeyInput(ctx context.Context, v any) (model.RegisterDeviceKeyInput, error) {
-	res, err := ec.unmarshalInputRegisterDeviceKeyInput(ctx, v)
-	return res, graphql.ErrorOnPath(ctx, err)
-}
-
-func (ec *executionContext) unmarshalNRegisterSharedKeyInput2githubᚗcomᚋwalnuts1018ᚋbeastᚋbackendᚋgraphᚋmodelᚐRegisterSharedKeyInput(ctx context.Context, v any) (model.RegisterSharedKeyInput, error) {
-	res, err := ec.unmarshalInputRegisterSharedKeyInput(ctx, v)
-	return res, graphql.ErrorOnPath(ctx, err)
-}
-
-func (ec *executionContext) marshalNSharedKey2ᚕᚖgithubᚗcomᚋwalnuts1018ᚋbeastᚋbackendᚋgraphᚋmodelᚐSharedKeyᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.SharedKey) graphql.Marshaler {
-	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
-		fc := graphql.GetFieldContext(ctx)
-		fc.Result = &v[i]
-		return ec.marshalNSharedKey2ᚖgithubᚗcomᚋwalnuts1018ᚋbeastᚋbackendᚋgraphᚋmodelᚐSharedKey(ctx, sel, v[i])
-	})
-
-	for _, e := range ret {
-		if e == graphql.Null {
-			return graphql.Null
-		}
-	}
-
-	return ret
-}
-
-func (ec *executionContext) marshalNSharedKey2ᚖgithubᚗcomᚋwalnuts1018ᚋbeastᚋbackendᚋgraphᚋmodelᚐSharedKey(ctx context.Context, sel ast.SelectionSet, v *model.SharedKey) graphql.Marshaler {
-	if v == nil {
-		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
-			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
-		}
-		return graphql.Null
-	}
-	return ec._SharedKey(ctx, sel, v)
-}
-
 func (ec *executionContext) unmarshalNString2string(ctx context.Context, v any) (string, error) {
 	res, err := graphql.UnmarshalString(v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -4171,6 +2953,40 @@ func (ec *executionContext) marshalNString2string(ctx context.Context, sel ast.S
 		}
 	}
 	return res
+}
+
+func (ec *executionContext) unmarshalNString2ᚕstringᚄ(ctx context.Context, v any) ([]string, error) {
+	vSlice := graphql.CoerceList(v)
+	var err error
+	res := make([]string, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNString2string(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) marshalNString2ᚕstringᚄ(ctx context.Context, sel ast.SelectionSet, v []string) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	for i := range v {
+		ret[i] = ec.marshalNString2string(ctx, sel, v[i])
+	}
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) unmarshalNUpdateVideoTagsInput2githubᚗcomᚋwalnuts1018ᚋbeastᚋbackendᚋgraphᚋmodelᚐUpdateVideoTagsInput(ctx context.Context, v any) (model.UpdateVideoTagsInput, error) {
+	res, err := ec.unmarshalInputUpdateVideoTagsInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) marshalNVideo2ᚕᚖgithubᚗcomᚋwalnuts1018ᚋbeastᚋbackendᚋgraphᚋmodelᚐVideoᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Video) graphql.Marshaler {

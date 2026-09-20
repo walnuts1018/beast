@@ -17,17 +17,11 @@ var (
 )
 
 func Where[Q psql.Filterable]() struct {
-	DeviceKeys deviceKeyWhere[Q]
-	SharedKeys sharedKeyWhere[Q]
-	Videos     videoWhere[Q]
+	Videos videoWhere[Q]
 } {
 	return struct {
-		DeviceKeys deviceKeyWhere[Q]
-		SharedKeys sharedKeyWhere[Q]
-		Videos     videoWhere[Q]
+		Videos videoWhere[Q]
 	}{
-		DeviceKeys: buildDeviceKeyWhere[Q](DeviceKeys.Columns),
-		SharedKeys: buildSharedKeyWhere[Q](SharedKeys.Columns),
-		Videos:     buildVideoWhere[Q](Videos.Columns),
+		Videos: buildVideoWhere[Q](Videos.Columns),
 	}
 }

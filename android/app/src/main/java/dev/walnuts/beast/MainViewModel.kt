@@ -27,7 +27,7 @@ data class LibraryUiState(
     val error: String? = null,
 )
 
-class MainViewModel(private val repository: VideoRepository, val encryptedDashDataSourceFactory: DataSource.Factory? = null) : ViewModel() {
+class MainViewModel(private val repository: VideoRepository, val authenticatedDataSourceFactory: DataSource.Factory? = null) : ViewModel() {
     private val _uiState = MutableStateFlow(LibraryUiState())
     val uiState: StateFlow<LibraryUiState> = _uiState.asStateFlow()
 
@@ -49,9 +49,9 @@ class MainViewModel(private val repository: VideoRepository, val encryptedDashDa
     fun closeTagEditor() { _uiState.update { it.copy(editingVideo = null) } }
 
     fun saveTags(videoId: String, tags: List<String>) = viewModelScope.launch {
-        _uiState.update { it.copy(editingVideo = null) }
-        // TODO: backend schemaにタグ更新Mutationが追加されたら、現在の画面内更新を永続化処理へ置き換える。
-        _uiState.update { state -> state.copy(videos = state.videos.map { if (it.id == videoId) it.copy(tags = tags) else it }) }
+        runCatching { repository.updateTags(videoId, tags) }
+            .onSuccess { updated -> _uiState.update { state -> state.copy(editingVideo = null, videos = state.videos.replace(updated), playingVideo = state.playingVideo?.let { current -> if (current.id == updated.id) updated else current }) } }
+            .onFailure { error -> _uiState.update { it.copy(error = error.message ?: "タグを更新できませんでした") } }
     }
 
     fun rate(video: Video, rating: Int?) = viewModelScope.launch {

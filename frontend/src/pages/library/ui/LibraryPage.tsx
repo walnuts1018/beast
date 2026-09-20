@@ -1,17 +1,18 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { GraphQlVideoApi, VideoApiError } from '../../../shared/api/video'
 import type { RecommendationKind, VideoApi, VideoRecord } from '../../../shared/api/video'
+import { AuthenticatedHlsPlayer, HlsPlaybackError } from '../../../shared/api/hls-player'
 import { ChevronRightIcon, CloseIcon, HomeIcon, LibraryIcon, LockIcon, MoreIcon, PlayIcon, SearchIcon, StarIcon, UploadIcon } from '../../../shared/ui/icons'
 
 const previewVideoUrl = 'https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4'
 
 const demoVideos: VideoRecord[] = [
-  { id: 'v-01', durationSeconds: 623, uploadedAt: '2026-09-18', lastPlayedAt: '2026-09-14', playCount: 4, rating: 5, tags: ['旅', '夕方'], encryptedTags: 'demo', thumbnailUrl: '', playback: 'demo', dashManifestUrl: '', playbackUrl: previewVideoUrl, progress: 'ready', progressRatio: 1, metadata: { algorithm: 'AES-GCM', chunkSize: 1048576, keyVersion: 'v2', nonce: 'demo', encryptedDataKey: 'demo', sharedKeyId: 'demo' } },
-  { id: 'v-02', durationSeconds: 218, uploadedAt: '2026-09-17', lastPlayedAt: null, playCount: 0, rating: null, tags: ['散歩', '街'], encryptedTags: 'demo', thumbnailUrl: '', playback: 'demo', dashManifestUrl: '', playbackUrl: previewVideoUrl, progress: 'ready', progressRatio: 1, metadata: { algorithm: 'AES-GCM', chunkSize: 1048576, keyVersion: 'v2', nonce: 'demo', encryptedDataKey: 'demo', sharedKeyId: 'demo' } },
-  { id: 'v-03', durationSeconds: 496, uploadedAt: '2026-09-12', lastPlayedAt: '2026-09-16', playCount: 9, rating: 4, tags: ['料理', '週末'], encryptedTags: 'demo', thumbnailUrl: '', playback: 'demo', dashManifestUrl: '', playbackUrl: previewVideoUrl, progress: 'ready', progressRatio: 1, metadata: { algorithm: 'AES-GCM', chunkSize: 1048576, keyVersion: 'v2', nonce: 'demo', encryptedDataKey: 'demo', sharedKeyId: 'demo' } },
-  { id: 'v-04', durationSeconds: 1280, uploadedAt: '2026-09-11', lastPlayedAt: null, playCount: 0, rating: null, tags: ['旅行'], encryptedTags: 'demo', thumbnailUrl: '', playback: 'demo', dashManifestUrl: '', playbackUrl: '', progress: 'encoding', progressRatio: .4, metadata: { algorithm: 'AES-GCM', chunkSize: 1048576, keyVersion: 'v3', nonce: 'demo', encryptedDataKey: 'demo', sharedKeyId: 'demo' } },
-  { id: 'v-05', durationSeconds: 92, uploadedAt: '2026-09-08', lastPlayedAt: '2026-09-15', playCount: 2, rating: 3, tags: ['猫', '日常'], encryptedTags: 'demo', thumbnailUrl: '', playback: 'demo', dashManifestUrl: '', playbackUrl: previewVideoUrl, progress: 'ready', progressRatio: 1, metadata: { algorithm: 'AES-GCM', chunkSize: 1048576, keyVersion: 'v2', nonce: 'demo', encryptedDataKey: 'demo', sharedKeyId: 'demo' } },
+  { id: 'v-01', durationSeconds: 623, uploadedAt: '2026-09-18', lastPlayedAt: '2026-09-14', playCount: 4, rating: 5, tags: ['旅', '夕方'], thumbnailUrl: '', playback: 'demo', hlsManifestUrl: '', playbackUrl: previewVideoUrl, progress: 'ready', progressRatio: 1 },
+  { id: 'v-02', durationSeconds: 218, uploadedAt: '2026-09-17', lastPlayedAt: null, playCount: 0, rating: null, tags: ['散歩', '街'], thumbnailUrl: '', playback: 'demo', hlsManifestUrl: '', playbackUrl: previewVideoUrl, progress: 'ready', progressRatio: 1 },
+  { id: 'v-03', durationSeconds: 496, uploadedAt: '2026-09-12', lastPlayedAt: '2026-09-16', playCount: 9, rating: 4, tags: ['料理', '週末'], thumbnailUrl: '', playback: 'demo', hlsManifestUrl: '', playbackUrl: previewVideoUrl, progress: 'ready', progressRatio: 1 },
+  { id: 'v-04', durationSeconds: 1280, uploadedAt: '2026-09-11', lastPlayedAt: null, playCount: 0, rating: null, tags: ['旅行'], thumbnailUrl: '', playback: 'demo', hlsManifestUrl: '', playbackUrl: '', progress: 'encoding', progressRatio: .4 },
+  { id: 'v-05', durationSeconds: 92, uploadedAt: '2026-09-08', lastPlayedAt: '2026-09-15', playCount: 2, rating: 3, tags: ['猫', '日常'], thumbnailUrl: '', playback: 'demo', hlsManifestUrl: '', playbackUrl: previewVideoUrl, progress: 'ready', progressRatio: 1 },
 ]
 
 type Tab = 'for-you' | 'unwatched' | 'favorites'
@@ -19,7 +20,8 @@ const recommendationKinds = ['FAVORITES', 'RECENTLY_UNPLAYED_FAVORITES', 'UNWATC
 
 export function LibraryPage() {
   const demoMode = import.meta.env.VITE_DEMO_MODE === 'true'
-  const [hasSession] = useState(() => demoMode || Boolean(sessionStorage.getItem('beast.access-token')))
+  const [hasSession, setHasSession] = useState(demoMode)
+  const [isCheckingSession, setIsCheckingSession] = useState(!demoMode)
   const api = useMemo<VideoApi>(() => new GraphQlVideoApi(), [])
   const [videos, setVideos] = useState<VideoRecord[]>(demoMode ? demoVideos : [])
   const [recommendations, setRecommendations] = useState<Record<RecommendationKind, VideoRecord[]>>({ FAVORITES: [], RECENTLY_UNPLAYED_FAVORITES: [], UNWATCHED: [] })
@@ -31,10 +33,18 @@ export function LibraryPage() {
   const [selectedVideo, setSelectedVideo] = useState<VideoRecord | null>(null)
   const [editingVideo, setEditingVideo] = useState<VideoRecord | null>(null)
   const [tagDraft, setTagDraft] = useState('')
+  const [uploadFile, setUploadFile] = useState<File | null>(null)
+  const [uploadTags, setUploadTags] = useState('')
+  const [isUploading, setIsUploading] = useState(false)
   const [isPlaying, setIsPlaying] = useState(false)
 
   useEffect(() => {
-    if (demoMode || !hasSession) return
+    if (demoMode) return
+    void api.checkSession().then((authenticated) => setHasSession(authenticated)).finally(() => setIsCheckingSession(false))
+  }, [api, demoMode])
+
+  useEffect(() => {
+    if (demoMode || isCheckingSession || !hasSession) return
     let active = true
     async function loadLibrary() {
       setIsLoading(true)
@@ -56,7 +66,7 @@ export function LibraryPage() {
     }
     void loadLibrary()
     return () => { active = false }
-  }, [api, demoMode, hasSession])
+  }, [api, demoMode, hasSession, isCheckingSession])
 
   const allTags = useMemo(() => [...new Set(videos.flatMap((video) => video.tags))], [videos])
   const filteredVideos = useMemo(() => videos.filter((video) => {
@@ -76,11 +86,7 @@ export function LibraryPage() {
       setError('この動画はまだ端末で再生できません')
       return
     }
-    if (video.playback === 'encrypted-dash') {
-      setError('暗号化DASHの端末復号が未接続のため、ブラウザで再生できません')
-      return
-    }
-    if (!video.playbackUrl) {
+    if (video.playback !== 'hls' && !video.playbackUrl) {
       setError('この動画には再生URLがありません')
       return
     }
@@ -107,12 +113,33 @@ export function LibraryPage() {
   function saveTags(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!editingVideo) return
-    if (!demoMode) { setError('タグ更新APIはまだ提供されていません'); setEditingVideo(null); return }
     const tags = tagDraft.split(/\s+/).map((item) => item.trim()).filter(Boolean).slice(0, 8)
+    if (!demoMode) {
+      void api.updateVideoTags(editingVideo.id, tags).then((updated) => { setVideos((current) => replaceVideo(current, updated)); setEditingVideo(null) }).catch((reason) => setError(errorMessage(reason)))
+      return
+    }
     setVideos((current) => current.map((item) => item.id === editingVideo.id ? { ...item, tags: [...new Set(tags)] } : item))
     setEditingVideo(null)
   }
 
+  async function uploadVideo(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!uploadFile || demoMode) return
+    const tags = [...new Set(uploadTags.split(/\s+/).map((item) => item.trim()).filter(Boolean))].slice(0, 8)
+    setIsUploading(true)
+    try {
+      await api.uploadVideo(uploadFile, tags)
+      setUploadFile(null)
+      setUploadTags('')
+      setVideos(await api.listVideos())
+    } catch (reason) {
+      setError(errorMessage(reason))
+    } finally {
+      setIsUploading(false)
+    }
+  }
+
+  if (isCheckingSession) return <div className="auth-required"><p className="eyebrow">PRIVATE LIBRARY</p><h1>セッションを<br /><span>確認しています。</span></h1></div>
   if (!hasSession) return <UnauthenticatedScreen />
 
   return (
@@ -130,6 +157,7 @@ export function LibraryPage() {
           <h1>今夜は、どの記憶を<br /><span>再生しますか？</span></h1>
           <p className="intro-copy">お気に入りと、まだ見ていない動画を<br />今の気分に合わせて並べました。</p>
           <label className="search-field"><SearchIcon size={18} /><span className="visually-hidden">タグで検索</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="タグで探す" /></label>
+          <form className="upload-panel" onSubmit={uploadVideo}><label className="field-label">動画<input type="file" accept="video/*" onChange={(event) => setUploadFile(event.target.files?.[0] ?? null)} /></label><label className="field-label">タグ<span>スペース区切り</span><input value={uploadTags} onChange={(event) => setUploadTags(event.target.value)} placeholder="旅行 夕方" /></label><button className="button-primary" type="submit" disabled={!uploadFile || isUploading}>{isUploading ? 'アップロード中…' : '動画をアップロード'}</button></form>
         </section>
 
         <nav className="tab-nav" aria-label="動画の絞り込み">
@@ -156,8 +184,8 @@ export function LibraryPage() {
       <footer className="footer"><p>記憶は、あなたの手元に。</p><div><span>beast · encrypted by default</span><span>© 2026</span></div></footer>
       <div className="bottom-nav"><button className="bottom-nav-item is-active"><HomeIcon size={19} /><span>ホーム</span></button><button className="bottom-nav-item"><LibraryIcon size={19} /><span>ライブラリ</span></button><button className="bottom-nav-item"><UploadIcon size={19} /><span>アップロード</span></button></div>
 
-      {selectedVideo && <PlayerDialog video={selectedVideo} isPlaying={isPlaying} onPlayingChange={setIsPlaying} onClose={() => { setSelectedVideo(null); setIsPlaying(false) }} onRate={rateVideo} />}
-      {editingVideo && <TagDialog video={editingVideo} draft={tagDraft} onDraftChange={setTagDraft} onClose={() => setEditingVideo(null)} onSave={saveTags} />}
+      {selectedVideo && <PlayerDialog key={selectedVideo.id} video={selectedVideo} isPlaying={isPlaying} onPlayingChange={setIsPlaying} onClose={() => { setSelectedVideo(null); setIsPlaying(false) }} onRate={rateVideo} />}
+      {editingVideo && <TagDialog draft={tagDraft} onDraftChange={setTagDraft} onClose={() => setEditingVideo(null)} onSave={saveTags} />}
     </div>
   )
 }
@@ -177,18 +205,45 @@ function VideoCard({ video, onOpen, onEdit }: { video: VideoRecord; onOpen: () =
 }
 
 function PlayerDialog({ video, isPlaying, onPlayingChange, onClose, onRate }: { video: VideoRecord; isPlaying: boolean; onPlayingChange: (playing: boolean) => void; onClose: () => void; onRate: (rating: number) => void }) {
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const [playbackError, setPlaybackError] = useState<string | null>(null)
+  const [isPreparing, setIsPreparing] = useState(video.playback === 'hls')
   const isDemoPlayback = video.playback === 'demo' && Boolean(video.playbackUrl)
-  const unavailableMessage = video.playback === 'encrypted-dash' ? '暗号化DASHを端末鍵で復号する再生器が接続されていません。' : '復号済みの再生URLがありません。'
-  return <div className="player-backdrop" role="dialog" aria-modal="true" aria-label="動画プレーヤー"><div className="player-panel"><div className="player-top"><button className="icon-button" onClick={onClose} aria-label="閉じる"><CloseIcon /></button><span><LockIcon size={13} /> クライアント側で復号</span></div>{isDemoPlayback ? <video className="player-video" src={video.playbackUrl} controls autoPlay={isPlaying} onPlay={() => onPlayingChange(true)} onPause={() => onPlayingChange(false)} /> : <div className="player-unavailable">{unavailableMessage}</div>}<div className="player-meta"><div><span className="player-tags">{video.tags.length ? video.tags.map((tag) => `#${tag}`).join('  ') : '暗号化タグ（端末鍵が必要です）'}</span><p>{video.playCount}回再生  ·  {formatDuration(video.durationSeconds)}</p></div><div className="rating-row" aria-label="星評価">{[1, 2, 3, 4, 5].map((rating) => <button key={rating} onClick={() => onRate(rating)} aria-label={`${rating}つ星`}><StarIcon size={22} filled={(video.rating ?? 0) >= rating} /></button>)}</div></div><p className="gesture-hint">ダブルタップで10秒移動 · 長押しで1.75倍速</p></div></div>
+  useEffect(() => {
+    if (video.playback !== 'hls' || !videoRef.current || !isPreparing) return
+    let disposed = false
+    let release: (() => void) | undefined
+    const player = new AuthenticatedHlsPlayer()
+    setPlaybackError(null)
+    setIsPreparing(true)
+    void player.attach(videoRef.current, video.hlsManifestUrl).then((cleanup) => {
+      if (disposed) cleanup()
+      else {
+        release = cleanup
+        setIsPreparing(false)
+        if (isPlaying) void videoRef.current?.play().catch(() => undefined)
+      }
+    }).catch((reason: unknown) => {
+      if (disposed) return
+      setIsPreparing(false)
+      setPlaybackError(reason instanceof HlsPlaybackError ? reason.message : 'HLSを再生できませんでした')
+    })
+    return () => {
+      disposed = true
+      release?.()
+    }
+  }, [video.id])
+  const unavailableMessage = playbackError ?? (video.playback === 'hls' ? 'HLSを再生できません。' : '再生URLがありません。')
+  return <div className="player-backdrop" role="dialog" aria-modal="true" aria-label="動画プレーヤー"><div className="player-panel"><div className="player-top"><button className="icon-button" onClick={onClose} aria-label="閉じる"><CloseIcon /></button><span><LockIcon size={13} /> 認証済みストリーミング</span></div>{isDemoPlayback ? <video className="player-video" src={video.playbackUrl} controls autoPlay={isPlaying} onPlay={() => onPlayingChange(true)} onPause={() => onPlayingChange(false)} /> : video.playback === 'hls' ? <div className="player-video-shell"><video ref={videoRef} className="player-video" controls onPlay={() => onPlayingChange(true)} onPause={() => onPlayingChange(false)} />{(isPreparing || playbackError) && <div className="player-unavailable">{isPreparing ? '認証済みHLSを準備しています…' : unavailableMessage}</div>}</div> : <div className="player-unavailable">{unavailableMessage}</div>}<div className="player-meta"><div><span className="player-tags">{video.tags.length ? video.tags.map((tag) => `#${tag}`).join('  ') : 'タグがありません'}</span><p>{video.playCount}回再生  ·  {formatDuration(video.durationSeconds)}</p></div><div className="rating-row" aria-label="星評価">{[1, 2, 3, 4, 5].map((rating) => <button key={rating} onClick={() => onRate(rating)} aria-label={`${rating}つ星`}><StarIcon size={22} filled={(video.rating ?? 0) >= rating} /></button>)}</div></div><p className="gesture-hint">ダブルタップで10秒移動 · 長押しで1.75倍速</p></div></div>
 }
 
-function TagDialog({ video, draft, onDraftChange, onClose, onSave }: { video: VideoRecord; draft: string; onDraftChange: (value: string) => void; onClose: () => void; onSave: (event: FormEvent<HTMLFormElement>) => void }) {
-  return <div className="modal-backdrop"><form className="modal-card" onSubmit={onSave}><div className="modal-heading"><div><p className="section-kicker">VIDEO TAGS</p><h2>タグを編集</h2></div><button className="icon-button" type="button" onClick={onClose} aria-label="閉じる"><CloseIcon /></button></div><label className="field-label">タグ<span>スペース区切り</span><input value={draft} onChange={(event) => onDraftChange(event.target.value)} autoFocus /></label><div className="modal-actions"><button type="button" className="button-secondary" onClick={onClose}>キャンセル</button><button type="submit" className="button-primary">保存する</button></div><p className="modal-note"><LockIcon size={13} /> タグも暗号化して保存されます · {video.metadata.algorithm} / key v{video.metadata.keyVersion}</p></form></div>
+function TagDialog({ draft, onDraftChange, onClose, onSave }: { draft: string; onDraftChange: (value: string) => void; onClose: () => void; onSave: (event: FormEvent<HTMLFormElement>) => void }) {
+  return <div className="modal-backdrop"><form className="modal-card" onSubmit={onSave}><div className="modal-heading"><div><p className="section-kicker">VIDEO TAGS</p><h2>タグを編集</h2></div><button className="icon-button" type="button" onClick={onClose} aria-label="閉じる"><CloseIcon /></button></div><label className="field-label">タグ<span>スペース区切り</span><input value={draft} onChange={(event) => onDraftChange(event.target.value)} autoFocus /></label><div className="modal-actions"><button type="button" className="button-secondary" onClick={onClose}>キャンセル</button><button type="submit" className="button-primary">保存する</button></div><p className="modal-note"><LockIcon size={13} /> タグはサーバー側で暗号化して保存されます</p></form></div>
 }
 
 function EmptyState() { return <div className="empty-state"><SearchIcon size={22} /><p>条件に合う動画がありません。</p><span>タグやタブを変えて探してみてください。</span></div> }
-function UnauthenticatedScreen() { return <div className="auth-required"><div className="auth-required-mark"><LockIcon size={25} /></div><p className="eyebrow">PRIVATE LIBRARY</p><h1>ログインして<br /><span>動画を再生します。</span></h1><p>このライブラリは所有者だけがアクセスできます。ログイン後にもう一度開いてください。</p><button className="button-primary" onClick={() => window.location.assign('/login')}>ログイン</button></div> }
-function displayTags(video: VideoRecord) { return video.tags.length ? video.tags.join('  ·  ') : '暗号化タグ（復号待ち）' }
+function UnauthenticatedScreen() { return <div className="auth-required"><div className="auth-required-mark"><LockIcon size={25} /></div><p className="eyebrow">PRIVATE LIBRARY</p><h1>ログインして<br /><span>動画を再生します。</span></h1><p>このライブラリは所有者だけがアクセスできます。ログイン後にもう一度開いてください。</p><button className="button-primary" onClick={() => window.location.assign('/api/auth/login')}>ログイン</button></div> }
+function displayTags(video: VideoRecord) { return video.tags.length ? video.tags.join('  ·  ') : 'タグなし' }
 function replaceVideo(videos: VideoRecord[], updated: VideoRecord) { return videos.map((video) => video.id === updated.id ? updated : video) }
 function errorMessage(reason: unknown) { return reason instanceof VideoApiError ? reason.message : '動画ライブラリの取得に失敗しました' }
 function formatDuration(seconds: number) { const minutes = Math.floor(seconds / 60); return `${minutes}:${String(seconds % 60).padStart(2, '0')}` }

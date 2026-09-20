@@ -6,17 +6,7 @@ import kotlinx.serialization.Serializable
 enum class VideoStatus { UPLOADED, ENCODING, READY, FAILED }
 
 @Serializable
-enum class PlaybackSource { ENCRYPTED_DASH, DEBUG_PREVIEW }
-
-@Serializable
-data class EncryptionMetadata(
-    val algorithm: String,
-    val chunkSize: Int,
-    val keyVersion: String,
-    val nonce: String,
-    val encryptedDataKey: String,
-    val sharedKeyId: String,
-)
+enum class PlaybackSource { AUTHENTICATED_HLS, DEBUG_PREVIEW }
 
 @Serializable
 data class Video(
@@ -26,11 +16,9 @@ data class Video(
     val playCount: Int,
     val rating: Int?,
     val lastPlayedAt: String?,
-    val encryption: EncryptionMetadata,
-    val encryptedTags: String? = null,
     val thumbnailUrl: String? = null,
-    val playbackSource: PlaybackSource = PlaybackSource.ENCRYPTED_DASH,
-    val encryptedDashManifestUrl: String? = null,
+    val playbackSource: PlaybackSource = PlaybackSource.AUTHENTICATED_HLS,
+    val playbackManifestUrl: String? = null,
     val playbackUrl: String? = null,
     val durationSeconds: Long? = null,
     val progress: Float = if (status == VideoStatus.READY) 1f else 0f,

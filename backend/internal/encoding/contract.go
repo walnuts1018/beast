@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-const ContractVersion = "v1"
+const ContractVersion = "v2"
 
 type Job struct {
 	ContractVersion string `json:"contract_version"`
@@ -13,18 +13,14 @@ type Job struct {
 	OwnerID         string `json:"owner_id"`
 	SourceObjectKey string `json:"source_object_key"`
 	OutputPrefix    string `json:"output_prefix"`
-	PublicKey       string `json:"public_key"`
-	SharedKeyID     string `json:"shared_key_id"`
-	KeyVersion      string `json:"key_version"`
 }
 
 type EncryptionMetadata struct {
 	Algorithm        string `json:"algorithm"`
 	ChunkSize        int    `json:"chunk_size"`
-	KeyVersion       string `json:"key_version"`
 	Nonce            string `json:"nonce"`
 	EncryptedDataKey string `json:"encrypted_data_key"`
-	SharedKeyID      string `json:"shared_key_id"`
+	PlaintextSize    int64  `json:"plaintext_size"`
 }
 
 type Artifact struct {

@@ -1,14 +1,5 @@
 export type VideoProgress = 'uploaded' | 'encoding' | 'ready' | 'failed'
 
-export type EncryptedMetadata = {
-  algorithm: string
-  chunkSize: number
-  keyVersion: string
-  nonce: string
-  encryptedDataKey: string
-  sharedKeyId: string
-}
-
 export type VideoRecord = {
   id: string
   durationSeconds: number
@@ -17,55 +8,37 @@ export type VideoRecord = {
   playCount: number
   rating: number | null
   tags: string[]
-  encryptedTags: string
   thumbnailUrl: string
-  playback: 'encrypted-dash' | 'demo'
-  dashManifestUrl: string
+  playback: 'hls' | 'demo'
+  hlsManifestUrl: string
   playbackUrl: string
   progress: VideoProgress
   progressRatio: number
-  metadata: EncryptedMetadata
 }
 
 export type RecommendationKind = 'FAVORITES' | 'RECENTLY_UNPLAYED_FAVORITES' | 'UNWATCHED'
 
-export type ClientKeyEnvelope = {
-  algorithm: 'ECDH-P256'
-  publicKey: string
-  wrappedKey: string
-  keyVersion: number
-}
-
 export type VideoApi = {
+  checkSession: () => Promise<boolean>
   listVideos: () => Promise<VideoRecord[]>
   recommendations: (kind: RecommendationKind) => Promise<VideoRecord[]>
+  uploadVideo: (file: File, tags: string[]) => Promise<{ id: string; status: VideoProgress; progress: number }>
+  updateVideoTags: (videoId: string, tags: string[]) => Promise<VideoRecord>
   rateVideo: (videoId: string, rating: number | null) => Promise<VideoRecord>
   recordPlayback: (videoId: string) => Promise<VideoRecord>
-  fetchDashArtifact: (videoId: string, artifactPath?: string, signal?: AbortSignal) => Promise<DashArtifact>
-  createClientKeyEnvelope: (publicKey: string) => Promise<ClientKeyEnvelope>
-}
-
-export type DashArtifact = {
-  path: string
-  bytes: ArrayBuffer
-  contentType: string
-  encryption: EncryptedMetadata
 }
 
 type ApiVideo = {
   id: string
   status: 'UPLOADED' | 'ENCODING' | 'READY' | 'FAILED'
-  encryptedTags: string
+  tags: string[]
   playCount: number
   rating: number | null
   lastPlayedAt: string | null
   progress: number
-  encryption: { algorithm: string; chunkSize: number; keyVersion: string; nonce: string; encryptedDataKey: string; sharedKeyID: string }
 }
 
 type GraphQlPayload<T> = { data?: T; errors?: Array<{ message: string }> }
-type TagsDecoder = (video: ApiVideo) => Promise<string[]>
-
 export class VideoApiError extends Error {
   constructor(message: string, readonly status?: number) {
     super(message)
@@ -74,15 +47,13 @@ export class VideoApiError extends Error {
 }
 
 const videoSelection = `
-  id status encryptedTags playCount rating lastPlayedAt progress
-  encryption { algorithm chunkSize keyVersion nonce encryptedDataKey sharedKeyID }
+  id status tags playCount rating lastPlayedAt progress
 `
 
 export class GraphQlVideoApi implements VideoApi {
   constructor(
     private readonly endpoint = '/graphql/query',
     private readonly getAccessToken: () => string | null = () => sessionStorage.getItem('beast.access-token'),
-    private readonly decodeTags: TagsDecoder = async () => [],
   ) {}
 
   async listVideos() {
@@ -90,9 +61,35 @@ export class GraphQlVideoApi implements VideoApi {
     return Promise.all((payload.videos ?? []).map((video) => this.toVideoRecord(video)))
   }
 
+  async uploadVideo(file: File, tags: string[]) {
+    const token = this.getAccessToken()
+    const body = new FormData()
+    body.append('file', file)
+    body.append('tags', JSON.stringify(tags))
+    const response = await fetch(resolveMediaUrl('/api/videos/upload', this.endpoint), { method: 'POST', body, credentials: 'include', headers: token ? { Authorization: `Bearer ${token}` } : undefined })
+    if (!response.ok) throw new VideoApiError(`動画のアップロードに失敗しました (${response.status})`, response.status)
+    return await response.json() as { id: string; status: VideoProgress; progress: number }
+  }
+
+  async checkSession() {
+    const token = this.getAccessToken()
+    const headers = token ? { Authorization: `Bearer ${token}` } : undefined
+    try {
+      const response = await fetch(resolveMediaUrl('/api/auth/session', this.endpoint), { credentials: 'include', headers })
+      return response.ok
+    } catch {
+      return false
+    }
+  }
+
   async recommendations(kind: RecommendationKind) {
     const payload = await this.request<{ recommendations: ApiVideo[] }>(`query Recommendations(${'$'}kind: RecommendationKind!) { recommendations(kind: ${'$'}kind) { ${videoSelection} } }`, { kind })
     return Promise.all((payload.recommendations ?? []).map((video) => this.toVideoRecord(video)))
+  }
+
+  async updateVideoTags(videoId: string, tags: string[]) {
+    const payload = await this.request<{ updateVideoTags: ApiVideo }>(`mutation UpdateVideoTags(${'$'}id: ID!, ${'$'}input: UpdateVideoTagsInput!) { updateVideoTags(id: ${'$'}id, input: ${'$'}input) { ${videoSelection} } }`, { id: videoId, input: { tags } })
+    return this.toVideoRecord(payload.updateVideoTags)
   }
 
   async rateVideo(videoId: string, rating: number | null) {
@@ -105,35 +102,14 @@ export class GraphQlVideoApi implements VideoApi {
     return this.toVideoRecord(payload.recordPlayback)
   }
 
-  async fetchDashArtifact(videoId: string, artifactPath = 'manifest.mpd', signal?: AbortSignal): Promise<DashArtifact> {
-    const token = this.getAccessToken()
-    if (!token) throw new VideoApiError('ログインセッションがありません')
-    const encodedPath = artifactPath.split('/').filter(Boolean).map((part) => encodeURIComponent(part)).join('/')
-    const url = resolveMediaUrl(`/api/videos/${encodeURIComponent(videoId)}/dash/${encodedPath}`, this.endpoint)
-    if (!url) throw new VideoApiError('DASH artifactのURLを解決できませんでした')
-    let response: Response
-    try {
-      response = await fetch(url, { headers: { Accept: 'application/octet-stream', Authorization: `Bearer ${token}` }, signal })
-    } catch {
-      throw new VideoApiError('DASH artifactを取得できませんでした')
-    }
-    if (!response.ok) throw new VideoApiError(`DASH artifactの取得に失敗しました (${response.status})`, response.status)
-    const encryption = encryptionMetadataFromHeaders(response.headers)
-    return { path: artifactPath, bytes: await response.arrayBuffer(), contentType: response.headers.get('content-type') ?? 'application/octet-stream', encryption }
-  }
-
-  async createClientKeyEnvelope(_publicKey: string): Promise<ClientKeyEnvelope> {
-    throw new VideoApiError('クライアント鍵登録APIはまだ利用できません')
-  }
-
   private async request<T>(query: string, variables: Record<string, unknown> = {}): Promise<T> {
     const token = this.getAccessToken()
-    if (!token) throw new VideoApiError('ログインセッションがありません')
     let response: Response
     try {
       response = await fetch(this.endpoint, {
         method: 'POST',
-        headers: { Accept: 'application/json', Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        headers: { Accept: 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}), 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ query, variables }),
       })
     } catch {
@@ -152,7 +128,6 @@ export class GraphQlVideoApi implements VideoApi {
   }
 
   private async toVideoRecord(video: ApiVideo): Promise<VideoRecord> {
-    const tags = await this.decodeTags(video)
     return {
       id: video.id,
       durationSeconds: 0,
@@ -160,37 +135,15 @@ export class GraphQlVideoApi implements VideoApi {
       lastPlayedAt: video.lastPlayedAt,
       playCount: video.playCount,
       rating: video.rating,
-      tags,
-      encryptedTags: video.encryptedTags,
+      tags: video.tags,
       thumbnailUrl: '',
-      playback: 'encrypted-dash',
-      dashManifestUrl: resolveMediaUrl(`/api/videos/${encodeURIComponent(video.id)}/dash/manifest.mpd`, this.endpoint),
+      playback: 'hls',
+      hlsManifestUrl: resolveMediaUrl(`/api/videos/${encodeURIComponent(video.id)}/hls/manifest.m3u8`, this.endpoint),
       playbackUrl: '',
       progress: video.status.toLowerCase() as VideoProgress,
       progressRatio: video.progress,
-      metadata: {
-        algorithm: video.encryption.algorithm,
-        chunkSize: video.encryption.chunkSize,
-        keyVersion: video.encryption.keyVersion,
-        nonce: video.encryption.nonce,
-        encryptedDataKey: video.encryption.encryptedDataKey,
-        sharedKeyId: video.encryption.sharedKeyID,
-      },
     }
   }
-}
-
-function encryptionMetadataFromHeaders(headers: Headers): EncryptedMetadata {
-  const algorithm = headers.get('x-encryption-algorithm')
-  const chunkSize = Number(headers.get('x-encryption-chunk-size'))
-  const keyVersion = headers.get('x-encryption-key-version')
-  const nonce = headers.get('x-encryption-nonce')
-  const encryptedDataKey = headers.get('x-encryption-data-key')
-  const sharedKeyId = headers.get('x-encryption-shared-key-id')
-  if (!algorithm || !Number.isSafeInteger(chunkSize) || chunkSize <= 0 || !keyVersion || !nonce || !encryptedDataKey || !sharedKeyId) {
-    throw new VideoApiError('DASH artifactの暗号化メタデータが不足しています')
-  }
-  return { algorithm, chunkSize, keyVersion, nonce, encryptedDataKey, sharedKeyId }
 }
 
 function resolveMediaUrl(path: string, endpoint: string) {

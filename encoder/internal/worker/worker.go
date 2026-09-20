@@ -2,6 +2,7 @@ package worker
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -17,7 +18,7 @@ import (
 	"github.com/walnuts1018/beast/encoder/internal/crypto"
 )
 
-const ContractVersion = "v1"
+const ContractVersion = "v2"
 
 type Job struct {
 	ContractVersion string `json:"contract_version"`
@@ -25,18 +26,14 @@ type Job struct {
 	OwnerID         string `json:"owner_id"`
 	SourceObjectKey string `json:"source_object_key"`
 	OutputPrefix    string `json:"output_prefix"`
-	PublicKey       string `json:"public_key"`
-	SharedKeyID     string `json:"shared_key_id"`
-	KeyVersion      string `json:"key_version"`
 }
 
 type EncryptionMetadata struct {
 	Algorithm        string `json:"algorithm"`
 	ChunkSize        int    `json:"chunk_size"`
-	KeyVersion       string `json:"key_version"`
 	Nonce            string `json:"nonce"`
 	EncryptedDataKey string `json:"encrypted_data_key"`
-	SharedKeyID      string `json:"shared_key_id"`
+	PlaintextSize    int64  `json:"plaintext_size"`
 }
 
 type Artifact struct {
@@ -61,7 +58,7 @@ type EventSink func(context.Context, Event) error
 
 type ArtifactStore interface {
 	Open(context.Context, string) (io.ReadCloser, error)
-	PutEncrypted(context.Context, string, io.Reader, string) (crypto.Result, error)
+	PutEncrypted(context.Context, string, io.Reader) (crypto.AtRestResult, error)
 	Delete(context.Context, string) error
 }
 
@@ -163,23 +160,23 @@ func (p *Processor) encryptArtifacts(ctx context.Context, job Job, outputDir str
 		if err != nil {
 			return err
 		}
-		result, encryptErr := p.Store.PutEncrypted(ctx, objectKey, file, job.PublicKey)
+		result, encryptErr := p.Store.PutEncrypted(ctx, objectKey, file)
 		closeErr := file.Close()
 		if encryptErr != nil || closeErr != nil {
 			return errors.Join(encryptErr, closeErr)
 		}
-		artifact := Artifact{ObjectKey: objectKey, Encryption: EncryptionMetadata{Algorithm: result.Algorithm, ChunkSize: result.ChunkSize, KeyVersion: job.KeyVersion, Nonce: result.Nonce, EncryptedDataKey: result.EncryptedDataKey, SharedKeyID: job.SharedKeyID}}
+		artifact := Artifact{ObjectKey: objectKey, Encryption: EncryptionMetadata{Algorithm: result.Algorithm, ChunkSize: result.ChunkSize, Nonce: result.Nonce, EncryptedDataKey: result.EncryptedDataKey, PlaintextSize: result.PlaintextSize}}
 		artifacts[name] = artifact
-		if name == "manifest.mpd" {
+		if name == "manifest.m3u8" {
 			manifest = artifact
 		}
 		return nil
 	})
 	if err != nil {
-		return nil, Artifact{}, fmt.Errorf("encrypt DASH artifacts: %w", err)
+		return nil, Artifact{}, fmt.Errorf("encrypt HLS artifacts: %w", err)
 	}
 	if manifest.ObjectKey == "" {
-		return nil, Artifact{}, errors.New("DASH manifest was not produced")
+		return nil, Artifact{}, errors.New("HLS manifest was not produced")
 	}
 	return artifacts, manifest, nil
 }
@@ -194,7 +191,7 @@ func (p *Processor) emit(ctx context.Context, job Job, event Event) error {
 }
 
 func (j Job) validate() error {
-	if j.ContractVersion != ContractVersion || j.VideoID == "" || j.OwnerID == "" || j.SourceObjectKey == "" || j.OutputPrefix == "" || j.PublicKey == "" || j.SharedKeyID == "" || j.KeyVersion == "" {
+	if j.ContractVersion != ContractVersion || j.VideoID == "" || j.OwnerID == "" || j.SourceObjectKey == "" || j.OutputPrefix == "" {
 		return errors.New("encoder job contract is incomplete")
 	}
 	if strings.Contains(j.OutputPrefix, "..") || strings.HasPrefix(j.SourceObjectKey, "/") || strings.Contains(j.SourceObjectKey, "..") {
@@ -216,8 +213,8 @@ func (r *FFmpegRunner) Process(ctx context.Context, inputPath, outputDir string)
 	if r.FFmpegPath == "" || r.FFprobePath == "" {
 		return "", errors.New("ffmpeg and ffprobe paths are required")
 	}
-	if r.SegmentSeconds < 1 || r.SegmentSeconds > 30 {
-		return "", errors.New("segment seconds must be between 1 and 30")
+	if r.SegmentSeconds < 2 || r.SegmentSeconds > 4 {
+		return "", errors.New("segment seconds must be between 2 and 4")
 	}
 	if _, err := os.Stat(inputPath); err != nil {
 		return "", fmt.Errorf("input media is unavailable: %w", err)
@@ -229,7 +226,17 @@ func (r *FFmpegRunner) Process(ctx context.Context, inputPath, outputDir string)
 	if err != nil {
 		return "", err
 	}
-	manifestPath := filepath.Join(outputDir, "manifest.mpd")
+	manifestPath := filepath.Join(outputDir, "manifest.m3u8")
+	copyCompatible, err := r.copyCompatible(ctx, inputPath)
+	if err != nil {
+		return "", err
+	}
+	if !copyCompatible {
+		if err := r.run(ctx, inputPath, manifestPath, duration, true); err != nil {
+			return "", err
+		}
+		return manifestPath, nil
+	}
 	if err := r.run(ctx, inputPath, manifestPath, duration, false); err != nil {
 		if !r.ReencodeOnCopyFailure {
 			return "", err
@@ -254,26 +261,68 @@ func (r *FFmpegRunner) duration(ctx context.Context, input string) (float64, err
 	return duration, nil
 }
 
+func (r *FFmpegRunner) copyCompatible(ctx context.Context, input string) (bool, error) {
+	cmd := exec.CommandContext(ctx, r.FFprobePath, "-v", "error", "-show_entries", "stream=codec_type,codec_name", "-of", "json", input)
+	output, err := cmd.Output()
+	if err != nil {
+		return false, fmt.Errorf("probe media codecs: %w", err)
+	}
+	compatible, err := codecsAllowStreamCopy(output)
+	if err != nil {
+		return false, err
+	}
+	return compatible, nil
+}
+
+func codecsAllowStreamCopy(output []byte) (bool, error) {
+	var result struct {
+		Streams []struct {
+			Type  string `json:"codec_type"`
+			Codec string `json:"codec_name"`
+		} `json:"streams"`
+	}
+	if err := json.Unmarshal(output, &result); err != nil {
+		return false, fmt.Errorf("decode media codecs: %w", err)
+	}
+	videoCount, audioCount := 0, 0
+	for _, stream := range result.Streams {
+		switch stream.Type {
+		case "video":
+			videoCount++
+			if videoCount > 1 || (stream.Codec != "h264" && stream.Codec != "hevc" && stream.Codec != "av1") {
+				return false, nil
+			}
+		case "audio":
+			audioCount++
+			if audioCount > 1 || stream.Codec != "aac" {
+				return false, nil
+			}
+		}
+	}
+	return videoCount == 1, nil
+}
+
 func (r *FFmpegRunner) run(ctx context.Context, input, manifest string, duration float64, reencode bool) error {
-	args := dashArgs(input, manifest, r.SegmentSeconds, reencode)
+	args := hlsArgs(input, manifest, r.SegmentSeconds, reencode)
 	cmd := exec.CommandContext(ctx, r.FFmpegPath, args...)
 	progress := &progressReader{duration: duration, callback: r.Progress}
 	cmd.Stdout = progress
 	cmd.Stderr = stderrWriter{logger: r.Logger}
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("ffmpeg DASH conversion failed: %w", err)
+		return fmt.Errorf("ffmpeg HLS conversion failed: %w", err)
 	}
 	return progress.Err()
 }
 
-func dashArgs(input, manifest string, segmentSeconds int, reencode bool) []string {
-	args := []string{"-hide_banner", "-nostats", "-y", "-progress", "pipe:1", "-i", input, "-map", "0:v:0", "-map", "0:a?"}
+func hlsArgs(input, manifest string, segmentSeconds int, reencode bool) []string {
+	args := []string{"-hide_banner", "-nostats", "-y", "-progress", "pipe:1", "-i", input, "-map", "0:v:0", "-map", "0:a:0?"}
 	if reencode {
-		args = append(args, "-c:v", "libx264", "-preset", "veryfast", "-crf", "23", "-c:a", "aac", "-b:a", "128k")
+		args = append(args, "-c:v", "libx264", "-preset", "veryfast", "-crf", "23", "-force_key_frames", fmt.Sprintf("expr:gte(t,n_forced*%d)", segmentSeconds), "-c:a", "aac", "-b:a", "128k")
 	} else {
 		args = append(args, "-c", "copy")
 	}
-	return append(args, "-f", "dash", "-seg_duration", strconv.Itoa(segmentSeconds), "-use_template", "1", "-use_timeline", "1", manifest)
+	segmentPattern := filepath.Join(filepath.Dir(manifest), "segment_%05d.m4s")
+	return append(args, "-f", "hls", "-hls_segment_type", "fmp4", "-hls_time", strconv.Itoa(segmentSeconds), "-hls_playlist_type", "vod", "-hls_flags", "independent_segments", "-hls_fmp4_init_filename", "init.mp4", "-hls_segment_filename", segmentPattern, manifest)
 }
 
 type progressReader struct {

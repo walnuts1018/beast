@@ -16,18 +16,10 @@ import (
 
 var Preload = getPreloaders()
 
-type preloaders struct {
-	DeviceKey deviceKeyPreloader
-	SharedKey sharedKeyPreloader
-	Video     videoPreloader
-}
+type preloaders struct{}
 
 func getPreloaders() preloaders {
-	return preloaders{
-		DeviceKey: buildDeviceKeyPreloader(),
-		SharedKey: buildSharedKeyPreloader(),
-		Video:     buildVideoPreloader(),
-	}
+	return preloaders{}
 }
 
 var (
@@ -36,18 +28,10 @@ var (
 	UpdateThenLoad = getThenLoaders[*dialect.UpdateQuery]()
 )
 
-type thenLoaders[Q orm.Loadable] struct {
-	DeviceKey deviceKeyThenLoader[Q]
-	SharedKey sharedKeyThenLoader[Q]
-	Video     videoThenLoader[Q]
-}
+type thenLoaders[Q orm.Loadable] struct{}
 
 func getThenLoaders[Q orm.Loadable]() thenLoaders[Q] {
-	return thenLoaders[Q]{
-		DeviceKey: buildDeviceKeyThenLoader[Q](),
-		SharedKey: buildSharedKeyThenLoader[Q](),
-		Video:     buildVideoThenLoader[Q](),
-	}
+	return thenLoaders[Q]{}
 }
 
 func thenLoadBuilder[Q orm.Loadable, T any](name string, f func(context.Context, bob.Executor, T, ...bob.Mod[*dialect.SelectQuery]) error) func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q] {

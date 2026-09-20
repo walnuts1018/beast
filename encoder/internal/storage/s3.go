@@ -19,9 +19,10 @@ type S3 struct {
 	client     *s3.Client
 	bucket     string
 	stagingKey []byte
+	mediaKey   []byte
 }
 
-func NewS3(ctx context.Context, endpoint, region, bucket, accessKey, secretKey, stagingKey string) (*S3, error) {
+func NewS3(ctx context.Context, endpoint, region, bucket, accessKey, secretKey, stagingKey, mediaKey string) (*S3, error) {
 	if endpoint == "" || region == "" || bucket == "" || accessKey == "" || secretKey == "" || stagingKey == "" {
 		return nil, fmt.Errorf("S3 endpoint, region, bucket, access key, secret key, and staging encryption key are required")
 	}
@@ -33,7 +34,11 @@ func NewS3(ctx context.Context, endpoint, region, bucket, accessKey, secretKey, 
 	if err != nil {
 		return nil, fmt.Errorf("load S3 configuration: %w", err)
 	}
-	return &S3{client: s3.NewFromConfig(awsConfig, func(options *s3.Options) { options.BaseEndpoint = aws.String(endpoint); options.UsePathStyle = true }), bucket: bucket, stagingKey: parsedStagingKey}, nil
+	parsedMediaKey, err := crypto.ParseMasterKey(mediaKey)
+	if err != nil {
+		return nil, err
+	}
+	return &S3{client: s3.NewFromConfig(awsConfig, func(options *s3.Options) { options.BaseEndpoint = aws.String(endpoint); options.UsePathStyle = true }), bucket: bucket, stagingKey: parsedStagingKey, mediaKey: parsedMediaKey}, nil
 }
 
 func (s *S3) Check(ctx context.Context) error {
@@ -91,25 +96,25 @@ func (r *removingReadCloser) Close() error {
 	return nil
 }
 
-func (s *S3) PutEncrypted(ctx context.Context, objectKey string, source io.Reader, publicKey string) (crypto.Result, error) {
+func (s *S3) PutEncrypted(ctx context.Context, objectKey string, source io.Reader) (crypto.AtRestResult, error) {
 	temporary, err := os.CreateTemp("", "beast-encoder-encrypted-")
 	if err != nil {
-		return crypto.Result{}, fmt.Errorf("create temporary encrypted object: %w", err)
+		return crypto.AtRestResult{}, fmt.Errorf("create temporary encrypted object: %w", err)
 	}
 	path := temporary.Name()
 	defer func() { _ = os.Remove(path) }()
-	result, encryptErr := crypto.EncryptTo(temporary, source, publicKey)
+	result, encryptErr := crypto.EncryptToAtRest(temporary, source, s.mediaKey)
 	closeErr := temporary.Close()
 	if encryptErr != nil || closeErr != nil {
-		return crypto.Result{}, fmt.Errorf("encrypt output artifact: %w", errors.Join(encryptErr, closeErr))
+		return crypto.AtRestResult{}, fmt.Errorf("encrypt output artifact: %w", errors.Join(encryptErr, closeErr))
 	}
 	file, err := os.Open(path)
 	if err != nil {
-		return crypto.Result{}, fmt.Errorf("open encrypted output artifact: %w", err)
+		return crypto.AtRestResult{}, fmt.Errorf("open encrypted output artifact: %w", err)
 	}
 	defer func() { _ = file.Close() }()
 	if _, err := s.client.PutObject(ctx, &s3.PutObjectInput{Bucket: aws.String(s.bucket), Key: aws.String(objectKey), Body: file, ContentType: aws.String("application/octet-stream")}); err != nil {
-		return crypto.Result{}, fmt.Errorf("put encrypted output artifact: %w", err)
+		return crypto.AtRestResult{}, fmt.Errorf("put encrypted output artifact: %w", err)
 	}
 	return result, nil
 }

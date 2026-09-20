@@ -20,24 +20,16 @@ var (
 	InsertThenLoadCount = getThenLoadCount[*dialect.InsertQuery]()
 )
 
-type preloadCounts struct {
-	SharedKey sharedKeyCountPreloader
-}
+type preloadCounts struct{}
 
 func getPreloadCount() preloadCounts {
-	return preloadCounts{
-		SharedKey: buildSharedKeyCountPreloader(),
-	}
+	return preloadCounts{}
 }
 
-type thenLoadCounts[Q orm.Loadable] struct {
-	SharedKey sharedKeyCountThenLoader[Q]
-}
+type thenLoadCounts[Q orm.Loadable] struct{}
 
 func getThenLoadCount[Q orm.Loadable]() thenLoadCounts[Q] {
-	return thenLoadCounts[Q]{
-		SharedKey: buildSharedKeyCountThenLoader[Q](),
-	}
+	return thenLoadCounts[Q]{}
 }
 
 func countThenLoadBuilder[Q orm.Loadable, T any](name string, f func(context.Context, bob.Executor, T, ...bob.Mod[*dialect.SelectQuery]) error) func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q] {

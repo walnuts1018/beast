@@ -10,72 +10,25 @@ import (
 	"time"
 )
 
-type CreateVideoInput struct {
-	ObjectKey     string           `json:"objectKey"`
-	EncryptedTags string           `json:"encryptedTags"`
-	SharedKeyID   string           `json:"sharedKeyID"`
-	Encryption    *EncryptionInput `json:"encryption"`
-}
-
-type DeviceKey struct {
-	ID                        string `json:"id"`
-	DeviceID                  string `json:"deviceID"`
-	SharedKeyID               string `json:"sharedKeyID"`
-	EncryptedSharedPrivateKey string `json:"encryptedSharedPrivateKey"`
-}
-
-type EncryptionInput struct {
-	Algorithm        string `json:"algorithm"`
-	ChunkSize        int    `json:"chunkSize"`
-	KeyVersion       string `json:"keyVersion"`
-	Nonce            string `json:"nonce"`
-	EncryptedDataKey string `json:"encryptedDataKey"`
-	SharedKeyID      string `json:"sharedKeyID"`
-}
-
-type EncryptionMetadata struct {
-	Algorithm        string `json:"algorithm"`
-	ChunkSize        int    `json:"chunkSize"`
-	KeyVersion       string `json:"keyVersion"`
-	Nonce            string `json:"nonce"`
-	EncryptedDataKey string `json:"encryptedDataKey"`
-	SharedKeyID      string `json:"sharedKeyID"`
-}
-
 type Mutation struct {
 }
 
 type Query struct {
 }
 
-type RegisterDeviceKeyInput struct {
-	DeviceID                  string `json:"deviceID"`
-	SharedKeyID               string `json:"sharedKeyID"`
-	EncryptedSharedPrivateKey string `json:"encryptedSharedPrivateKey"`
-}
-
-type RegisterSharedKeyInput struct {
-	Version   string `json:"version"`
-	PublicKey string `json:"publicKey"`
-}
-
-type SharedKey struct {
-	ID        string `json:"id"`
-	Version   string `json:"version"`
-	PublicKey string `json:"publicKey"`
-	Status    string `json:"status"`
+type UpdateVideoTagsInput struct {
+	Tags []string `json:"tags"`
 }
 
 type Video struct {
-	ID            string              `json:"id"`
-	Status        VideoStatus         `json:"status"`
-	EncryptedTags string              `json:"encryptedTags"`
-	PlayCount     int                 `json:"playCount"`
-	Rating        *int                `json:"rating,omitempty"`
-	LastPlayedAt  *time.Time          `json:"lastPlayedAt,omitempty"`
-	Encryption    *EncryptionMetadata `json:"encryption"`
-	VideoURL      string              `json:"videoURL"`
-	Progress      float64             `json:"progress"`
+	ID           string      `json:"id"`
+	Status       VideoStatus `json:"status"`
+	Tags         []string    `json:"tags"`
+	PlayCount    int         `json:"playCount"`
+	Rating       *int        `json:"rating,omitempty"`
+	LastPlayedAt *time.Time  `json:"lastPlayedAt,omitempty"`
+	VideoURL     string      `json:"videoURL"`
+	Progress     float64     `json:"progress"`
 }
 
 type RecommendationKind string

@@ -25,13 +25,12 @@ const (
 type EncryptionMetadata struct {
 	Algorithm        string
 	ChunkSize        int
-	KeyVersion       string
 	Nonce            string
 	EncryptedDataKey string
-	SharedKeyID      string
+	PlaintextSize    int64
 }
 
-type DashArtifact struct {
+type HLSArtifact struct {
 	ObjectKey  string
 	Encryption EncryptionMetadata
 }
@@ -61,7 +60,9 @@ type Video struct {
 	Status          VideoStatus
 	ObjectKey       string
 	SourceObjectKey string
-	EncryptedTags   string
+	TagsCiphertext  string
+	TagsNonce       string
+	Tags            []string
 	PlayCount       int64
 	Rating          *int
 	LastPlayedAt    *time.Time
@@ -70,26 +71,19 @@ type Video struct {
 	Encryption      EncryptionMetadata
 	Progress        float64
 	ErrorMessage    string
-	DashArtifacts   map[string]DashArtifact
+	HLSArtifacts    map[string]HLSArtifact
 }
 
-func NewVideo(ownerID, encryptedTags, objectKey string, encryption EncryptionMetadata) (Video, error) {
-	if ownerID == "" || encryptedTags == "" || objectKey == "" || encryption.SharedKeyID == "" {
-		return Video{}, errors.New("owner, encrypted tags, object key, and shared key are required")
+func NewServerVideo(ownerID string, tags []string, objectKey string) (Video, error) {
+	if ownerID == "" || objectKey == "" {
+		return Video{}, errors.New("owner and object key are required")
+	}
+	tags, err := NormalizeTags(tags)
+	if err != nil {
+		return Video{}, err
 	}
 	now := time.Now().UTC()
-	return Video{
-		ID:              uuid.New().String(),
-		OwnerID:         ownerID,
-		Status:          VideoStatusUploaded,
-		ObjectKey:       objectKey,
-		SourceObjectKey: objectKey,
-		EncryptedTags:   encryptedTags,
-		CreatedAt:       now,
-		UpdatedAt:       now,
-		Encryption:      encryption,
-		DashArtifacts:   make(map[string]DashArtifact),
-	}, nil
+	return Video{ID: uuid.New().String(), OwnerID: ownerID, Status: VideoStatusUploaded, ObjectKey: objectKey, SourceObjectKey: objectKey, Tags: append([]string(nil), tags...), CreatedAt: now, UpdatedAt: now, HLSArtifacts: make(map[string]HLSArtifact)}, nil
 }
 
 func (v *Video) SetProgress(progress float64) error {

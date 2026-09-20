@@ -1,17 +1,15 @@
 # エンコーダー
 
-エンコーダーはRabbitMQの`RABBITMQ_ENCODE_JOB_QUEUE`を購読し、S3互換ストレージからstaging objectを取得して動画をMPEG-DASHの単一品質へ変換します。staging objectは`STAGING_ENCRYPTION_KEY`でチャンク暗号化されており、復号した入力はencoder Pod内の一時領域だけに置かれます。入力ストリームを最初に`-c copy`でコンテナ変換し、入力がDASH互換でない場合だけ`libx264`とAACで再エンコードします。出力artifactはShared Key公開鍵で個別にEnvelope EncryptionしてS3へ保存し、成功イベントの発行後にstaging objectを削除します。
+エンコーダーはRabbitMQの`RABBITMQ_ENCODE_JOB_QUEUE`を購読し、S3互換ストレージからstaging objectを取得してHLS(fMP4)の単一品質へ変換します。staging objectは`STAGING_ENCRYPTION_KEY`でチャンク暗号化され、出力artifactは`MEDIA_ENCRYPTION_KEY`でサーバー側のAES-256-GCMチャンク暗号化を行って保存されます。復号した入力はencoder Pod内の一時領域だけに置かれます。
+
+ffprobeで入力のvideo codecがH.264、HEVC、AV1のいずれか、audio codecがAACであることを確認できた場合は`-c copy`で再エンコードせずHLS(fMP4)へ変換します。対応外のcodecまたはcopy変換に失敗した場合だけH.264/AACへ再エンコードし、`force_key_frames`でセグメント境界のシーク性能を確保します。
 
 ジョブは次のJSONです。
 
 ```json
-{"contract_version":"v1","video_id":"video-id","owner_id":"owner-id","source_object_key":"staging/source-id","output_prefix":"videos/video-id/dash","public_key":"-----BEGIN PUBLIC KEY-----...","shared_key_id":"shared-key-id","key_version":"1"}
+{"contract_version":"v2","video_id":"video-id","owner_id":"owner-id","source_object_key":"staging/source-id","output_prefix":"videos/video-id/hls"}
 ```
 
-処理中は`RABBITMQ_ENCODE_EVENT_QUEUE`へ`ENCODING`イベントを進捗率付きで発行し、成功時は`READY`とmanifestおよびartifactごとの暗号化メタデータ、失敗時は`FAILED`と`error`を発行します。API側はowner・source鍵・動画ID prefix・Shared Key IDを検証し、`ENCODING`、`READY`、`FAILED`の状態と進捗を永続化します。イベントは次の形式です。
+処理中は`RABBITMQ_ENCODE_EVENT_QUEUE`へ`ENCODING`イベントを進捗率付きで発行し、成功時は`READY`とmanifestおよびartifactごとの暗号化メタデータ、失敗時は`FAILED`と`error`を発行します。暗号化メタデータにはチャンクサイズ、nonce、ラップ済みDEK、平文サイズが含まれます。APIは認証済みユーザーへだけartifactをHTTP Rangeでチャンク復号して返します。
 
-```json
-{"contract_version":"v1","video_id":"video-id","owner_id":"owner-id","source_object_key":"staging/source-id","status":"READY","progress":1,"manifest":{"object_key":"videos/video-id/dash/manifest.mpd","encryption":{"algorithm":"AES-256-GCM-CHUNKED-RSA-OAEP-SHA256","chunk_size":1048576,"key_version":"1","nonce":"...","encrypted_data_key":"...","shared_key_id":"shared-key-id"}},"artifacts":{"chunk-stream0-00001.m4s":{"object_key":"videos/video-id/dash/chunk-stream0-00001.m4s","encryption":{"algorithm":"AES-256-GCM-CHUNKED-RSA-OAEP-SHA256","chunk_size":1048576,"key_version":"1","nonce":"...","encrypted_data_key":"...","shared_key_id":"shared-key-id"}}},"occurred_at":"2026-09-20T00:00:00Z"}
-```
-
-S3接続、RabbitMQ、`STAGING_ENCRYPTION_KEY`が必須です。`STAGING_ENCRYPTION_KEY`は32バイトのbase64または16進文字列で、平文や秘密鍵をRabbitMQへ送信しません。
+`S3_ENDPOINT`、`S3_BUCKET`、S3認証情報、`RABBITMQ_URL`、`STAGING_ENCRYPTION_KEY`、`MEDIA_ENCRYPTION_KEY`が必要です。2つの暗号鍵は32バイトのbase64または16進文字列で、RabbitMQへ送信しません。HLSセグメント長は`ENCODER_HLS_SEGMENT_SECONDS`で設定します。

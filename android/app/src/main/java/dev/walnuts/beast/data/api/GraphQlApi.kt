@@ -1,6 +1,5 @@
 package dev.walnuts.beast.data.api
 
-import dev.walnuts.beast.domain.model.EncryptionMetadata
 import dev.walnuts.beast.domain.model.Video
 import dev.walnuts.beast.domain.model.VideoStatus
 import kotlinx.coroutines.Dispatchers
@@ -65,77 +64,45 @@ class OkHttpGraphQlTransport(
 }
 
 object VideoGraphQlOperations {
+    private const val videoFields = """
+      id status tags playCount rating lastPlayedAt progress
+    """
     const val listVideos = """
         query ListVideos {
-          videos {
-            id status encryptedTags playCount rating lastPlayedAt progress
-            encryption { algorithm chunkSize keyVersion nonce encryptedDataKey sharedKeyID }
-          }
+          videos { $videoFields }
         }
     """
     const val rateVideo = """
         mutation RateVideo(${"$"}id: ID!, ${"$"}rating: Int) {
-          rateVideo(id: ${"$"}id, rating: ${"$"}rating) { id status encryptedTags playCount rating lastPlayedAt progress
-            encryption { algorithm chunkSize keyVersion nonce encryptedDataKey sharedKeyID } }
+          rateVideo(id: ${"$"}id, rating: ${"$"}rating) { $videoFields }
         }
     """
     const val recordPlayback = """
         mutation RecordPlayback(${"$"}id: ID!) {
-          recordPlayback(id: ${"$"}id) { id status encryptedTags playCount rating lastPlayedAt progress
-            encryption { algorithm chunkSize keyVersion nonce encryptedDataKey sharedKeyID } }
+          recordPlayback(id: ${"$"}id) { $videoFields }
         }
     """
-    const val registerSharedKey = """
-        mutation RegisterSharedKey(${"$"}input: RegisterSharedKeyInput!) {
-          registerSharedKey(input: ${"$"}input) { id version publicKey status }
+    const val updateTags = """
+        mutation UpdateVideoTags(${"$"}id: ID!, ${"$"}input: UpdateVideoTagsInput!) {
+          updateVideoTags(id: ${"$"}id, input: ${"$"}input) { $videoFields }
         }
     """
-    const val registerDeviceKey = """
-        mutation RegisterDeviceKey(${"$"}input: RegisterDeviceKeyInput!) {
-          registerDeviceKey(input: ${"$"}input) { id deviceID sharedKeyID encryptedSharedPrivateKey }
-        }
-    """
-    const val deviceKeys = """
-        query DeviceKeys {
-          deviceKeys { id deviceID sharedKeyID encryptedSharedPrivateKey }
-        }
-    """
-}
-
-data class SharedKeyRegistration(val version: String, val publicKey: String)
-data class DeviceKeyRegistration(val deviceId: String, val sharedKeyId: String, val encryptedSharedPrivateKey: String)
-
-fun interface EncryptedTagsDecoder {
-    suspend fun decode(video: Video): List<String>
-}
-
-object NoopEncryptedTagsDecoder : EncryptedTagsDecoder {
-    override suspend fun decode(video: Video): List<String> = emptyList()
 }
 
 fun JsonElement.toVideo(apiEndpoint: String = ""): Video {
     val objectValue = jsonObject
     val videoId = objectValue["id"]!!.toString().trim('"')
-    val encryption = objectValue["encryption"]!!.jsonObject
+    val tags = objectValue["tags"]?.jsonArray?.map { it.toString().trim('"') }.orEmpty()
     return Video(
         id = videoId,
         status = VideoStatus.valueOf(objectValue["status"]!!.toString().trim('"')),
-        tags = emptyList(),
+        tags = tags,
         playCount = objectValue["playCount"]!!.toString().toInt(),
         rating = objectValue["rating"]?.takeUnless { it.toString() == "null" }?.toString()?.toInt(),
         lastPlayedAt = objectValue["lastPlayedAt"]?.takeUnless { it.toString() == "null" }?.toString()?.trim('"'),
-        encryption = EncryptionMetadata(
-            algorithm = encryption["algorithm"]!!.toString().trim('"'),
-            chunkSize = encryption["chunkSize"]!!.toString().toInt(),
-            keyVersion = encryption["keyVersion"]!!.toString().trim('"'),
-            nonce = encryption["nonce"]!!.toString().trim('"'),
-            encryptedDataKey = encryption["encryptedDataKey"]!!.toString().trim('"'),
-            sharedKeyId = encryption["sharedKeyID"]!!.toString().trim('"'),
-        ),
-        encryptedTags = objectValue["encryptedTags"]?.toString()?.trim('"'),
-        encryptedDashManifestUrl = apiEndpoint.takeIf(String::isNotBlank)?.let { endpoint ->
+        playbackManifestUrl = apiEndpoint.takeIf(String::isNotBlank)?.let { endpoint ->
             runCatching {
-                endpoint.toHttpUrl().newBuilder().encodedPath("/api/videos/$videoId/dash/manifest.mpd").query(null).build().toString()
+                endpoint.toHttpUrl().newBuilder().encodedPath("/api/videos/$videoId/hls/manifest.m3u8").query(null).build().toString()
             }.getOrNull()
         },
         progress = objectValue["progress"]?.toString()?.toFloat() ?: 0f,

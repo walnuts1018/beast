@@ -7,73 +7,24 @@ enum VideoStatus {
   FAILED
 }
 
-type EncryptionMetadata {
-  algorithm: String!
-  chunkSize: Int!
-  keyVersion: String!
-  nonce: String!
-  encryptedDataKey: String!
-  sharedKeyID: ID!
-}
-
 type Video {
   id: ID!
   status: VideoStatus!
-  encryptedTags: String!
+  tags: [String!]!
   playCount: Int!
   rating: Int
   lastPlayedAt: Time
-  encryption: EncryptionMetadata!
   videoURL: String!
   progress: Float!
 }
 
-type SharedKey {
-  id: ID!
-  version: String!
-  publicKey: String!
-  status: String!
-}
-
-type DeviceKey {
-  id: ID!
-  deviceID: String!
-  sharedKeyID: ID!
-  encryptedSharedPrivateKey: String!
-}
-
-input CreateVideoInput {
-  objectKey: String!
-  encryptedTags: String!
-  sharedKeyID: ID!
-  encryption: EncryptionInput!
-}
-
-input EncryptionInput {
-  algorithm: String!
-  chunkSize: Int!
-  keyVersion: String!
-  nonce: String!
-  encryptedDataKey: String!
-  sharedKeyID: ID!
-}
-
-input RegisterSharedKeyInput {
-  version: String!
-  publicKey: String!
-}
-
-input RegisterDeviceKeyInput {
-  deviceID: String!
-  sharedKeyID: ID!
-  encryptedSharedPrivateKey: String!
+input UpdateVideoTagsInput {
+  tags: [String!]!
 }
 
 type Query {
   videos: [Video!]!
   video(id: ID!): Video
-  sharedKeys: [SharedKey!]!
-  deviceKeys: [DeviceKey!]!
   recommendations(kind: RecommendationKind!): [Video!]!
 }
 
@@ -84,9 +35,7 @@ enum RecommendationKind {
 }
 
 type Mutation {
-  createVideo(input: CreateVideoInput!): Video!
+  updateVideoTags(id: ID!, input: UpdateVideoTagsInput!): Video!
   rateVideo(id: ID!, rating: Int): Video!
   recordPlayback(id: ID!): Video!
-  registerSharedKey(input: RegisterSharedKeyInput!): SharedKey!
-  registerDeviceKey(input: RegisterDeviceKeyInput!): DeviceKey!
 }

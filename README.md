@@ -5,12 +5,12 @@
 ## 構成
 
 - `backend`: Go 1.27、Echo v5、gqlgen、Bob、pgxによるGraphQL APIです。
-- `encoder`: RabbitMQのジョブを受け取り、ffmpegでMPEG-DASHへ変換するワーカーです。まずストリームコピーを試し、失敗した場合だけ軽量なH.264/AACへ再エンコードします。
-- `frontend`: Chrome向けのモバイル優先Web UIです。GraphQL APIへBearer tokenを付けて接続します。
+- `encoder`: RabbitMQのジョブを受け取り、ffmpegでHLS(fMP4)へ変換するワーカーです。H.264、HEVC、AV1とAACの入力はストリームコピーし、それ以外だけH.264/AACへ再エンコードします。
+- `frontend`: 最新のChrome、Safari、Edge、Firefoxを対象にしたモバイル優先Web UIです。hls.jsで認証済みHLSを再生します。
 - `android`: Kotlin、Jetpack Compose、Media3によるスマートフォンUIです。
 - `k8s`: kindで使うローカルoverlayと、本番相当のレンダリングを確認するproduction overlayです。本番のデプロイマニフェストはinfraリポジトリで管理します。
 
-動画本体はランダムなAES-256-GCM Data Keyでチャンク暗号化し、Data KeyをShared KeyのRSA公開鍵でRSA-OAEP-SHA256暗号化します。Shared Key秘密鍵とDevice Key秘密鍵はクライアントだけが保持し、APIやオブジェクトストレージには保存しません。タグも暗号化済みの値だけをAPIへ渡します。
+動画本体はサーバー側でランダムなAES-256-GCM Data Keyを使って固定長チャンク暗号化し、Data Keyをサーバーの鍵でラップして保存します。APIは認証済みリクエストに対して必要なHLSマニフェストやセグメントの範囲だけを復号して返すため、端末鍵の登録やクライアント側復号を必要とせず、複数デバイスで再生できます。タグはサーバー側で暗号化して保存し、GraphQLでは認証済み所有者にだけ平文で返します。
 
 ## 開発
 

@@ -37,6 +37,7 @@ secretGenerator:
       - AWS_ACCESS_KEY_ID=beast
       - AWS_SECRET_ACCESS_KEY=local-seaweedfs-password
       - STAGING_ENCRYPTION_KEY=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      - MEDIA_ENCRYPTION_KEY=abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789
   - name: postgres-credentials
     namespace: beast-data
     literals:

@@ -2,10 +2,12 @@ package httpapi
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"path"
+	"strconv"
 	"strings"
 
 	"github.com/99designs/gqlgen/graphql/handler"
@@ -31,6 +33,11 @@ func (s *Server) Register(e *echo.Echo, auth Authenticator, playgroundEnabled bo
 	e.GET("/healthz", func(c *echo.Context) error { return c.JSON(http.StatusOK, map[string]string{"status": "ok"}) })
 	e.GET("/livez", func(c *echo.Context) error { return c.JSON(http.StatusOK, map[string]string{"status": "ok"}) })
 	e.GET("/readyz", func(c *echo.Context) error { return c.JSON(http.StatusOK, map[string]string{"status": "ok"}) })
+	e.GET("/api/auth/login", auth.Login)
+	e.GET("/api/auth/callback", auth.Callback)
+	e.GET("/api/auth/session", auth.Session)
+	e.POST("/api/auth/logout", auth.Logout)
+	e.GET("/api/auth/logout", auth.Logout)
 	if playgroundEnabled {
 		e.GET("/graphql", echo.WrapHandler(playground.Handler("GraphQL Playground", "/graphql/query")))
 	}
@@ -42,8 +49,7 @@ func (s *Server) Register(e *echo.Echo, auth Authenticator, playgroundEnabled bo
 		})(c)
 	})
 	e.POST("/api/videos/upload", auth.Middleware(s.upload))
-	e.GET("/api/videos/:id/stream", auth.Middleware(s.stream))
-	e.GET("/api/videos/:id/dash/*", auth.Middleware(s.dashArtifact))
+	e.GET("/api/videos/:id/hls/*", auth.Middleware(s.hlsArtifact))
 }
 
 func (s *Server) upload(c *echo.Context) error {
@@ -60,11 +66,6 @@ func (s *Server) upload(c *echo.Context) error {
 	if s.Jobs == nil {
 		return echo.NewHTTPError(http.StatusServiceUnavailable, "video encoding is unavailable")
 	}
-	sharedKeyID := request.FormValue("shared_key_id")
-	key, err := s.Videos.SharedKey(request.Context(), ownerID, sharedKeyID)
-	if err != nil {
-		return echo.NewHTTPError(http.StatusNotFound, "shared key not found")
-	}
 	sourceStore, ok := s.Media.(media.SourceStore)
 	if !ok {
 		return echo.NewHTTPError(http.StatusServiceUnavailable, "source staging requires S3-compatible object storage")
@@ -73,12 +74,19 @@ func (s *Server) upload(c *echo.Context) error {
 	if err := sourceStore.SaveSource(request.Context(), sourceKey, file); err != nil {
 		return echo.NewHTTPError(http.StatusUnprocessableEntity, "stage upload").Wrap(err)
 	}
-	video, err := domain.NewVideo(ownerID, request.FormValue("encrypted_tags"), sourceKey, domain.EncryptionMetadata{ChunkSize: crypto.ChunkSize, KeyVersion: key.Version, SharedKeyID: sharedKeyID})
+	var tags []string
+	if value := request.FormValue("tags"); value != "" {
+		if err := json.Unmarshal([]byte(value), &tags); err != nil {
+			_ = sourceStore.Delete(request.Context(), sourceKey)
+			return echo.NewHTTPError(http.StatusBadRequest, "tags must be a JSON array").Wrap(err)
+		}
+	}
+	video, err := domain.NewServerVideo(ownerID, tags, sourceKey)
 	if err != nil {
 		_ = sourceStore.Delete(request.Context(), sourceKey)
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
-	video.ObjectKey = "videos/" + video.ID + "/dash/manifest.mpd"
+	video.ObjectKey = "videos/" + video.ID + "/hls/manifest.m3u8"
 	video.SourceObjectKey = sourceKey
 	video, err = s.Videos.CreateVideo(request.Context(), video)
 	if err != nil {
@@ -95,7 +103,7 @@ func (s *Server) upload(c *echo.Context) error {
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "start encoding").Wrap(err)
 	}
-	if err := s.Jobs.PublishJob(request.Context(), encoding.Job{ContractVersion: encoding.ContractVersion, VideoID: video.ID, OwnerID: ownerID, SourceObjectKey: sourceKey, OutputPrefix: "videos/" + video.ID + "/dash", PublicKey: key.PublicKey, SharedKeyID: key.ID, KeyVersion: key.Version}); err != nil {
+	if err := s.Jobs.PublishJob(request.Context(), encoding.Job{ContractVersion: encoding.ContractVersion, VideoID: video.ID, OwnerID: ownerID, SourceObjectKey: sourceKey, OutputPrefix: "videos/" + video.ID + "/hls"}); err != nil {
 		if transitionErr := video.TransitionStatus(domain.VideoStatusFailed); transitionErr == nil {
 			video.ErrorMessage = "encoder job could not be queued"
 			_, _ = s.Videos.UpdateVideo(request.Context(), video)
@@ -105,36 +113,8 @@ func (s *Server) upload(c *echo.Context) error {
 	return c.JSON(http.StatusCreated, map[string]any{"id": video.ID, "status": video.Status, "progress": video.Progress})
 }
 
-func (s *Server) stream(c *echo.Context) error {
-	request := c.Request()
-	video, err := s.Videos.GetVideo(request.Context(), graph.OwnerID(request.Context()), c.Param("id"))
-	if err != nil {
-		return echo.NewHTTPError(http.StatusNotFound, "video not found")
-	}
-	if video.Status != domain.VideoStatusReady {
-		return echo.NewHTTPError(http.StatusConflict, "video is not ready")
-	}
-	file, err := s.Media.Open(request.Context(), video.ObjectKey)
-	if err != nil {
-		return echo.NewHTTPError(http.StatusNotFound, "media object not found").Wrap(err)
-	}
-	defer func() { _ = file.Close() }()
-	video, err = s.Videos.RecordPlayback(request.Context(), graph.OwnerID(request.Context()), c.Param("id"))
-	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "record playback").Wrap(err)
-	}
-	c.Response().Header().Set("X-Encryption-Algorithm", video.Encryption.Algorithm)
-	c.Response().Header().Set("X-Encryption-Chunk-Size", fmt.Sprintf("%d", video.Encryption.ChunkSize))
-	c.Response().Header().Set("X-Encryption-Key-Version", video.Encryption.KeyVersion)
-	c.Response().Header().Set("X-Encryption-Nonce", video.Encryption.Nonce)
-	c.Response().Header().Set("X-Encryption-Data-Key", video.Encryption.EncryptedDataKey)
-	c.Response().Header().Set("X-Encryption-Shared-Key-ID", video.Encryption.SharedKeyID)
-	return c.Stream(http.StatusOK, "application/octet-stream", file)
-}
-
-func (s *Server) dashArtifact(c *echo.Context) error {
-	request := c.Request()
-	video, err := s.Videos.GetVideo(request.Context(), graph.OwnerID(request.Context()), c.Param("id"))
+func (s *Server) hlsArtifact(c *echo.Context) error {
+	video, err := s.Videos.GetVideo(c.Request().Context(), graph.OwnerID(c.Request().Context()), c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusNotFound, "video not found")
 	}
@@ -143,32 +123,101 @@ func (s *Server) dashArtifact(c *echo.Context) error {
 	}
 	name := path.Clean(strings.TrimPrefix(c.Param("*"), "/"))
 	if name == "." || name == ".." || strings.HasPrefix(name, "../") || strings.Contains(name, "/../") {
-		return echo.NewHTTPError(http.StatusBadRequest, "invalid DASH artifact")
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid HLS artifact")
 	}
-	artifact, ok := video.DashArtifacts[name]
-	if name == "manifest.mpd" {
-		artifact = domain.DashArtifact{ObjectKey: video.ObjectKey, Encryption: video.Encryption}
+	artifact, ok := video.HLSArtifacts[name]
+	if name == "manifest.m3u8" {
+		artifact = domain.HLSArtifact{ObjectKey: video.ObjectKey, Encryption: video.Encryption}
 		ok = true
 	}
 	if !ok || artifact.ObjectKey == "" {
-		return echo.NewHTTPError(http.StatusNotFound, "DASH artifact not found")
+		return echo.NewHTTPError(http.StatusNotFound, "HLS artifact not found")
 	}
-	file, err := s.Media.Open(request.Context(), artifact.ObjectKey)
-	if err != nil {
-		return echo.NewHTTPError(http.StatusNotFound, "DASH artifact not found").Wrap(err)
-	}
-	defer func() { _ = file.Close() }()
-	setEncryptionHeaders(c, artifact.Encryption)
-	return c.Stream(http.StatusOK, "application/octet-stream", file)
+	return s.serveArtifact(c, artifact.ObjectKey, artifact.Encryption, artifactContentType(name))
 }
 
-func setEncryptionHeaders(c *echo.Context, encryption domain.EncryptionMetadata) {
-	c.Response().Header().Set("X-Encryption-Algorithm", encryption.Algorithm)
-	c.Response().Header().Set("X-Encryption-Chunk-Size", fmt.Sprintf("%d", encryption.ChunkSize))
-	c.Response().Header().Set("X-Encryption-Key-Version", encryption.KeyVersion)
-	c.Response().Header().Set("X-Encryption-Nonce", encryption.Nonce)
-	c.Response().Header().Set("X-Encryption-Data-Key", encryption.EncryptedDataKey)
-	c.Response().Header().Set("X-Encryption-Shared-Key-ID", encryption.SharedKeyID)
+func (s *Server) serveArtifact(c *echo.Context, objectKey string, encryption domain.EncryptionMetadata, contentType string) error {
+	if encryption.Algorithm != crypto.AtRestAlgorithm || encryption.PlaintextSize < 0 {
+		return echo.NewHTTPError(http.StatusInternalServerError, "media encryption metadata is invalid")
+	}
+	start, end, partial, err := requestedRange(c.Request(), encryption.PlaintextSize)
+	if err != nil {
+		c.Response().Header().Set("Content-Range", fmt.Sprintf("bytes */%d", encryption.PlaintextSize))
+		return echo.NewHTTPError(http.StatusRequestedRangeNotSatisfiable, "invalid media range")
+	}
+	metadata := crypto.AtRestResult{Algorithm: encryption.Algorithm, ChunkSize: encryption.ChunkSize, Nonce: encryption.Nonce, EncryptedDataKey: encryption.EncryptedDataKey, PlaintextSize: encryption.PlaintextSize}
+	body, err := s.Media.OpenDecrypted(c.Request().Context(), objectKey, metadata, start, end)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusNotFound, "media object not found").Wrap(err)
+	}
+	defer func() { _ = body.Close() }()
+	response := c.Response()
+	response.Header().Set("Accept-Ranges", "bytes")
+	response.Header().Set("Content-Length", strconv.FormatInt(end-start, 10))
+	if partial {
+		response.Header().Set("Content-Range", fmt.Sprintf("bytes %d-%d/%d", start, end-1, encryption.PlaintextSize))
+	}
+	status := http.StatusOK
+	if partial {
+		status = http.StatusPartialContent
+	}
+	return c.Stream(status, contentType, body)
+}
+
+func requestedRange(request *http.Request, size int64) (start, end int64, partial bool, err error) {
+	if size < 0 {
+		return 0, 0, false, errors.New("negative media size")
+	}
+	value := request.Header.Get("Range")
+	if value == "" {
+		return 0, size, false, nil
+	}
+	if !strings.HasPrefix(value, "bytes=") || strings.Contains(value, ",") {
+		return 0, 0, false, errors.New("only one byte range is supported")
+	}
+	value = strings.TrimPrefix(value, "bytes=")
+	left, right, ok := strings.Cut(value, "-")
+	if !ok {
+		return 0, 0, false, errors.New("invalid byte range")
+	}
+	if left == "" {
+		count, parseErr := strconv.ParseInt(right, 10, 64)
+		if parseErr != nil || count <= 0 {
+			return 0, 0, false, errors.New("invalid suffix range")
+		}
+		if count > size {
+			count = size
+		}
+		return size - count, size, true, nil
+	}
+	start, err = strconv.ParseInt(left, 10, 64)
+	if err != nil || start < 0 || start >= size {
+		return 0, 0, false, errors.New("invalid range start")
+	}
+	end = size
+	if right != "" {
+		last, parseErr := strconv.ParseInt(right, 10, 64)
+		if parseErr != nil || last < start {
+			return 0, 0, false, errors.New("invalid range end")
+		}
+		if last+1 < end {
+			end = last + 1
+		}
+	}
+	return start, end, true, nil
+}
+
+func artifactContentType(name string) string {
+	switch {
+	case strings.HasSuffix(name, ".m3u8"):
+		return "application/vnd.apple.mpegurl"
+	case strings.HasSuffix(name, ".m4s"):
+		return "video/iso.segment"
+	case strings.HasSuffix(name, ".mp4"):
+		return "video/mp4"
+	default:
+		return "application/octet-stream"
+	}
 }
 
 func (s *Server) HandleEncodingEvent(ctx context.Context, event encoding.Event) error {
@@ -229,25 +278,22 @@ func (s *Server) HandleEncodingEvent(ctx context.Context, event encoding.Event) 
 		if event.Progress != 1 {
 			return errors.New("ready event must have complete progress")
 		}
-		if err := validateArtifact(event.Manifest, event.VideoID, video.Encryption.SharedKeyID, video.Encryption.KeyVersion); err != nil {
+		if err := validateArtifact(event.Manifest, event.VideoID); err != nil {
 			return fmt.Errorf("validate manifest artifact: %w", err)
 		}
-		artifacts := make(map[string]domain.DashArtifact, len(event.Artifacts))
+		artifacts := make(map[string]domain.HLSArtifact, len(event.Artifacts))
 		for name, artifact := range event.Artifacts {
-			if err := validateArtifact(artifact, event.VideoID, video.Encryption.SharedKeyID, video.Encryption.KeyVersion); err != nil {
+			if err := validateArtifact(artifact, event.VideoID); err != nil {
 				return fmt.Errorf("validate artifact %q: %w", name, err)
 			}
-			if name == "manifest.mpd" {
-				continue
-			}
-			artifacts[name] = domain.DashArtifact{ObjectKey: artifact.ObjectKey, Encryption: toDomainEncryption(artifact.Encryption)}
+			artifacts[name] = domain.HLSArtifact{ObjectKey: artifact.ObjectKey, Encryption: toDomainEncryption(artifact.Encryption)}
 		}
 		if err := video.TransitionStatus(domain.VideoStatusReady); err != nil {
 			return err
 		}
 		video.ObjectKey = event.Manifest.ObjectKey
 		video.Encryption = toDomainEncryption(event.Manifest.Encryption)
-		video.DashArtifacts = artifacts
+		video.HLSArtifacts = artifacts
 		video.ErrorMessage = ""
 		if err := video.SetProgress(1); err != nil {
 			return err
@@ -261,14 +307,14 @@ func (s *Server) HandleEncodingEvent(ctx context.Context, event encoding.Event) 
 	}
 }
 
-func validateArtifact(artifact encoding.Artifact, videoID, sharedKeyID, keyVersion string) error {
-	prefix := "videos/" + videoID + "/dash/"
-	if !strings.HasPrefix(artifact.ObjectKey, prefix) || artifact.Encryption.SharedKeyID != sharedKeyID || artifact.Encryption.KeyVersion != keyVersion || artifact.Encryption.Algorithm == "" || artifact.Encryption.ChunkSize <= 0 || artifact.Encryption.Nonce == "" || artifact.Encryption.EncryptedDataKey == "" {
+func validateArtifact(artifact encoding.Artifact, videoID string) error {
+	prefix := "videos/" + videoID + "/hls/"
+	if !strings.HasPrefix(artifact.ObjectKey, prefix) || artifact.Encryption.Algorithm != crypto.AtRestAlgorithm || artifact.Encryption.ChunkSize != crypto.AtRestChunkSize || artifact.Encryption.Nonce == "" || artifact.Encryption.EncryptedDataKey == "" || artifact.Encryption.PlaintextSize <= 0 {
 		return errors.New("artifact encryption metadata or object key is invalid")
 	}
 	return nil
 }
 
 func toDomainEncryption(metadata encoding.EncryptionMetadata) domain.EncryptionMetadata {
-	return domain.EncryptionMetadata{Algorithm: metadata.Algorithm, ChunkSize: metadata.ChunkSize, KeyVersion: metadata.KeyVersion, Nonce: metadata.Nonce, EncryptedDataKey: metadata.EncryptedDataKey, SharedKeyID: metadata.SharedKeyID}
+	return domain.EncryptionMetadata{Algorithm: metadata.Algorithm, ChunkSize: metadata.ChunkSize, Nonce: metadata.Nonce, EncryptedDataKey: metadata.EncryptedDataKey, PlaintextSize: metadata.PlaintextSize}
 }

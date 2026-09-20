@@ -7,7 +7,6 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"fmt"
 	"io"
 	"time"
 
@@ -19,10 +18,7 @@ import (
 	"github.com/stephenafamo/bob/dialect/psql/sm"
 	"github.com/stephenafamo/bob/dialect/psql/um"
 	"github.com/stephenafamo/bob/expr"
-	"github.com/stephenafamo/bob/mods"
-	"github.com/stephenafamo/bob/orm"
 	"github.com/stephenafamo/bob/types"
-	"github.com/stephenafamo/bob/types/pgtypes"
 	"github.com/stephenafamo/scan"
 )
 
@@ -39,7 +35,6 @@ type Video struct {
 	EncryptionAlgorithm  string                      `db:"encryption_algorithm" `
 	ChunkSize            int32                       `db:"chunk_size" `
 	EncryptionKeyVersion string                      `db:"encryption_key_version" `
-	SharedKeyID          uuid.UUID                   `db:"shared_key_id" `
 	PlayCount            int64                       `db:"play_count" `
 	Rating               sql.Null[int16]             `db:"rating" `
 	LastPlayedAt         sql.Null[time.Time]         `db:"last_played_at" `
@@ -47,9 +42,7 @@ type Video struct {
 	UpdatedAt            time.Time                   `db:"updated_at" `
 	Progress             float64                     `db:"progress" `
 	ErrorMessage         string                      `db:"error_message" `
-	DashArtifacts        types.JSON[json.RawMessage] `db:"dash_artifacts" `
-
-	R videoR `db:"-" `
+	HLSArtifacts         types.JSON[json.RawMessage] `db:"hls_artifacts" `
 }
 
 // VideoSlice is an alias for a slice of pointers to Video.
@@ -62,23 +55,9 @@ var Videos = psql.NewTablex[*Video, VideoSlice, *VideoSetter]("", "videos", buil
 // VideosQuery is a query on the videos table
 type VideosQuery = *psql.ViewQuery[*Video, VideoSlice]
 
-// videoR is where relationships are stored.
-type videoR struct {
-	SharedKey *SharedKey // videos.videos_shared_key_id_fkey
-	// Loaded reports whether each relationship has been loaded.
-	// A relationship's bool is set by Load*, Preload, ThenLoad, factory builds,
-	// and to-one Attach/Insert operations. To-many Attach/Insert operations leave it unchanged.
-	Loaded videoRLoaded `db:"-" `
-}
-
-// videoRLoaded tracks which relationships on Video have been loaded.
-type videoRLoaded struct {
-	SharedKey bool // videos.videos_shared_key_id_fkey
-}
-
 func buildVideoColumns(tableName string) videoColumns {
 	columnsExpr := expr.NewColumnsExpr(
-		"id", "owner_id", "status", "object_key", "source_object_key", "tags_ciphertext", "tags_nonce", "encrypted_data_key", "encryption_algorithm", "chunk_size", "encryption_key_version", "shared_key_id", "play_count", "rating", "last_played_at", "created_at", "updated_at", "progress", "error_message", "dash_artifacts",
+		"id", "owner_id", "status", "object_key", "source_object_key", "tags_ciphertext", "tags_nonce", "encrypted_data_key", "encryption_algorithm", "chunk_size", "encryption_key_version", "play_count", "rating", "last_played_at", "created_at", "updated_at", "progress", "error_message", "hls_artifacts",
 	)
 
 	if tableName != "" {
@@ -99,7 +78,6 @@ func buildVideoColumns(tableName string) videoColumns {
 		EncryptionAlgorithm:  buildVideoColumn(tableName, "encryption_algorithm"),
 		ChunkSize:            buildVideoColumn(tableName, "chunk_size"),
 		EncryptionKeyVersion: buildVideoColumn(tableName, "encryption_key_version"),
-		SharedKeyID:          buildVideoColumn(tableName, "shared_key_id"),
 		PlayCount:            buildVideoColumn(tableName, "play_count"),
 		Rating:               buildVideoColumn(tableName, "rating"),
 		LastPlayedAt:         buildVideoColumn(tableName, "last_played_at"),
@@ -107,7 +85,7 @@ func buildVideoColumns(tableName string) videoColumns {
 		UpdatedAt:            buildVideoColumn(tableName, "updated_at"),
 		Progress:             buildVideoColumn(tableName, "progress"),
 		ErrorMessage:         buildVideoColumn(tableName, "error_message"),
-		DashArtifacts:        buildVideoColumn(tableName, "dash_artifacts"),
+		HLSArtifacts:         buildVideoColumn(tableName, "hls_artifacts"),
 	}
 }
 
@@ -125,7 +103,6 @@ type videoColumns struct {
 	EncryptionAlgorithm  videoColumn
 	ChunkSize            videoColumn
 	EncryptionKeyVersion videoColumn
-	SharedKeyID          videoColumn
 	PlayCount            videoColumn
 	Rating               videoColumn
 	LastPlayedAt         videoColumn
@@ -133,7 +110,7 @@ type videoColumns struct {
 	UpdatedAt            videoColumn
 	Progress             videoColumn
 	ErrorMessage         videoColumn
-	DashArtifacts        videoColumn
+	HLSArtifacts         videoColumn
 }
 
 // Alias returns the current table alias for the columns set.
@@ -190,7 +167,6 @@ type VideoSetter struct {
 	EncryptionAlgorithm  *string                      `db:"encryption_algorithm" `
 	ChunkSize            *int32                       `db:"chunk_size" `
 	EncryptionKeyVersion *string                      `db:"encryption_key_version" `
-	SharedKeyID          *uuid.UUID                   `db:"shared_key_id" `
 	PlayCount            *int64                       `db:"play_count" `
 	Rating               *sql.Null[int16]             `db:"rating" `
 	LastPlayedAt         *sql.Null[time.Time]         `db:"last_played_at" `
@@ -198,11 +174,11 @@ type VideoSetter struct {
 	UpdatedAt            *time.Time                   `db:"updated_at" `
 	Progress             *float64                     `db:"progress" `
 	ErrorMessage         *string                      `db:"error_message" `
-	DashArtifacts        *types.JSON[json.RawMessage] `db:"dash_artifacts" `
+	HLSArtifacts         *types.JSON[json.RawMessage] `db:"hls_artifacts" `
 }
 
 func (s VideoSetter) SetColumns() []string {
-	vals := make([]string, 0, 20)
+	vals := make([]string, 0, 19)
 	if s.ID != nil {
 		vals = append(vals, "id")
 	}
@@ -236,9 +212,6 @@ func (s VideoSetter) SetColumns() []string {
 	if s.EncryptionKeyVersion != nil {
 		vals = append(vals, "encryption_key_version")
 	}
-	if s.SharedKeyID != nil {
-		vals = append(vals, "shared_key_id")
-	}
 	if s.PlayCount != nil {
 		vals = append(vals, "play_count")
 	}
@@ -260,8 +233,8 @@ func (s VideoSetter) SetColumns() []string {
 	if s.ErrorMessage != nil {
 		vals = append(vals, "error_message")
 	}
-	if s.DashArtifacts != nil {
-		vals = append(vals, "dash_artifacts")
+	if s.HLSArtifacts != nil {
+		vals = append(vals, "hls_artifacts")
 	}
 	return vals
 }
@@ -355,14 +328,6 @@ func (s VideoSetter) Overwrite(t *Video) {
 			return *s.EncryptionKeyVersion
 		}()
 	}
-	if s.SharedKeyID != nil {
-		t.SharedKeyID = func() uuid.UUID {
-			if s.SharedKeyID == nil {
-				return *new(uuid.UUID)
-			}
-			return *s.SharedKeyID
-		}()
-	}
 	if s.PlayCount != nil {
 		t.PlayCount = func() int64 {
 			if s.PlayCount == nil {
@@ -421,12 +386,12 @@ func (s VideoSetter) Overwrite(t *Video) {
 			return *s.ErrorMessage
 		}()
 	}
-	if s.DashArtifacts != nil {
-		t.DashArtifacts = func() types.JSON[json.RawMessage] {
-			if s.DashArtifacts == nil {
+	if s.HLSArtifacts != nil {
+		t.HLSArtifacts = func() types.JSON[json.RawMessage] {
+			if s.HLSArtifacts == nil {
 				return *new(types.JSON[json.RawMessage])
 			}
-			return *s.DashArtifacts
+			return *s.HLSArtifacts
 		}()
 	}
 }
@@ -548,16 +513,6 @@ func (s *VideoSetter) Apply(q *dialect.InsertQuery) {
 				return *s.EncryptionKeyVersion
 			}()).WriteSQL(ctx, w, d, start)
 		}), bob.ExpressionFunc(func(ctx context.Context, w io.StringWriter, d bob.Dialect, start int) ([]any, error) {
-			if s.SharedKeyID == nil {
-				return psql.Raw("DEFAULT").WriteSQL(ctx, w, d, start)
-			}
-			return psql.Arg(func() uuid.UUID {
-				if s.SharedKeyID == nil {
-					return *new(uuid.UUID)
-				}
-				return *s.SharedKeyID
-			}()).WriteSQL(ctx, w, d, start)
-		}), bob.ExpressionFunc(func(ctx context.Context, w io.StringWriter, d bob.Dialect, start int) ([]any, error) {
 			if s.PlayCount == nil {
 				return psql.Raw("DEFAULT").WriteSQL(ctx, w, d, start)
 			}
@@ -630,14 +585,14 @@ func (s *VideoSetter) Apply(q *dialect.InsertQuery) {
 				return *s.ErrorMessage
 			}()).WriteSQL(ctx, w, d, start)
 		}), bob.ExpressionFunc(func(ctx context.Context, w io.StringWriter, d bob.Dialect, start int) ([]any, error) {
-			if s.DashArtifacts == nil {
+			if s.HLSArtifacts == nil {
 				return psql.Raw("DEFAULT").WriteSQL(ctx, w, d, start)
 			}
 			return psql.Arg(func() types.JSON[json.RawMessage] {
-				if s.DashArtifacts == nil {
+				if s.HLSArtifacts == nil {
 					return *new(types.JSON[json.RawMessage])
 				}
-				return *s.DashArtifacts
+				return *s.HLSArtifacts
 			}()).WriteSQL(ctx, w, d, start)
 		}))
 }
@@ -647,7 +602,7 @@ func (s VideoSetter) UpdateMod() bob.Mod[*dialect.UpdateQuery] {
 }
 
 func (s VideoSetter) Expressions(prefix ...string) []bob.Expression {
-	exprs := make([]bob.Expression, 0, 20)
+	exprs := make([]bob.Expression, 0, 19)
 
 	if s.ID != nil {
 		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
@@ -726,13 +681,6 @@ func (s VideoSetter) Expressions(prefix ...string) []bob.Expression {
 		}})
 	}
 
-	if s.SharedKeyID != nil {
-		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
-			psql.Quote(append(prefix, "shared_key_id")...),
-			psql.Arg(s.SharedKeyID),
-		}})
-	}
-
 	if s.PlayCount != nil {
 		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
 			psql.Quote(append(prefix, "play_count")...),
@@ -782,10 +730,10 @@ func (s VideoSetter) Expressions(prefix ...string) []bob.Expression {
 		}})
 	}
 
-	if s.DashArtifacts != nil {
+	if s.HLSArtifacts != nil {
 		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
-			psql.Quote(append(prefix, "dash_artifacts")...),
-			psql.Arg(s.DashArtifacts),
+			psql.Quote(append(prefix, "hls_artifacts")...),
+			psql.Arg(s.HLSArtifacts),
 		}})
 	}
 
@@ -799,7 +747,7 @@ func videoScanMapper(ctx context.Context, cols []string) (scan.BeforeFunc, func(
 		idx int
 		dst func(o *Video) any
 	}
-	targets := make([]target, 0, 20)
+	targets := make([]target, 0, 19)
 	for i, col := range cols {
 		switch col {
 		case "id":
@@ -824,8 +772,6 @@ func videoScanMapper(ctx context.Context, cols []string) (scan.BeforeFunc, func(
 			targets = append(targets, target{i, func(o *Video) any { return &o.ChunkSize }})
 		case "encryption_key_version":
 			targets = append(targets, target{i, func(o *Video) any { return &o.EncryptionKeyVersion }})
-		case "shared_key_id":
-			targets = append(targets, target{i, func(o *Video) any { return &o.SharedKeyID }})
 		case "play_count":
 			targets = append(targets, target{i, func(o *Video) any { return &o.PlayCount }})
 		case "rating":
@@ -840,8 +786,8 @@ func videoScanMapper(ctx context.Context, cols []string) (scan.BeforeFunc, func(
 			targets = append(targets, target{i, func(o *Video) any { return &o.Progress }})
 		case "error_message":
 			targets = append(targets, target{i, func(o *Video) any { return &o.ErrorMessage }})
-		case "dash_artifacts":
-			targets = append(targets, target{i, func(o *Video) any { return &o.DashArtifacts }})
+		case "hls_artifacts":
+			targets = append(targets, target{i, func(o *Video) any { return &o.HLSArtifacts }})
 		}
 	}
 
@@ -916,7 +862,6 @@ func (o *Video) Update(ctx context.Context, exec bob.Executor, s *VideoSetter) e
 		return err
 	}
 
-	o.R = v.R
 	*o = *v
 
 	return nil
@@ -936,7 +881,7 @@ func (o *Video) Reload(ctx context.Context, exec bob.Executor) error {
 	if err != nil {
 		return err
 	}
-	o2.R = o.R
+
 	*o = *o2
 
 	return nil
@@ -993,7 +938,7 @@ func (o VideoSlice) copyMatchingRows(from ...*Video) {
 		if !ok {
 			continue
 		}
-		new.R = old.R
+
 		o[i] = new
 	}
 }
@@ -1117,86 +1062,6 @@ func (o VideoSlice) ReloadAll(ctx context.Context, exec bob.Executor) error {
 	return nil
 }
 
-// SharedKey starts a query for related objects on shared_keys
-func (o *Video) SharedKey(mods ...bob.Mod[*dialect.SelectQuery]) SharedKeysQuery {
-	return SharedKeys.Query(append(mods,
-		sm.Where(SharedKeys.Columns.ID.EQ(psql.Arg(o.SharedKeyID))),
-	)...)
-}
-
-func (os VideoSlice) SharedKey(mods ...bob.Mod[*dialect.SelectQuery]) SharedKeysQuery {
-	pkSharedKeyID := make(pgtypes.Array[uuid.UUID], 0, len(os))
-
-	// the array is only a filter (semi-join), so duplicate keys can be
-	// dropped before they are sent over the wire
-	seenSharedKeyID := make(map[uuid.UUID]struct{}, len(os))
-	for _, o := range os {
-		if o == nil {
-			continue
-		}
-		if _, ok := seenSharedKeyID[o.SharedKeyID]; ok {
-			continue
-		}
-		seenSharedKeyID[o.SharedKeyID] = struct{}{}
-		pkSharedKeyID = append(pkSharedKeyID, o.SharedKeyID)
-	}
-	PKArgExpr := psql.Any(psql.Cast(psql.Arg(pkSharedKeyID), "uuid[]"))
-
-	return SharedKeys.Query(append(mods,
-		sm.Where(SharedKeys.Columns.ID.EQ(PKArgExpr)),
-	)...)
-}
-
-func attachVideoSharedKey0(ctx context.Context, exec bob.Executor, count int, video0 *Video, sharedKey1 *SharedKey) (*Video, error) {
-	setter := &VideoSetter{
-		SharedKeyID: func() *uuid.UUID { return &sharedKey1.ID }(),
-	}
-
-	err := video0.Update(ctx, exec, setter)
-	if err != nil {
-		return nil, fmt.Errorf("attachVideoSharedKey0: %w", err)
-	}
-
-	return video0, nil
-}
-
-func (video0 *Video) InsertSharedKey(ctx context.Context, exec bob.Executor, related *SharedKeySetter) error {
-	var err error
-
-	sharedKey1, err := SharedKeys.Insert(related).One(ctx, exec)
-	if err != nil {
-		return fmt.Errorf("inserting related objects: %w", err)
-	}
-
-	_, err = attachVideoSharedKey0(ctx, exec, 1, video0, sharedKey1)
-	if err != nil {
-		return err
-	}
-
-	video0.R.SharedKey = sharedKey1
-	video0.R.Loaded.SharedKey = true
-
-	sharedKey1.R.Videos = append(sharedKey1.R.Videos, video0)
-
-	return nil
-}
-
-func (video0 *Video) AttachSharedKey(ctx context.Context, exec bob.Executor, sharedKey1 *SharedKey) error {
-	var err error
-
-	_, err = attachVideoSharedKey0(ctx, exec, 1, video0, sharedKey1)
-	if err != nil {
-		return err
-	}
-
-	video0.R.SharedKey = sharedKey1
-	video0.R.Loaded.SharedKey = true
-
-	sharedKey1.R.Videos = append(sharedKey1.R.Videos, video0)
-
-	return nil
-}
-
 type videoWhere[Q psql.Filterable] struct {
 	cols                 videoColumns
 	ID                   psql.WhereMod[Q, uuid.UUID]
@@ -1210,7 +1075,6 @@ type videoWhere[Q psql.Filterable] struct {
 	EncryptionAlgorithm  psql.WhereMod[Q, string]
 	ChunkSize            psql.WhereMod[Q, int32]
 	EncryptionKeyVersion psql.WhereMod[Q, string]
-	SharedKeyID          psql.WhereMod[Q, uuid.UUID]
 	PlayCount            psql.WhereMod[Q, int64]
 	Rating               psql.WhereNullMod[Q, int16]
 	LastPlayedAt         psql.WhereNullMod[Q, time.Time]
@@ -1218,8 +1082,7 @@ type videoWhere[Q psql.Filterable] struct {
 	UpdatedAt            psql.WhereMod[Q, time.Time]
 	Progress             psql.WhereMod[Q, float64]
 	ErrorMessage         psql.WhereMod[Q, string]
-	DashArtifacts        psql.WhereMod[Q, types.JSON[json.RawMessage]]
-	R                    videoWhereR[Q]
+	HLSArtifacts         psql.WhereMod[Q, types.JSON[json.RawMessage]]
 }
 
 func (videoWhere[Q]) AliasedAs(alias string) videoWhere[Q] {
@@ -1240,7 +1103,6 @@ func buildVideoWhere[Q psql.Filterable](cols videoColumns) videoWhere[Q] {
 		EncryptionAlgorithm:  psql.Where[Q, string](cols.EncryptionAlgorithm.Expression),
 		ChunkSize:            psql.Where[Q, int32](cols.ChunkSize.Expression),
 		EncryptionKeyVersion: psql.Where[Q, string](cols.EncryptionKeyVersion.Expression),
-		SharedKeyID:          psql.Where[Q, uuid.UUID](cols.SharedKeyID.Expression),
 		PlayCount:            psql.Where[Q, int64](cols.PlayCount.Expression),
 		Rating:               psql.WhereNull[Q, int16](cols.Rating.Expression),
 		LastPlayedAt:         psql.WhereNull[Q, time.Time](cols.LastPlayedAt.Expression),
@@ -1248,197 +1110,6 @@ func buildVideoWhere[Q psql.Filterable](cols videoColumns) videoWhere[Q] {
 		UpdatedAt:            psql.Where[Q, time.Time](cols.UpdatedAt.Expression),
 		Progress:             psql.Where[Q, float64](cols.Progress.Expression),
 		ErrorMessage:         psql.Where[Q, string](cols.ErrorMessage.Expression),
-		DashArtifacts:        psql.Where[Q, types.JSON[json.RawMessage]](cols.DashArtifacts.Expression),
-		R:                    videoWhereR[Q]{cols: cols},
-	}
-}
-
-// videoWhereR holds the relationship-based filters of
-// videoWhere under the R namespace — mirroring the model's
-// R struct — so they cannot collide with column-based filter fields.
-type videoWhereR[Q psql.Filterable] struct {
-	cols videoColumns
-}
-
-// HasSharedKey filters parents that have a matching SharedKey using a
-// correlated EXISTS subquery (semi-join). Unlike an INNER JOIN it does not
-// multiply parent rows, so no DISTINCT is needed. The optional filters are
-// applied to the subquery (i.e. to SharedKeys).
-func (w videoWhereR[Q]) HasSharedKey(filters ...bob.Mod[*dialect.SelectQuery]) mods.Where[Q] {
-	q := psql.Select(
-		sm.Columns(psql.Raw("1")),
-		sm.From(SharedKeys.NameExpr()),
-		sm.Where(SharedKeys.Columns.ID.EQ(w.cols.SharedKeyID)),
-	)
-	q.Apply(filters...)
-	return mods.Where[Q]{E: psql.Exists(q)}
-}
-
-func (o *Video) Preload(name string, retrieved any) error {
-	if o == nil {
-		return nil
-	}
-
-	switch name {
-	case "SharedKey":
-		rel, ok := retrieved.(*SharedKey)
-		if !ok {
-			return fmt.Errorf("video cannot load %T as %q", retrieved, name)
-		}
-
-		o.R.SharedKey = rel
-		o.R.Loaded.SharedKey = true
-
-		if rel != nil {
-			rel.R.Videos = VideoSlice{o}
-		}
-		return nil
-	default:
-		return fmt.Errorf("video has no relationship %q", name)
-	}
-}
-
-type videoPreloader struct {
-	SharedKey func(...psql.PreloadOption) psql.Preloader
-}
-
-func buildVideoPreloader() videoPreloader {
-	return videoPreloader{
-		SharedKey: func(opts ...psql.PreloadOption) psql.Preloader {
-			return psql.Preload[*SharedKey, SharedKeySlice](psql.PreloadRel{
-				Name: "SharedKey",
-				Sides: []psql.PreloadSide{
-					{
-						From:        Videos,
-						To:          SharedKeys,
-						FromColumns: []string{"shared_key_id"},
-						ToColumns:   []string{"id"},
-					},
-				},
-			}, SharedKeys.Columns.Names(), sharedKeyScanMapperNullable, opts...)
-		},
-	}
-}
-
-type videoThenLoader[Q orm.Loadable] struct {
-	SharedKey func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
-}
-
-func buildVideoThenLoader[Q orm.Loadable]() videoThenLoader[Q] {
-	type SharedKeyLoadInterface interface {
-		LoadSharedKey(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
-	}
-
-	return videoThenLoader[Q]{
-		SharedKey: thenLoadBuilder[Q](
-			"SharedKey",
-			func(ctx context.Context, exec bob.Executor, retrieved SharedKeyLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
-				return retrieved.LoadSharedKey(ctx, exec, mods...)
-			},
-		),
-	}
-}
-
-// LoadSharedKey loads the video's SharedKey into the .R struct
-func (o *Video) LoadSharedKey(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
-	if o == nil {
-		return nil
-	}
-
-	// Reset the relationship
-	o.R.SharedKey = nil
-	o.R.Loaded.SharedKey = false
-
-	related, err := o.SharedKey(mods...).One(ctx, exec)
-	if err != nil {
-		return err
-	}
-
-	related.R.Videos = VideoSlice{o}
-
-	o.R.SharedKey = related
-	o.R.Loaded.SharedKey = true
-	return nil
-}
-
-// LoadSharedKey loads the video's SharedKey into the .R struct
-func (os VideoSlice) LoadSharedKey(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
-	if len(os) == 0 {
-		return nil
-	}
-
-	sharedKeys, err := os.SharedKey(mods...).All(ctx, exec)
-	if err != nil {
-		return err
-	}
-
-	for _, o := range os {
-		if o == nil {
-			continue
-		}
-
-		o.R.SharedKey = nil
-		o.R.Loaded.SharedKey = true
-	}
-	// O(N+M) stitch via a map keyed by the join column (key -> []parent; was O(N*M)).
-	videoByKey := make(map[uuid.UUID][]*Video, len(os))
-	for _, o := range os {
-		if o == nil {
-			continue
-		}
-
-		videoByKey[o.SharedKeyID] = append(videoByKey[o.SharedKeyID], o)
-	}
-
-	for _, rel := range sharedKeys {
-
-		owners, ok := videoByKey[rel.ID]
-		if !ok {
-			continue
-		}
-
-		for _, o := range owners {
-
-			// to-one: keep only the first matching child (matches the previous break)
-			if o.R.SharedKey != nil {
-				continue
-			}
-
-			rel.R.Videos = append(rel.R.Videos, o)
-
-			o.R.SharedKey = rel
-
-		}
-	}
-
-	return nil
-}
-
-type videoJoins[Q dialect.Joinable] struct {
-	typ       string
-	SharedKey modAs[Q, sharedKeyColumns]
-}
-
-func (j videoJoins[Q]) aliasedAs(alias string) videoJoins[Q] {
-	return buildVideoJoins[Q](buildVideoColumns(alias), j.typ)
-}
-
-func buildVideoJoins[Q dialect.Joinable](cols videoColumns, typ string) videoJoins[Q] {
-	return videoJoins[Q]{
-		typ: typ,
-		SharedKey: modAs[Q, sharedKeyColumns]{
-			c: SharedKeys.Columns,
-			f: func(to sharedKeyColumns) bob.Mod[Q] {
-				mods := make(mods.QueryMods[Q], 0, 1)
-
-				{
-					mods = append(mods, dialect.Join[Q](typ, SharedKeys.NameExpr().As(to.Alias())).On(
-						to.ID.EQ(cols.SharedKeyID),
-					))
-				}
-
-				return mods
-			},
-		},
+		HLSArtifacts:         psql.Where[Q, types.JSON[json.RawMessage]](cols.HLSArtifacts.Expression),
 	}
 }

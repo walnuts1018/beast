@@ -1,9 +1,7 @@
-# Beast API
+# APIサーバー
 
-開発環境では`AUTH_MODE=static`と`AUTH_DEV_STATIC_TOKEN`を設定し、`Authorization: Bearer <AUTH_DEV_STATIC_TOKEN>`で認証します。利用者を分離する場合は`X-User-ID`も指定します。productionでは`AUTH_MODE=introspection`が必須で、`X-User-ID`は受け付けません。
+APIサーバーはEchoとgqlgenで認証済みユーザーの動画メタデータを提供し、`POST /api/videos/upload`でmultipartの`file`とJSON配列文字列の`tags`を受け付けます。タグはPostgreSQLへ保存する前に`MEDIA_ENCRYPTION_KEY`でAES-GCM暗号化します。動画のHLS(fMP4)成果物も同じ鍵から生成したオブジェクト単位DEKで暗号化して保存します。
 
-Shared Keyの公開鍵をGraphQLの`registerSharedKey`で登録した後、`POST /api/videos/upload`へmultipartで`file`、`shared_key_id`、`encrypted_tags`を送信します。サーバーは`STAGING_ENCRYPTION_KEY`でstaging objectをチャンク暗号化してS3へ保存し、RabbitMQへ平文や秘密鍵を含まないowner-boundジョブを発行します。エンコーダーはstagingを復号してffmpegでDASH化し、各manifest/segmentをShared Key公開鍵でEnvelope EncryptionしてS3へ保存します。動画が`READY`になった後、`/api/videos/:id/dash/manifest.mpd`を取得し、レスポンスの暗号化メタデータでmanifestと各segmentをクライアント側で復号します。`STAGING_ENCRYPTION_KEY`はAPIとエンコーダーへ同じSecretから注入し、RabbitMQへ送信してはいけません。
+再生時は`/api/videos/:id/hls/manifest.m3u8`と各`init.mp4`、`segment_*.m4s`を認証済みのHTTPリクエストへだけ返します。`Range`を受け取った場合は必要な暗号化チャンクだけをS3から取得し、API内で復号して返すため、端末へ鍵を渡さず複数デバイスで再生できます。レスポンスは`Accept-Ranges`と`Content-Range`を付け、シーク時の再取得量を抑えます。
 
-GraphQLの`createVideo`は、upload endpointで同じ所有者に登録済みの暗号化済み`objectKey`だけを受け付け、暗号化メタデータの一致を検証します。存在しないオブジェクトや他の所有者のオブジェクトからメタデータだけを作成することはできません。
-
-ジョブの契約は`contract_version`、`video_id`、`owner_id`、`source_object_key`、`output_prefix`、`public_key`、`shared_key_id`、`key_version`です。イベントのREADY時にはmanifestと全DASH artifactの暗号化メタデータが含まれ、APIは動画所有者・source鍵・動画ID prefix・Shared Key IDを検証してから状態を更新します。
+staging objectの一時保存だけは`STAGING_ENCRYPTION_KEY`で暗号化し、エンコーダーが入力を取得して削除します。`MEDIA_ENCRYPTION_KEY`と`STAGING_ENCRYPTION_KEY`は分離し、どちらも平文や鍵をRabbitMQへ送信しません。DBアクセスはBob v0.50.0を使用し、sqlcは使用しません。

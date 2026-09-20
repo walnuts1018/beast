@@ -114,15 +114,6 @@ var Videos = Table[
 			Generated: false,
 			AutoIncr:  false,
 		},
-		SharedKeyID: column{
-			Name:      "shared_key_id",
-			DBType:    "uuid",
-			Default:   "",
-			Comment:   "",
-			Nullable:  false,
-			Generated: false,
-			AutoIncr:  false,
-		},
 		PlayCount: column{
 			Name:      "play_count",
 			DBType:    "bigint",
@@ -186,8 +177,8 @@ var Videos = Table[
 			Generated: false,
 			AutoIncr:  false,
 		},
-		DashArtifacts: column{
-			Name:      "dash_artifacts",
+		HLSArtifacts: column{
+			Name:      "hls_artifacts",
 			DBType:    "jsonb",
 			Default:   "'{}'::jsonb",
 			Comment:   "",
@@ -264,17 +255,6 @@ var Videos = Table[
 		Columns: []string{"id"},
 		Comment: "",
 	},
-	ForeignKeys: videoForeignKeys{
-		VideosVideosSharedKeyIDFkey: foreignKey{
-			constraint: constraint{
-				Name:    "videos.videos_shared_key_id_fkey",
-				Columns: []string{"shared_key_id"},
-				Comment: "",
-			},
-			ForeignTable:   "shared_keys",
-			ForeignColumns: []string{"id"},
-		},
-	},
 
 	Checks: videoChecks{
 		VideosChunkSizeCheck: check{
@@ -333,7 +313,6 @@ type videoColumns struct {
 	EncryptionAlgorithm  column
 	ChunkSize            column
 	EncryptionKeyVersion column
-	SharedKeyID          column
 	PlayCount            column
 	Rating               column
 	LastPlayedAt         column
@@ -341,12 +320,12 @@ type videoColumns struct {
 	UpdatedAt            column
 	Progress             column
 	ErrorMessage         column
-	DashArtifacts        column
+	HLSArtifacts         column
 }
 
 func (c videoColumns) AsSlice() []column {
 	return []column{
-		c.ID, c.OwnerID, c.Status, c.ObjectKey, c.SourceObjectKey, c.TagsCiphertext, c.TagsNonce, c.EncryptedDataKey, c.EncryptionAlgorithm, c.ChunkSize, c.EncryptionKeyVersion, c.SharedKeyID, c.PlayCount, c.Rating, c.LastPlayedAt, c.CreatedAt, c.UpdatedAt, c.Progress, c.ErrorMessage, c.DashArtifacts,
+		c.ID, c.OwnerID, c.Status, c.ObjectKey, c.SourceObjectKey, c.TagsCiphertext, c.TagsNonce, c.EncryptedDataKey, c.EncryptionAlgorithm, c.ChunkSize, c.EncryptionKeyVersion, c.PlayCount, c.Rating, c.LastPlayedAt, c.CreatedAt, c.UpdatedAt, c.Progress, c.ErrorMessage, c.HLSArtifacts,
 	}
 }
 
@@ -362,14 +341,10 @@ func (i videoIndexes) AsSlice() []index {
 	}
 }
 
-type videoForeignKeys struct {
-	VideosVideosSharedKeyIDFkey foreignKey
-}
+type videoForeignKeys struct{}
 
 func (f videoForeignKeys) AsSlice() []foreignKey {
-	return []foreignKey{
-		f.VideosVideosSharedKeyIDFkey,
-	}
+	return []foreignKey{}
 }
 
 type videoUniques struct{}

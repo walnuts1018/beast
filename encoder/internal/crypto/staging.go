@@ -17,6 +17,9 @@ func ParseStagingKey(value string) ([]byte, error) {
 	if decoded, err := base64.RawStdEncoding.DecodeString(value); err == nil && len(decoded) == 32 {
 		return decoded, nil
 	}
+	if decoded, err := base64.StdEncoding.DecodeString(value); err == nil && len(decoded) == 32 {
+		return decoded, nil
+	}
 	if decoded, err := hex.DecodeString(value); err == nil && len(decoded) == 32 {
 		return decoded, nil
 	}
@@ -48,14 +51,14 @@ func DecryptStagingTo(dst io.Writer, src io.Reader, key []byte) error {
 			return fmt.Errorf("read staging chunk length: %w", err)
 		}
 		size := binary.BigEndian.Uint32(length[:])
-		if size < uint32(gcm.Overhead()) || size > uint32(ChunkSize+gcm.Overhead()) {
+		if size < uint32(gcm.Overhead()) || size > uint32(AtRestChunkSize+gcm.Overhead()) {
 			return errors.New("staging chunk length is invalid")
 		}
 		sealed := make([]byte, size)
 		if _, err := io.ReadFull(src, sealed); err != nil {
 			return fmt.Errorf("read staging chunk: %w", err)
 		}
-		plain, err := gcm.Open(nil, chunkNonce(nonce, index), sealed, nil)
+		plain, err := gcm.Open(nil, atRestChunkNonce(nonce, index), sealed, nil)
 		if err != nil {
 			return fmt.Errorf("decrypt staging chunk: %w", err)
 		}

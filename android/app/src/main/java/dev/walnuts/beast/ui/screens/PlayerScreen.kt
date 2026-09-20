@@ -44,30 +44,29 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.MediaItem
 import androidx.media3.datasource.DataSource
-import androidx.media3.exoplayer.dash.DashMediaSource
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.hls.HlsMediaSource
 import androidx.media3.ui.PlayerView
 import dev.walnuts.beast.domain.model.Video
 import dev.walnuts.beast.domain.model.PlaybackSource
-import dev.walnuts.beast.media.EncryptedDashDataSource
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable
-fun PlayerScreen(video: Video, encryptedDashDataSourceFactory: DataSource.Factory?, onClose: () -> Unit, onRate: (Video, Int?) -> Unit, onPlaybackRecorded: (Video) -> Unit) {
+fun PlayerScreen(video: Video, authenticatedDataSourceFactory: DataSource.Factory?, onClose: () -> Unit, onRate: (Video, Int?) -> Unit, onPlaybackRecorded: (Video) -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val isPlayablePreview = video.playbackSource == PlaybackSource.DEBUG_PREVIEW && video.playbackUrl != null
-    val isPlayableDash = video.playbackSource == PlaybackSource.ENCRYPTED_DASH && video.encryptedDashManifestUrl != null && encryptedDashDataSourceFactory != null
-    val player = remember(video.id, video.playbackSource, video.playbackUrl, video.encryptedDashManifestUrl, encryptedDashDataSourceFactory) {
+    val isPlayableHls = video.playbackSource == PlaybackSource.AUTHENTICATED_HLS && video.playbackManifestUrl != null && authenticatedDataSourceFactory != null
+    val player = remember(video.id, video.playbackSource, video.playbackUrl, video.playbackManifestUrl, authenticatedDataSourceFactory) {
         ExoPlayer.Builder(context).build().apply {
             video.playbackUrl?.takeIf { isPlayablePreview }?.let {
                 setMediaItem(MediaItem.fromUri(Uri.parse(it)))
                 prepare()
                 playWhenReady = true
             }
-            if (isPlayableDash) {
-                val mediaSource = DashMediaSource.Factory(encryptedDashDataSourceFactory!!).createMediaSource(MediaItem.fromUri(Uri.parse(video.encryptedDashManifestUrl!!)))
+            if (isPlayableHls) {
+                val mediaSource = HlsMediaSource.Factory(authenticatedDataSourceFactory!!).createMediaSource(MediaItem.fromUri(Uri.parse(video.playbackManifestUrl!!)))
                 setMediaSource(mediaSource)
                 prepare()
                 playWhenReady = true
@@ -79,8 +78,8 @@ fun PlayerScreen(video: Video, encryptedDashDataSourceFactory: DataSource.Factor
     DisposableEffect(player) {
         onDispose { player.release() }
     }
-    LaunchedEffect(video.id, video.playbackSource, video.playbackUrl, video.encryptedDashManifestUrl) {
-        if (!isPlayablePreview && !isPlayableDash) return@LaunchedEffect
+    LaunchedEffect(video.id, video.playbackSource, video.playbackUrl, video.playbackManifestUrl) {
+        if (!isPlayablePreview && !isPlayableHls) return@LaunchedEffect
         var playbackRecorded = false
         while (true) {
             if (!playbackRecorded && player.playbackState == androidx.media3.common.Player.STATE_READY) {
@@ -94,10 +93,10 @@ fun PlayerScreen(video: Video, encryptedDashDataSourceFactory: DataSource.Factor
     }
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
-        if (isPlayablePreview || isPlayableDash) {
+        if (isPlayablePreview || isPlayableHls) {
             AndroidView(factory = { PlayerView(it).apply { this.player = player; useController = false } }, modifier = Modifier.fillMaxWidth().align(Alignment.Center))
         } else {
-            Text("暗号化DASHの端末復号器が未接続のため再生できません", color = Color.White, modifier = Modifier.align(Alignment.Center))
+            Text("認証済みHLSを再生できません", color = Color.White, modifier = Modifier.align(Alignment.Center))
         }
         Box(
             Modifier.fillMaxSize().pointerInput(video.id) {
@@ -119,7 +118,7 @@ fun PlayerScreen(video: Video, encryptedDashDataSourceFactory: DataSource.Factor
             Surface(shape = RoundedCornerShape(50), color = Color(0xAA171518)) {
                 Row(Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                     Icon(Icons.Outlined.Lock, null, Modifier.size(13.dp), tint = MaterialTheme.colorScheme.primary)
-                    Text("クライアント復号", style = MaterialTheme.typography.labelSmall, color = Color.White)
+                    Text("サーバー側暗号化", style = MaterialTheme.typography.labelSmall, color = Color.White)
                 }
             }
         }

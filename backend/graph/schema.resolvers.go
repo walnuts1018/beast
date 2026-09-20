@@ -9,29 +9,22 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/walnuts1018/beast/backend/graph/model"
 	"github.com/walnuts1018/beast/backend/internal/domain"
-	"github.com/walnuts1018/beast/backend/internal/store"
 )
 
-// CreateVideo is the resolver for the createVideo field.
-func (r *mutationResolver) CreateVideo(ctx context.Context, input model.CreateVideoInput) (*model.Video, error) {
+// UpdateVideoTags is the resolver for the updateVideoTags field.
+func (r *mutationResolver) UpdateVideoTags(ctx context.Context, id string, input model.UpdateVideoTagsInput) (*model.Video, error) {
 	ownerID := OwnerID(ctx)
 	if ownerID == "" {
 		return nil, errors.New("authentication is required")
 	}
-	if input.Encryption == nil || input.SharedKeyID != input.Encryption.SharedKeyID {
-		return nil, errors.New("shared key IDs must match")
-	}
-	video, err := r.Store.GetVideoByObjectKey(ctx, ownerID, input.ObjectKey)
+	video, err := r.Store.UpdateVideoTags(ctx, ownerID, id, input.Tags)
 	if err != nil {
-		return nil, errors.New("encrypted media object is not registered for this owner")
-	}
-	if video.EncryptedTags != input.EncryptedTags || video.Encryption.SharedKeyID != input.Encryption.SharedKeyID || video.Encryption.KeyVersion != input.Encryption.KeyVersion {
-		return nil, errors.New("video encryption metadata does not match the registered object")
+		return nil, fmt.Errorf("update tags: %w", err)
 	}
 	return videoModel(video), nil
 }
@@ -52,24 +45,6 @@ func (r *mutationResolver) RecordPlayback(ctx context.Context, id string) (*mode
 		return nil, err
 	}
 	return videoModel(video), nil
-}
-
-// RegisterSharedKey is the resolver for the registerSharedKey field.
-func (r *mutationResolver) RegisterSharedKey(ctx context.Context, input model.RegisterSharedKeyInput) (*model.SharedKey, error) {
-	key, err := r.Store.RegisterSharedKey(ctx, store.SharedKey{ID: uuid.New().String(), OwnerID: OwnerID(ctx), Version: input.Version, PublicKey: input.PublicKey, Status: "active"})
-	if err != nil {
-		return nil, err
-	}
-	return &model.SharedKey{ID: key.ID, Version: key.Version, PublicKey: key.PublicKey, Status: key.Status}, nil
-}
-
-// RegisterDeviceKey is the resolver for the registerDeviceKey field.
-func (r *mutationResolver) RegisterDeviceKey(ctx context.Context, input model.RegisterDeviceKeyInput) (*model.DeviceKey, error) {
-	key, err := r.Store.RegisterDeviceKey(ctx, store.DeviceKey{ID: uuid.New().String(), OwnerID: OwnerID(ctx), DeviceID: input.DeviceID, SharedKeyID: input.SharedKeyID, EncryptedSharedPrivateKey: input.EncryptedSharedPrivateKey})
-	if err != nil {
-		return nil, err
-	}
-	return &model.DeviceKey{ID: key.ID, DeviceID: key.DeviceID, SharedKeyID: key.SharedKeyID, EncryptedSharedPrivateKey: key.EncryptedSharedPrivateKey}, nil
 }
 
 // Videos is the resolver for the videos field.
@@ -95,32 +70,6 @@ func (r *queryResolver) Video(ctx context.Context, id string) (*model.Video, err
 		return nil, err
 	}
 	return videoModel(video), nil
-}
-
-// SharedKeys is the resolver for the sharedKeys field.
-func (r *queryResolver) SharedKeys(ctx context.Context) ([]*model.SharedKey, error) {
-	keys, err := r.Store.ListSharedKeys(ctx, OwnerID(ctx))
-	if err != nil {
-		return nil, err
-	}
-	result := make([]*model.SharedKey, 0, len(keys))
-	for _, key := range keys {
-		result = append(result, &model.SharedKey{ID: key.ID, Version: key.Version, PublicKey: key.PublicKey, Status: key.Status})
-	}
-	return result, nil
-}
-
-// DeviceKeysは、端末側でShared Key秘密鍵を復号するための暗号化鍵包みを返す。
-func (r *queryResolver) DeviceKeys(ctx context.Context) ([]*model.DeviceKey, error) {
-	keys, err := r.Store.ListDeviceKeys(ctx, OwnerID(ctx))
-	if err != nil {
-		return nil, err
-	}
-	result := make([]*model.DeviceKey, 0, len(keys))
-	for _, key := range keys {
-		result = append(result, &model.DeviceKey{ID: key.ID, DeviceID: key.DeviceID, SharedKeyID: key.SharedKeyID, EncryptedSharedPrivateKey: key.EncryptedSharedPrivateKey})
-	}
-	return result, nil
 }
 
 // Recommendations is the resolver for the recommendations field.
