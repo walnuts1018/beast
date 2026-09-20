@@ -1,0 +1,10 @@
+.DS_Store
+.idea/
+.gradle/
+android/.gradle/
+android/build/
+android/app/build/
+frontend/node_modules/
+frontend/dist/
+backend/.beast-data/
+.beast-data/

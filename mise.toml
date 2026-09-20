@@ -1,4 +1,44 @@
 [tools]
+go = "1.27.1"
+node = "25.9.0"
 kustomize = "5.8.1"
 kubectl = "1.37.0"
 skaffold = "2.17.1"
+
+[tasks.backend-generate]
+description = "Bobとgqlgenの生成物を更新"
+dir = "backend"
+run = "go generate ./..."
+
+[tasks.backend-test]
+description = "バックエンドのテストを実行"
+dir = "backend"
+run = "go test ./... -v"
+
+[tasks.backend-vet]
+description = "バックエンドのvetを実行"
+dir = "backend"
+run = "go vet ./..."
+
+[tasks.encoder-test]
+description = "エンコーダーのテストを実行"
+dir = "encoder"
+run = "go test ./... -v"
+
+[tasks.frontend-lint]
+description = "フロントエンドのlintを実行"
+dir = "frontend"
+run = "npm run lint"
+
+[tasks.frontend-build]
+description = "フロントエンドをビルド"
+dir = "frontend"
+run = "npm run build"
+
+[tasks.manifest-render]
+description = "Kubernetes overlayをrender"
+run = "kubectl kustomize k8s/overlays/local >/dev/null && kubectl kustomize k8s/overlays/production >/dev/null"
+
+[tasks.android-help]
+description = "Android Gradle設定を確認"
+run = "mise exec gradle@8.10.2 -- gradle -p android help --quiet"
