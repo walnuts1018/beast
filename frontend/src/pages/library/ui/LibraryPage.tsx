@@ -7,11 +7,11 @@ import { ChevronRightIcon, CloseIcon, HomeIcon, LibraryIcon, LockIcon, MoreIcon,
 const previewVideoUrl = 'https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4'
 
 const demoVideos: VideoRecord[] = [
-  { id: 'v-01', durationSeconds: 623, uploadedAt: '2026-09-18', lastPlayedAt: '2026-09-14', playCount: 4, rating: 5, tags: ['旅', '夕方'], encryptedTags: 'demo', thumbnailUrl: '', playbackUrl: previewVideoUrl, progress: 'ready', progressRatio: 1, metadata: { algorithm: 'AES-GCM', chunkSize: 1048576, keyVersion: 'v2', nonce: 'demo', encryptedDataKey: 'demo', sharedKeyId: 'demo' } },
-  { id: 'v-02', durationSeconds: 218, uploadedAt: '2026-09-17', lastPlayedAt: null, playCount: 0, rating: null, tags: ['散歩', '街'], encryptedTags: 'demo', thumbnailUrl: '', playbackUrl: previewVideoUrl, progress: 'ready', progressRatio: 1, metadata: { algorithm: 'AES-GCM', chunkSize: 1048576, keyVersion: 'v2', nonce: 'demo', encryptedDataKey: 'demo', sharedKeyId: 'demo' } },
-  { id: 'v-03', durationSeconds: 496, uploadedAt: '2026-09-12', lastPlayedAt: '2026-09-16', playCount: 9, rating: 4, tags: ['料理', '週末'], encryptedTags: 'demo', thumbnailUrl: '', playbackUrl: previewVideoUrl, progress: 'ready', progressRatio: 1, metadata: { algorithm: 'AES-GCM', chunkSize: 1048576, keyVersion: 'v2', nonce: 'demo', encryptedDataKey: 'demo', sharedKeyId: 'demo' } },
-  { id: 'v-04', durationSeconds: 1280, uploadedAt: '2026-09-11', lastPlayedAt: null, playCount: 0, rating: null, tags: ['旅行'], encryptedTags: 'demo', thumbnailUrl: '', playbackUrl: '', progress: 'encoding', progressRatio: .4, metadata: { algorithm: 'AES-GCM', chunkSize: 1048576, keyVersion: 'v3', nonce: 'demo', encryptedDataKey: 'demo', sharedKeyId: 'demo' } },
-  { id: 'v-05', durationSeconds: 92, uploadedAt: '2026-09-08', lastPlayedAt: '2026-09-15', playCount: 2, rating: 3, tags: ['猫', '日常'], encryptedTags: 'demo', thumbnailUrl: '', playbackUrl: previewVideoUrl, progress: 'ready', progressRatio: 1, metadata: { algorithm: 'AES-GCM', chunkSize: 1048576, keyVersion: 'v2', nonce: 'demo', encryptedDataKey: 'demo', sharedKeyId: 'demo' } },
+  { id: 'v-01', durationSeconds: 623, uploadedAt: '2026-09-18', lastPlayedAt: '2026-09-14', playCount: 4, rating: 5, tags: ['旅', '夕方'], encryptedTags: 'demo', thumbnailUrl: '', playback: 'demo', dashManifestUrl: '', playbackUrl: previewVideoUrl, progress: 'ready', progressRatio: 1, metadata: { algorithm: 'AES-GCM', chunkSize: 1048576, keyVersion: 'v2', nonce: 'demo', encryptedDataKey: 'demo', sharedKeyId: 'demo' } },
+  { id: 'v-02', durationSeconds: 218, uploadedAt: '2026-09-17', lastPlayedAt: null, playCount: 0, rating: null, tags: ['散歩', '街'], encryptedTags: 'demo', thumbnailUrl: '', playback: 'demo', dashManifestUrl: '', playbackUrl: previewVideoUrl, progress: 'ready', progressRatio: 1, metadata: { algorithm: 'AES-GCM', chunkSize: 1048576, keyVersion: 'v2', nonce: 'demo', encryptedDataKey: 'demo', sharedKeyId: 'demo' } },
+  { id: 'v-03', durationSeconds: 496, uploadedAt: '2026-09-12', lastPlayedAt: '2026-09-16', playCount: 9, rating: 4, tags: ['料理', '週末'], encryptedTags: 'demo', thumbnailUrl: '', playback: 'demo', dashManifestUrl: '', playbackUrl: previewVideoUrl, progress: 'ready', progressRatio: 1, metadata: { algorithm: 'AES-GCM', chunkSize: 1048576, keyVersion: 'v2', nonce: 'demo', encryptedDataKey: 'demo', sharedKeyId: 'demo' } },
+  { id: 'v-04', durationSeconds: 1280, uploadedAt: '2026-09-11', lastPlayedAt: null, playCount: 0, rating: null, tags: ['旅行'], encryptedTags: 'demo', thumbnailUrl: '', playback: 'demo', dashManifestUrl: '', playbackUrl: '', progress: 'encoding', progressRatio: .4, metadata: { algorithm: 'AES-GCM', chunkSize: 1048576, keyVersion: 'v3', nonce: 'demo', encryptedDataKey: 'demo', sharedKeyId: 'demo' } },
+  { id: 'v-05', durationSeconds: 92, uploadedAt: '2026-09-08', lastPlayedAt: '2026-09-15', playCount: 2, rating: 3, tags: ['猫', '日常'], encryptedTags: 'demo', thumbnailUrl: '', playback: 'demo', dashManifestUrl: '', playbackUrl: previewVideoUrl, progress: 'ready', progressRatio: 1, metadata: { algorithm: 'AES-GCM', chunkSize: 1048576, keyVersion: 'v2', nonce: 'demo', encryptedDataKey: 'demo', sharedKeyId: 'demo' } },
 ]
 
 type Tab = 'for-you' | 'unwatched' | 'favorites'
@@ -72,8 +72,16 @@ export function LibraryPage() {
   const unwatchedRail = recommendations.UNWATCHED.length ? recommendations.UNWATCHED : unwatched
 
   function openVideo(video: VideoRecord) {
-    if (video.progress !== 'ready' || !video.playbackUrl) {
+    if (video.progress !== 'ready') {
       setError('この動画はまだ端末で再生できません')
+      return
+    }
+    if (video.playback === 'encrypted-dash') {
+      setError('暗号化DASHの端末復号が未接続のため、ブラウザで再生できません')
+      return
+    }
+    if (!video.playbackUrl) {
+      setError('この動画には再生URLがありません')
       return
     }
     setSelectedVideo(video)
@@ -169,7 +177,9 @@ function VideoCard({ video, onOpen, onEdit }: { video: VideoRecord; onOpen: () =
 }
 
 function PlayerDialog({ video, isPlaying, onPlayingChange, onClose, onRate }: { video: VideoRecord; isPlaying: boolean; onPlayingChange: (playing: boolean) => void; onClose: () => void; onRate: (rating: number) => void }) {
-  return <div className="player-backdrop" role="dialog" aria-modal="true" aria-label="動画プレーヤー"><div className="player-panel"><div className="player-top"><button className="icon-button" onClick={onClose} aria-label="閉じる"><CloseIcon /></button><span><LockIcon size={13} /> クライアント側で復号</span></div>{video.playbackUrl ? <video className="player-video" src={video.playbackUrl} controls autoPlay={isPlaying} onPlay={() => onPlayingChange(true)} onPause={() => onPlayingChange(false)} /> : <div className="player-unavailable">復号済みの再生URLがありません。</div>}<div className="player-meta"><div><span className="player-tags">{video.tags.length ? video.tags.map((tag) => `#${tag}`).join('  ') : '暗号化タグ（端末鍵が必要です）'}</span><p>{video.playCount}回再生  ·  {formatDuration(video.durationSeconds)}</p></div><div className="rating-row" aria-label="星評価">{[1, 2, 3, 4, 5].map((rating) => <button key={rating} onClick={() => onRate(rating)} aria-label={`${rating}つ星`}><StarIcon size={22} filled={(video.rating ?? 0) >= rating} /></button>)}</div></div><p className="gesture-hint">ダブルタップで10秒移動 · 長押しで1.75倍速</p></div></div>
+  const isDemoPlayback = video.playback === 'demo' && Boolean(video.playbackUrl)
+  const unavailableMessage = video.playback === 'encrypted-dash' ? '暗号化DASHを端末鍵で復号する再生器が接続されていません。' : '復号済みの再生URLがありません。'
+  return <div className="player-backdrop" role="dialog" aria-modal="true" aria-label="動画プレーヤー"><div className="player-panel"><div className="player-top"><button className="icon-button" onClick={onClose} aria-label="閉じる"><CloseIcon /></button><span><LockIcon size={13} /> クライアント側で復号</span></div>{isDemoPlayback ? <video className="player-video" src={video.playbackUrl} controls autoPlay={isPlaying} onPlay={() => onPlayingChange(true)} onPause={() => onPlayingChange(false)} /> : <div className="player-unavailable">{unavailableMessage}</div>}<div className="player-meta"><div><span className="player-tags">{video.tags.length ? video.tags.map((tag) => `#${tag}`).join('  ') : '暗号化タグ（端末鍵が必要です）'}</span><p>{video.playCount}回再生  ·  {formatDuration(video.durationSeconds)}</p></div><div className="rating-row" aria-label="星評価">{[1, 2, 3, 4, 5].map((rating) => <button key={rating} onClick={() => onRate(rating)} aria-label={`${rating}つ星`}><StarIcon size={22} filled={(video.rating ?? 0) >= rating} /></button>)}</div></div><p className="gesture-hint">ダブルタップで10秒移動 · 長押しで1.75倍速</p></div></div>
 }
 
 function TagDialog({ video, draft, onDraftChange, onClose, onSave }: { video: VideoRecord; draft: string; onDraftChange: (value: string) => void; onClose: () => void; onSave: (event: FormEvent<HTMLFormElement>) => void }) {
