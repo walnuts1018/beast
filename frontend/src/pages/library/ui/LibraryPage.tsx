@@ -19,6 +19,7 @@ const recommendationKinds = ['FAVORITES', 'RECENTLY_UNPLAYED_FAVORITES', 'UNWATC
 
 export function LibraryPage() {
   const demoMode = import.meta.env.VITE_DEMO_MODE === 'true'
+  const [hasSession] = useState(() => demoMode || Boolean(sessionStorage.getItem('beast.access-token')))
   const api = useMemo<VideoApi>(() => new GraphQlVideoApi(), [])
   const [videos, setVideos] = useState<VideoRecord[]>(demoMode ? demoVideos : [])
   const [recommendations, setRecommendations] = useState<Record<RecommendationKind, VideoRecord[]>>({ FAVORITES: [], RECENTLY_UNPLAYED_FAVORITES: [], UNWATCHED: [] })
@@ -33,7 +34,7 @@ export function LibraryPage() {
   const [isPlaying, setIsPlaying] = useState(false)
 
   useEffect(() => {
-    if (demoMode) return
+    if (demoMode || !hasSession) return
     let active = true
     async function loadLibrary() {
       setIsLoading(true)
@@ -55,7 +56,7 @@ export function LibraryPage() {
     }
     void loadLibrary()
     return () => { active = false }
-  }, [api, demoMode])
+  }, [api, demoMode, hasSession])
 
   const allTags = useMemo(() => [...new Set(videos.flatMap((video) => video.tags))], [videos])
   const filteredVideos = useMemo(() => videos.filter((video) => {
@@ -71,7 +72,10 @@ export function LibraryPage() {
   const unwatchedRail = recommendations.UNWATCHED.length ? recommendations.UNWATCHED : unwatched
 
   function openVideo(video: VideoRecord) {
-    if (video.progress !== 'ready') return
+    if (video.progress !== 'ready' || !video.playbackUrl) {
+      setError('この動画はまだ端末で再生できません')
+      return
+    }
     setSelectedVideo(video)
     setIsPlaying(true)
     if (demoMode) {
@@ -100,6 +104,8 @@ export function LibraryPage() {
     setVideos((current) => current.map((item) => item.id === editingVideo.id ? { ...item, tags: [...new Set(tags)] } : item))
     setEditingVideo(null)
   }
+
+  if (!hasSession) return <UnauthenticatedScreen />
 
   return (
     <div className="app-shell">
@@ -163,7 +169,7 @@ function VideoCard({ video, onOpen, onEdit }: { video: VideoRecord; onOpen: () =
 }
 
 function PlayerDialog({ video, isPlaying, onPlayingChange, onClose, onRate }: { video: VideoRecord; isPlaying: boolean; onPlayingChange: (playing: boolean) => void; onClose: () => void; onRate: (rating: number) => void }) {
-  return <div className="player-backdrop" role="dialog" aria-modal="true" aria-label="動画プレーヤー"><div className="player-panel"><div className="player-top"><button className="icon-button" onClick={onClose} aria-label="閉じる"><CloseIcon /></button><span><LockIcon size={13} /> クライアント側で復号</span></div><video className="player-video" src={video.playbackUrl || previewVideoUrl} controls autoPlay={isPlaying} onPlay={() => onPlayingChange(true)} onPause={() => onPlayingChange(false)} /><div className="player-meta"><div><span className="player-tags">{video.tags.length ? video.tags.map((tag) => `#${tag}`).join('  ') : '暗号化タグ（端末鍵が必要です）'}</span><p>{video.playCount}回再生  ·  {formatDuration(video.durationSeconds)}</p></div><div className="rating-row" aria-label="星評価">{[1, 2, 3, 4, 5].map((rating) => <button key={rating} onClick={() => onRate(rating)} aria-label={`${rating}つ星`}><StarIcon size={22} filled={(video.rating ?? 0) >= rating} /></button>)}</div></div><p className="gesture-hint">ダブルタップで10秒移動 · 長押しで1.75倍速</p></div></div>
+  return <div className="player-backdrop" role="dialog" aria-modal="true" aria-label="動画プレーヤー"><div className="player-panel"><div className="player-top"><button className="icon-button" onClick={onClose} aria-label="閉じる"><CloseIcon /></button><span><LockIcon size={13} /> クライアント側で復号</span></div>{video.playbackUrl ? <video className="player-video" src={video.playbackUrl} controls autoPlay={isPlaying} onPlay={() => onPlayingChange(true)} onPause={() => onPlayingChange(false)} /> : <div className="player-unavailable">復号済みの再生URLがありません。</div>}<div className="player-meta"><div><span className="player-tags">{video.tags.length ? video.tags.map((tag) => `#${tag}`).join('  ') : '暗号化タグ（端末鍵が必要です）'}</span><p>{video.playCount}回再生  ·  {formatDuration(video.durationSeconds)}</p></div><div className="rating-row" aria-label="星評価">{[1, 2, 3, 4, 5].map((rating) => <button key={rating} onClick={() => onRate(rating)} aria-label={`${rating}つ星`}><StarIcon size={22} filled={(video.rating ?? 0) >= rating} /></button>)}</div></div><p className="gesture-hint">ダブルタップで10秒移動 · 長押しで1.75倍速</p></div></div>
 }
 
 function TagDialog({ video, draft, onDraftChange, onClose, onSave }: { video: VideoRecord; draft: string; onDraftChange: (value: string) => void; onClose: () => void; onSave: (event: FormEvent<HTMLFormElement>) => void }) {
@@ -171,6 +177,7 @@ function TagDialog({ video, draft, onDraftChange, onClose, onSave }: { video: Vi
 }
 
 function EmptyState() { return <div className="empty-state"><SearchIcon size={22} /><p>条件に合う動画がありません。</p><span>タグやタブを変えて探してみてください。</span></div> }
+function UnauthenticatedScreen() { return <div className="auth-required"><div className="auth-required-mark"><LockIcon size={25} /></div><p className="eyebrow">PRIVATE LIBRARY</p><h1>ログインして<br /><span>動画を再生します。</span></h1><p>このライブラリは所有者だけがアクセスできます。ログイン後にもう一度開いてください。</p><button className="button-primary" onClick={() => window.location.assign('/login')}>ログイン</button></div> }
 function displayTags(video: VideoRecord) { return video.tags.length ? video.tags.join('  ·  ') : '暗号化タグ（復号待ち）' }
 function replaceVideo(videos: VideoRecord[], updated: VideoRecord) { return videos.map((video) => video.id === updated.id ? updated : video) }
 function errorMessage(reason: unknown) { return reason instanceof VideoApiError ? reason.message : '動画ライブラリの取得に失敗しました' }
