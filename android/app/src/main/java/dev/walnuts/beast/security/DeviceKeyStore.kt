@@ -118,7 +118,8 @@ class DeviceKeyStore(context: Context) {
     }
 
     fun decryptSharedPrivateKey(envelopeText: String): ByteArray {
-        val envelope = EncryptedSharedPrivateKey.parse(envelopeText)
+        val serializedEnvelope = runCatching { String(Base64.getDecoder().decode(envelopeText), Charsets.UTF_8) }.getOrDefault(envelopeText)
+        val envelope = EncryptedSharedPrivateKey.parse(serializedEnvelope)
         val privateKey = keyStore.getKey(alias, null) as PrivateKey
         val ephemeralPublicKey = KeyFactory.getInstance("EC").generatePublic(
             X509EncodedKeySpec(envelope.ephemeralPublicKey.decodeBase64()),

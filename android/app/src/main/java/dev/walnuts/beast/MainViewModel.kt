@@ -7,6 +7,7 @@ import dev.walnuts.beast.domain.model.RecommendationKind
 import dev.walnuts.beast.domain.model.Video
 import dev.walnuts.beast.domain.model.isFavorite
 import dev.walnuts.beast.domain.model.recommendationKinds
+import androidx.media3.datasource.DataSource
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -26,7 +27,7 @@ data class LibraryUiState(
     val error: String? = null,
 )
 
-class MainViewModel(private val repository: VideoRepository) : ViewModel() {
+class MainViewModel(private val repository: VideoRepository, val encryptedDashDataSourceFactory: DataSource.Factory? = null) : ViewModel() {
     private val _uiState = MutableStateFlow(LibraryUiState())
     val uiState: StateFlow<LibraryUiState> = _uiState.asStateFlow()
 

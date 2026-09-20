@@ -43,22 +43,32 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.MediaItem
+import androidx.media3.datasource.DataSource
+import androidx.media3.exoplayer.dash.DashMediaSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import dev.walnuts.beast.domain.model.Video
 import dev.walnuts.beast.domain.model.PlaybackSource
+import dev.walnuts.beast.media.EncryptedDashDataSource
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable
-fun PlayerScreen(video: Video, onClose: () -> Unit, onRate: (Video, Int?) -> Unit, onPlaybackRecorded: (Video) -> Unit) {
+fun PlayerScreen(video: Video, encryptedDashDataSourceFactory: DataSource.Factory?, onClose: () -> Unit, onRate: (Video, Int?) -> Unit, onPlaybackRecorded: (Video) -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val isPlayablePreview = video.playbackSource == PlaybackSource.DEBUG_PREVIEW && video.playbackUrl != null
-    val player = remember(video.id, video.playbackSource, video.playbackUrl) {
+    val isPlayableDash = video.playbackSource == PlaybackSource.ENCRYPTED_DASH && video.encryptedDashManifestUrl != null && encryptedDashDataSourceFactory != null
+    val player = remember(video.id, video.playbackSource, video.playbackUrl, video.encryptedDashManifestUrl, encryptedDashDataSourceFactory) {
         ExoPlayer.Builder(context).build().apply {
             video.playbackUrl?.takeIf { isPlayablePreview }?.let {
                 setMediaItem(MediaItem.fromUri(Uri.parse(it)))
+                prepare()
+                playWhenReady = true
+            }
+            if (isPlayableDash) {
+                val mediaSource = DashMediaSource.Factory(encryptedDashDataSourceFactory!!).createMediaSource(MediaItem.fromUri(Uri.parse(video.encryptedDashManifestUrl!!)))
+                setMediaSource(mediaSource)
                 prepare()
                 playWhenReady = true
             }
@@ -69,10 +79,14 @@ fun PlayerScreen(video: Video, onClose: () -> Unit, onRate: (Video, Int?) -> Uni
     DisposableEffect(player) {
         onDispose { player.release() }
     }
-    LaunchedEffect(video.id, video.playbackSource, video.playbackUrl) {
-        if (!isPlayablePreview) return@LaunchedEffect
-        onPlaybackRecorded(video)
+    LaunchedEffect(video.id, video.playbackSource, video.playbackUrl, video.encryptedDashManifestUrl) {
+        if (!isPlayablePreview && !isPlayableDash) return@LaunchedEffect
+        var playbackRecorded = false
         while (true) {
+            if (!playbackRecorded && player.playbackState == androidx.media3.common.Player.STATE_READY) {
+                onPlaybackRecorded(video)
+                playbackRecorded = true
+            }
             val duration = player.duration
             if (duration > 0) playbackProgress = (player.currentPosition.toFloat() / duration).coerceIn(0f, 1f)
             delay(500)
@@ -80,7 +94,7 @@ fun PlayerScreen(video: Video, onClose: () -> Unit, onRate: (Video, Int?) -> Uni
     }
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
-        if (isPlayablePreview) {
+        if (isPlayablePreview || isPlayableDash) {
             AndroidView(factory = { PlayerView(it).apply { this.player = player; useController = false } }, modifier = Modifier.fillMaxWidth().align(Alignment.Center))
         } else {
             Text("暗号化DASHの端末復号器が未接続のため再生できません", color = Color.White, modifier = Modifier.align(Alignment.Center))

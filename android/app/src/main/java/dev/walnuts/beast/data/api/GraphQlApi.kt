@@ -17,6 +17,7 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.HttpUrl.Companion.toHttpUrl
 
 @Serializable
 data class GraphQlError(val message: String)
@@ -94,6 +95,11 @@ object VideoGraphQlOperations {
           registerDeviceKey(input: ${"$"}input) { id deviceID sharedKeyID encryptedSharedPrivateKey }
         }
     """
+    const val deviceKeys = """
+        query DeviceKeys {
+          deviceKeys { id deviceID sharedKeyID encryptedSharedPrivateKey }
+        }
+    """
 }
 
 data class SharedKeyRegistration(val version: String, val publicKey: String)
@@ -107,11 +113,12 @@ object NoopEncryptedTagsDecoder : EncryptedTagsDecoder {
     override suspend fun decode(video: Video): List<String> = emptyList()
 }
 
-fun JsonElement.toVideo(): Video {
+fun JsonElement.toVideo(apiEndpoint: String = ""): Video {
     val objectValue = jsonObject
+    val videoId = objectValue["id"]!!.toString().trim('"')
     val encryption = objectValue["encryption"]!!.jsonObject
     return Video(
-        id = objectValue["id"]!!.toString().trim('"'),
+        id = videoId,
         status = VideoStatus.valueOf(objectValue["status"]!!.toString().trim('"')),
         tags = emptyList(),
         playCount = objectValue["playCount"]!!.toString().toInt(),
@@ -126,6 +133,11 @@ fun JsonElement.toVideo(): Video {
             sharedKeyId = encryption["sharedKeyID"]!!.toString().trim('"'),
         ),
         encryptedTags = objectValue["encryptedTags"]?.toString()?.trim('"'),
+        encryptedDashManifestUrl = apiEndpoint.takeIf(String::isNotBlank)?.let { endpoint ->
+            runCatching {
+                endpoint.toHttpUrl().newBuilder().encodedPath("/api/videos/$videoId/dash/manifest.mpd").query(null).build().toString()
+            }.getOrNull()
+        },
         progress = objectValue["progress"]?.toString()?.toFloat() ?: 0f,
     )
 }

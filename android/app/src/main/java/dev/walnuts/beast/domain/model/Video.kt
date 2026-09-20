@@ -30,6 +30,7 @@ data class Video(
     val encryptedTags: String? = null,
     val thumbnailUrl: String? = null,
     val playbackSource: PlaybackSource = PlaybackSource.ENCRYPTED_DASH,
+    val encryptedDashManifestUrl: String? = null,
     val playbackUrl: String? = null,
     val durationSeconds: Long? = null,
     val progress: Float = if (status == VideoStatus.READY) 1f else 0f,

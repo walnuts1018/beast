@@ -10,6 +10,7 @@ import dev.walnuts.beast.domain.model.EncryptionMetadata
 import dev.walnuts.beast.domain.model.Video
 import dev.walnuts.beast.domain.model.VideoStatus
 import dev.walnuts.beast.domain.model.PlaybackSource
+import dev.walnuts.beast.security.DeviceKeySession
 import kotlinx.coroutines.delay
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.JsonNull
@@ -26,12 +27,15 @@ interface VideoRepository {
 class GraphQlVideoRepository(
     private val transport: GraphQlTransport,
     private val accessTokenProvider: suspend () -> String?,
+    private val apiEndpoint: String,
+    private val deviceKeySession: DeviceKeySession,
     private val encryptedTagsDecoder: EncryptedTagsDecoder = NoopEncryptedTagsDecoder,
 ) : VideoRepository {
     override suspend fun listVideos(): List<Video> {
+        deviceKeySession.ensureReady()
         val token = requireToken()
         return transport.execute(GraphQlOperation("ListVideos", VideoGraphQlOperations.listVideos), token)
-            .getOrThrow().jsonObject["videos"]!!.jsonArray.map { it.toVideo() }.map { video ->
+            .getOrThrow().jsonObject["videos"]!!.jsonArray.map { it.toVideo(apiEndpoint) }.map { video ->
                 video.copy(tags = encryptedTagsDecoder.decode(video))
             }
     }
@@ -47,7 +51,7 @@ class GraphQlVideoRepository(
 
     private suspend fun executeVideoMutation(name: String, fieldName: String, query: String, variables: kotlinx.serialization.json.JsonObject, videoId: String): Video {
         val result = transport.execute(GraphQlOperation(name, query, variables), requireToken()).getOrThrow().jsonObject
-        return result[fieldName]?.toVideo() ?: error("$name did not return video $videoId")
+        return result[fieldName]?.toVideo(apiEndpoint) ?: error("$name did not return video $videoId")
     }
 
     private suspend fun requireToken(): String = accessTokenProvider() ?: error("ログインセッションがありません")

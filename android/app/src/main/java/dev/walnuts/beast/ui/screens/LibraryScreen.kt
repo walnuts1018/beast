@@ -62,7 +62,7 @@ fun LibraryScreen(viewModel: MainViewModel, paddingValues: PaddingValues) {
     val filtered = viewModel.filteredVideos()
     Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         if (state.playingVideo != null) {
-            PlayerScreen(state.playingVideo!!, viewModel::closePlayer, viewModel::rate, viewModel::recordPlayback)
+            PlayerScreen(state.playingVideo!!, viewModel.encryptedDashDataSourceFactory, viewModel::closePlayer, viewModel::rate, viewModel::recordPlayback)
         } else {
             LazyColumn(contentPadding = PaddingValues(top = paddingValues.calculateTopPadding() + 24.dp, bottom = paddingValues.calculateBottomPadding() + 24.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
                 item { LibraryHeader(state.searchQuery, viewModel::setSearchQuery) }
