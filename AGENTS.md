@@ -17,6 +17,7 @@
     - Prefer the longest practical wait timeout rather than frequent short polling.
     - If a wait times out and the agent is still running, do not immediately enter a repeated wait loop unless there is no other productive work available.
     - Collect and integrate completed subagent results in batches where possible.
+- 積極的に既存のライブラリを活用して。車輪の再発明は避けて。本当に必要な時だけ最小限の自前実装して。
 
 ## 作成するサービスの概要
 
