@@ -1,0 +1,4 @@
+[tools]
+kustomize = "5.8.1"
+kubectl = "1.37.0"
+skaffold = "2.17.1"

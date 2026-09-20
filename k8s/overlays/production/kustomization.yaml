@@ -1,0 +1,19 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base
+  - external-secrets.yaml
+  - ingress.yaml
+configMapGenerator:
+  - name: beast-config
+    namespace: beast
+    behavior: merge
+    literals:
+      - AUTH_MODE=introspection
+      - OIDC_INTROSPECTION_URL=https://auth.walnuts.dev/oauth/v2/introspect
+      - POSTGRES_HOST=postgresql-rw.postgres.svc.cluster.local
+      - POSTGRES_SSLMODE=verify-full
+      - S3_ENDPOINT=https://s3.walnuts.dev
+      - AWS_ENDPOINT_URL=https://s3.walnuts.dev
+patches:
+  - path: image-pull-policy.yaml

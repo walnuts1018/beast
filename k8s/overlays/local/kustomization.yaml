@@ -1,0 +1,52 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base
+  - namespace.yaml
+  - postgres.yaml
+  - rabbitmq.yaml
+  - seaweedfs.yaml
+  - bucket-job.yaml
+  - network-policy.yaml
+configMapGenerator:
+  - name: beast-config
+    namespace: beast
+    behavior: merge
+    literals:
+      - AUTH_MODE=static
+      - AUTH_DEV_STATIC_SUBJECT=local-user
+      - POSTGRES_HOST=postgres.beast-data.svc.cluster.local
+      - POSTGRES_SSLMODE=disable
+      - S3_ENDPOINT=http://seaweedfs.beast-data.svc.cluster.local:8333
+      - AWS_ENDPOINT_URL=http://seaweedfs.beast-data.svc.cluster.local:8333
+      - RABBITMQ_URL=amqp://beast:local-rabbitmq-password@rabbitmq.beast-data.svc.cluster.local:5672/
+secretGenerator:
+  - name: beast-runtime
+    namespace: beast
+    literals:
+      - POSTGRES_USER=beast
+      - POSTGRES_PASSWORD=local-postgres-password
+      - POSTGRES_DB=beast
+      - S3_ACCESS_KEY_ID=beast
+      - S3_SECRET_ACCESS_KEY=local-seaweedfs-password
+      - AWS_ACCESS_KEY_ID=beast
+      - AWS_SECRET_ACCESS_KEY=local-seaweedfs-password
+      - AUTH_DEV_STATIC_TOKEN=local-development-token
+      - OIDC_CLIENT_ID=unused-local-client
+      - OIDC_CLIENT_SECRET=unused-local-secret
+  - name: postgres-credentials
+    namespace: beast-data
+    literals:
+      - username=beast
+      - password=local-postgres-password
+  - name: rabbitmq-credentials
+    namespace: beast-data
+    literals:
+      - RABBITMQ_DEFAULT_USER=beast
+      - RABBITMQ_DEFAULT_PASS=local-rabbitmq-password
+  - name: seaweedfs-s3-config
+    namespace: beast-data
+    files:
+      - s3.json
+patches:
+  - path: image-pull-policy.yaml

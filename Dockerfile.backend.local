@@ -1,0 +1,11 @@
+# syntax=docker/dockerfile:1.21
+
+FROM golang:1.27-trixie
+
+WORKDIR /workspace
+COPY backend/go.mod ./backend/
+RUN cd backend && go mod download
+COPY backend ./backend
+
+EXPOSE 8080
+CMD ["go", "run", "."]

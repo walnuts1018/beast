@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: beast-config
+  namespace: beast
+data:
+  PORT: "8080"
+  LOG_LEVEL: info
+  LOG_TYPE: json
+  POSTGRES_PORT: "5432"
+  POSTGRES_DB: beast
+  POSTGRES_SSLMODE: require
+  POSTGRES_MAX_OPEN_CONNS: "20"
+  POSTGRES_MAX_IDLE_CONNS: "20"
+  S3_REGION: us-east-1
+  AWS_REGION: us-east-1
+  S3_BUCKET: beast
+  S3_USE_PATH_STYLE: "true"
+  S3_ENDPOINT: https://s3.example.invalid
+  UPLOAD_URL_TTL: 15m
+  RABBITMQ_ENCODE_JOB_QUEUE: beast.encoder.jobs
+  RABBITMQ_ENCODE_EVENT_QUEUE: beast.encoder.events
+  ENCODER_POLL_INTERVAL: 5s
+  ENCODER_WORK_DIR: /tmp/beast-encoder
+  ENCODER_DASH_SEGMENT_SECONDS: "4"
+  FFMPEG_PATH: ffmpeg
+  FFPROBE_PATH: ffprobe

@@ -1,0 +1,20 @@
+# syntax=docker/dockerfile:1.21
+
+FROM golang:1.27-trixie AS build
+
+WORKDIR /src
+COPY backend/go.mod ./backend/
+RUN --mount=type=cache,target=/go/pkg/mod \
+    cd backend && go mod download
+
+COPY backend ./backend
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build,sharing=locked \
+    CGO_ENABLED=0 GOOS=linux GOARCH=$TARGETARCH go build -trimpath -ldflags='-s -w' -o /out/beast-backend .
+
+FROM gcr.io/distroless/static-debian13:nonroot
+
+COPY --from=build /out/beast-backend /beast-backend
+EXPOSE 8080
+USER nonroot:nonroot
+ENTRYPOINT ["/beast-backend"]

@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: beast-encoder
+  namespace: beast
+  labels:
+    app.kubernetes.io/name: encoder
+    app.kubernetes.io/part-of: beast
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: encoder
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: encoder
+        app.kubernetes.io/part-of: beast
+    spec:
+      serviceAccountName: beast
+      automountServiceAccountToken: false
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+      containers:
+        - name: encoder
+          image: ghcr.io/walnuts1018/beast/encoder:latest
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: beast-config
+            - secretRef:
+                name: beast-runtime
+          ports: []
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: "2"
+              memory: 1Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: work
+              mountPath: /tmp/beast-encoder
+      volumes:
+        - name: work
+          emptyDir: {}
+      terminationGracePeriodSeconds: 30

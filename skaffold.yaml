@@ -1,0 +1,44 @@
+apiVersion: skaffold/v4beta13
+kind: Config
+metadata:
+  name: beast
+
+build:
+  local:
+    useBuildkit: true
+  artifacts:
+    - image: ghcr.io/walnuts1018/beast/backend
+      context: .
+      docker:
+        dockerfile: Dockerfile.backend
+    - image: ghcr.io/walnuts1018/beast/encoder
+      context: encoder
+      docker:
+        dockerfile: Dockerfile
+    - image: ghcr.io/walnuts1018/beast/frontend
+      context: .
+      docker:
+        dockerfile: Dockerfile.frontend
+
+manifests:
+  kustomize:
+    paths:
+      - k8s/overlays/local
+
+deploy:
+  kubectl: {}
+
+profiles:
+  - name: production
+    manifests:
+      kustomize:
+        paths:
+          - k8s/overlays/production
+    deploy:
+      kubectl: {}
+
+  - name: production-render
+    manifests:
+      kustomize:
+        paths:
+          - k8s/overlays/production

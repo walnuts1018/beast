@@ -1,0 +1,58 @@
+name: Kubernetes manifests
+
+on:
+  pull_request:
+    paths:
+      - Dockerfile*
+      - deploy/**
+      - k8s/**
+      - skaffold*.yaml
+      - .github/workflows/manifests.yml
+  push:
+    branches: [main]
+    paths:
+      - Dockerfile*
+      - deploy/**
+      - k8s/**
+      - skaffold*.yaml
+      - .github/workflows/manifests.yml
+
+permissions:
+  contents: read
+
+jobs:
+  render:
+    name: Render Kubernetes manifests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: v1.37.0
+
+      - name: Render local overlay
+        run: kubectl kustomize k8s/overlays/local > /tmp/beast-local.yaml
+
+      - name: Validate local overlay
+        run: kubectl apply --dry-run=client -f /tmp/beast-local.yaml
+
+      - name: Render production overlay
+        run: kubectl kustomize k8s/overlays/production > /tmp/beast-production.yaml
+
+      - name: Check referenced files
+        run: |
+          test -f Dockerfile.backend
+          test -f Dockerfile.frontend
+          test -f encoder/Dockerfile
+          test -f deploy/nginx/default.conf
+          test -f k8s/overlays/local/kustomization.yaml
+          test -f k8s/overlays/production/kustomization.yaml
+
+      - name: Set up mise
+        uses: jdx/mise-action@v2
+
+      - name: Render with Skaffold
+        run: mise exec -- skaffold render --offline --digest-source=none --profile production > /tmp/beast-skaffold.yaml

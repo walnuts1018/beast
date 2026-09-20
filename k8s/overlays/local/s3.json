@@ -1,0 +1,14 @@
+{
+  "identities": [
+    {
+      "name": "beast",
+      "credentials": [
+        {
+          "accessKey": "beast",
+          "secretKey": "local-seaweedfs-password"
+        }
+      ],
+      "actions": ["Read", "Write", "List", "Tagging"]
+    }
+  ]
+}

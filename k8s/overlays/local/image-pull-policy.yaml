@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: beast-apiserver
+  namespace: beast
+spec:
+  template:
+    spec:
+      containers:
+        - name: apiserver
+          imagePullPolicy: IfNotPresent
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: beast-encoder
+  namespace: beast
+spec:
+  template:
+    spec:
+      containers:
+        - name: encoder
+          imagePullPolicy: IfNotPresent
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: beast-frontend
+  namespace: beast
+spec:
+  template:
+    spec:
+      containers:
+        - name: frontend
+          imagePullPolicy: IfNotPresent
