@@ -42,6 +42,7 @@ data class EncryptedSharedPrivateKey(
 
 data class DataKeyEnvelope(
     val algorithm: String,
+    val chunkSize: Int,
     val keyVersion: String,
     val nonce: ByteArray,
     val encryptedDataKey: ByteArray,
