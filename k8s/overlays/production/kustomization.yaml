@@ -19,8 +19,8 @@ patches:
   - path: image-pull-policy.yaml
 images:
   - name: ghcr.io/walnuts1018/beast/backend
-    newTag: 835237b
+    newTag: 835237b-amd64
   - name: ghcr.io/walnuts1018/beast/encoder
-    newTag: 835237b
+    newTag: 835237b-amd64
   - name: ghcr.io/walnuts1018/beast/frontend
-    newTag: 835237b
+    newTag: 835237b-amd64
