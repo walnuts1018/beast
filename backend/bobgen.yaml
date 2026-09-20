@@ -1,0 +1,22 @@
+no_tests: true
+type_system: database/sql
+plugins:
+  dbinfo:
+    destination: internal/db/generated/dbinfo
+  enums:
+    destination: internal/db/generated/enums
+  models:
+    destination: internal/db/generated/models
+  factory:
+    disabled: true
+  queries:
+    disabled: true
+  dberrors:
+    pkgname: dberrors
+    destination: internal/db/generated/dberrors
+sql:
+  dialect: psql
+  driver: github.com/jackc/pgx/v5/stdlib
+  pattern: internal/store/migrations/*.sql
+  uuid_pkg: google
+  driver_image: postgres:16
